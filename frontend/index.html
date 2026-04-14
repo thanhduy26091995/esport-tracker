@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FC25 Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        /* Brand */
+        --color-primary: #2563eb;
+        --color-primary-light: #eff6ff;
+        --color-primary-dark: #1d4ed8;
+
+        /* Sidebar */
+        --sidebar-bg: #0f172a;
+        --sidebar-active: #1d4ed8;
+        --sidebar-hover: #1e293b;
+        --sidebar-text: #94a3b8;
+        --sidebar-text-active: #ffffff;
+        --sidebar-border: #1e293b;
+
+        /* Surface */
+        --surface-page: #f1f5f9;
+        --surface-card: #ffffff;
+        --surface-subtle: #f8fafc;
+
+        /* Text */
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #94a3b8;
+        --text-label: #64748b;
+
+        /* Border */
+        --border-default: #e2e8f0;
+        --border-subtle: #f1f5f9;
+
+        /* Semantic colors */
+        --color-success: #16a34a;
+        --color-success-bg: #f0fdf4;
+        --color-success-border: #bbf7d0;
+
+        --color-warning: #d97706;
+        --color-warning-bg: #fffbeb;
+        --color-warning-border: #fde68a;
+
+        --color-danger: #dc2626;
+        --color-danger-bg: #fef2f2;
+        --color-danger-border: #fecaca;
+
+        --color-info: #2563eb;
+        --color-info-bg: #eff6ff;
+        --color-info-border: #bfdbfe;
+
+        /* Shadows */
+        --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+        --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+        --shadow-elevated: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.06);
+      }
+
+      * { box-sizing: border-box; }
+
+      html {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        background-color: var(--surface-page);
+        color: var(--text-primary);
+      }
+
+      #app {
+        width: 100%;
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

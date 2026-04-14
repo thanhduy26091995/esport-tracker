@@ -1,0 +1,8 @@
+.env
+.env.local
+.env.production
+bin/
+*.exe
+*.log
+*.out
+.DS_Store
