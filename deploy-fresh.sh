@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # deploy-fresh.sh — First-time setup on a fresh Ubuntu 22.04 VPS
 #
 # Usage:
@@ -6,7 +6,7 @@
 #   2. Edit the CONFIG section below
 #   3. bash deploy-fresh.sh
 
-set -euo pipefail
+set -eu
 
 # ══════════════════════════════════════════════════════════════
 # CONFIG — edit these before running

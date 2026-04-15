@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # deploy-update.sh — Re-deploy after copying updated code to the VPS
 #
 # Usage:
 #   1. Copy your updated code to APP_DIR (e.g. via scp/rsync)
 #   2. bash deploy-update.sh
 
-set -euo pipefail
+set -eu
 
 # ══════════════════════════════════════════════════════════════
 # CONFIG — must match deploy-fresh.sh
