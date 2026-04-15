@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# deploy-update.sh — Re-deploy after copying updated code to the VPS
+# deploy-update.sh — Re-deploy after updating code on the VPS
 #
 # Usage:
-#   1. Copy your updated code to APP_DIR (e.g. via scp/rsync)
-#   2. bash deploy-update.sh
+#   bash deploy-update.sh   ← must be bash, not sh
 
 set -eu
 
 # ══════════════════════════════════════════════════════════════
 # CONFIG — must match deploy-fresh.sh
 # ══════════════════════════════════════════════════════════════
-APP_DIR="/opt/esport"
+APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_PORT=8080
 # ══════════════════════════════════════════════════════════════
 
@@ -44,7 +43,7 @@ fi
 # ── 3. Rebuild frontend ───────────────────────────────────────
 step "3/4 — Rebuild frontend"
 cd "$APP_DIR/frontend"
-npm ci --silent
+npm install --silent
 npm run build
 log "Frontend rebuilt."
 
