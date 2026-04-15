@@ -74,6 +74,7 @@
         :users="userStore.users"
         :loading="matchStore.loading"
         :debt-threshold="configStore.debtThreshold"
+        :points-per-win="configStore.pointsPerWin"
         @submit="handleSubmitMatch"
         @cancel="handleCancelMatch"
       />

@@ -40,7 +40,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	configService := service.NewConfigService(configRepo)
 	fundService := service.NewFundService(fundRepo)
 	settlementService := service.NewSettlementService(settlementRepo, userRepo, matchRepo, fundService, configService, db)
-	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, db)
+	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, db)
 
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)
@@ -79,8 +79,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		config := v1.Group("/config")
 		{
 			config.GET("", configHandler.GetAll)           // GET /api/v1/config
-			config.GET("/:key", configHandler.GetByKey)    // GET /api/v1/config/:key
-			config.PUT("/:key", configHandler.Update)      // PUT /api/v1/config/:key
+			config.PUT("", configHandler.UpdateAll)         // PUT /api/v1/config  (bulk)
+			config.GET("/:key", configHandler.GetByKey)     // GET /api/v1/config/:key
+			config.PUT("/:key", configHandler.Update)       // PUT /api/v1/config/:key
 		}
 
 		// Fund routes
@@ -90,7 +91,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			fund.GET("/stats", fundHandler.GetStats)       // GET /api/v1/fund/stats
 			fund.GET("/transactions", fundHandler.GetTransactions) // GET /api/v1/fund/transactions
 			fund.POST("/deposit", fundHandler.CreateDeposit)       // POST /api/v1/fund/deposit
-			fund.POST("/withdrawal", fundHandler.CreateWithdrawal) // POST /api/v1/fund/withdrawal
+			fund.POST("/withdraw", fundHandler.CreateWithdrawal)  // POST /api/v1/fund/withdraw
 		}
 
 		// Settlement routes

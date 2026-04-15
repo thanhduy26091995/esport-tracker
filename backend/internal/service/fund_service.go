@@ -131,13 +131,25 @@ func (s *FundService) GetFundStats() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	totalTransactions, err := s.fundRepo.CountTotal()
+	totalDeposits, err := s.fundRepo.GetTotalByType("deposit")
+	if err != nil {
+		return nil, err
+	}
+
+	totalWithdrawals, err := s.fundRepo.GetTotalByType("withdrawal")
+	if err != nil {
+		return nil, err
+	}
+
+	settlementDeposits, err := s.fundRepo.CountSettlementDeposits()
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]interface{}{
-		"current_balance":     balance,
-		"total_transactions":  totalTransactions,
+		"balance":             balance,
+		"total_deposits":      totalDeposits,
+		"total_withdrawals":   totalWithdrawals,
+		"settlement_deposits": settlementDeposits,
 	}, nil
 }

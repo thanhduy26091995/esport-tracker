@@ -35,9 +35,10 @@ func (r *ConfigRepository) Update(config *model.Config) error {
 	return r.db.Save(config).Error
 }
 
-// UpdateByKey updates a config value by key
+// UpdateByKey upserts a config value by key
 func (r *ConfigRepository) UpdateByKey(key, value string) error {
-	return r.db.Model(&model.Config{}).
-		Where("key = ?", key).
-		Update("value", value).Error
+	return r.db.Exec(
+		"INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+		key, value,
+	).Error
 }

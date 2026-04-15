@@ -87,7 +87,8 @@ func (h *SettlementHandler) GetByDebtorID(c *gin.Context) {
 // TriggerSettlement manually triggers settlement for a user
 func (h *SettlementHandler) TriggerSettlement(c *gin.Context) {
 	var req struct {
-		DebtorID uuid.UUID `json:"debtor_id" binding:"required"`
+		DebtorID  uuid.UUID   `json:"debtor_id" binding:"required"`
+		WinnerIDs []uuid.UUID `json:"winner_ids"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,7 +99,7 @@ func (h *SettlementHandler) TriggerSettlement(c *gin.Context) {
 		return
 	}
 
-	err := h.settlementService.TriggerSettlement(req.DebtorID)
+	settlement, err := h.settlementService.TriggerSettlement(req.DebtorID, req.WinnerIDs)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		code := "INTERNAL_ERROR"
@@ -110,6 +111,15 @@ func (h *SettlementHandler) TriggerSettlement(c *gin.Context) {
 		case "no winners found for settlement":
 			statusCode = http.StatusBadRequest
 			code = "NO_WINNERS"
+		case "debtor cannot be a winner":
+			statusCode = http.StatusBadRequest
+			code = "INVALID_WINNER"
+		case "invalid winner ID":
+			statusCode = http.StatusBadRequest
+			code = "INVALID_WINNER"
+		case "winners must have positive scores":
+			statusCode = http.StatusBadRequest
+			code = "INVALID_WINNER"
 		}
 
 		c.JSON(statusCode, gin.H{
@@ -119,9 +129,7 @@ func (h *SettlementHandler) TriggerSettlement(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Settlement triggered successfully",
-	})
+	c.JSON(http.StatusCreated, settlement)
 }
 
 // GetStats returns settlement statistics

@@ -44,8 +44,10 @@
             :users="userStore.users"
             :loading="userStore.loading"
             :conversion-rate="configStore.pointToVnd"
+            :debt-threshold="configStore.debtThreshold"
             @edit="handleEdit"
             @delete="handleDeleteConfirm"
+            @trigger-settlement="handleTriggerSettlement"
           />
         </div>
       </div>
@@ -58,6 +60,18 @@
         @submit="handleSubmit"
         @cancel="handleCancel"
       />
+
+      <!-- Settlement Trigger Dialog -->
+      <SettlementTriggerDialog
+        v-model="showSettlementDialog"
+        :debtor="settlementDebtor"
+        :users="userStore.users"
+        :point-to-vnd="configStore.pointToVnd"
+        :fund-split-percent="configStore.fundSplitPercent"
+        :loading="settlementStore.loading"
+        @confirm="handleSettlementConfirm"
+        @cancel="handleSettlementCancel"
+      />
     </div>
   </div>
 </template>
@@ -65,18 +79,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { Plus, User as UserIcon, Trophy, Warning } from '@element-plus/icons-vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/userStore'
 import { useConfigStore } from '@/stores/configStore'
+import { useSettlementStore } from '@/stores/settlementStore'
 import UserTable from '@/components/user/UserTable.vue'
 import UserForm from '@/components/user/UserForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
+import SettlementTriggerDialog from '@/components/settlement/SettlementTriggerDialog.vue'
 import type { User } from '@/types/user'
 
 const userStore = useUserStore()
 const configStore = useConfigStore()
+const settlementStore = useSettlementStore()
 const showDialog = ref(false)
 const selectedUser = ref<User | null>(null)
+const showSettlementDialog = ref(false)
+const settlementDebtor = ref<User | null>(null)
 
 const topScore = computed(() => {
   if (userStore.users.length === 0) return 0
@@ -130,5 +149,29 @@ const handleDeleteConfirm = (user: User) => {
   )
     .then(() => { userStore.deleteUser(user.id) })
     .catch(() => {})
+}
+
+const handleTriggerSettlement = (user: User) => {
+  settlementDebtor.value = user
+  showSettlementDialog.value = true
+}
+
+const handleSettlementConfirm = async (winnerIds: string[]) => {
+  if (!settlementDebtor.value) return
+  
+  try {
+    await settlementStore.triggerSettlement(settlementDebtor.value.id, winnerIds)
+    await userStore.fetchUsers() // Refresh user data
+    ElMessage.success(`Settlement triggered for ${settlementDebtor.value.name}`)
+    showSettlementDialog.value = false
+    settlementDebtor.value = null
+  } catch (error) {
+    // Error already handled by store
+  }
+}
+
+const handleSettlementCancel = () => {
+  settlementDebtor.value = null
+  showSettlementDialog.value = false
 }
 </script>

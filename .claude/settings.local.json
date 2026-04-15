@@ -8,7 +8,8 @@
       "Bash(npx tailwindcss:*)",
       "Bash(ls src/**/*.vue)",
       "Bash(ls dist/assets/*.css)",
-      "Bash(grep -c \"bg-blue-600\\\\|bg-slate\\\\|flex\\\\|rounded-xl\\\\|tracking-tight\" /Users/duyb/Documents/Growth/esport/frontend/dist/assets/index-*.css)"
+      "Bash(grep -c \"bg-blue-600\\\\|bg-slate\\\\|flex\\\\|rounded-xl\\\\|tracking-tight\" /Users/duyb/Documents/Growth/esport/frontend/dist/assets/index-*.css)",
+      "Bash(go build:*)"
     ]
   }
 }

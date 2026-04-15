@@ -25,6 +25,16 @@ export const useConfigStore = defineStore('config', () => {
     return config ? parseInt(config.value) : 50
   })
 
+  const autoSettlement = computed(() => {
+    const config = configs.value.find((c) => c.key === 'auto_settlement')
+    return config ? config.value === 'true' : false
+  })
+
+  const pointsPerWin = computed(() => {
+    const config = configs.value.find((c) => c.key === 'points_per_win')
+    return config ? parseInt(config.value) : 1
+  })
+
   // Actions
   async function fetchConfigs() {
     loading.value = true
@@ -39,20 +49,15 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
-  async function updateConfig(key: ConfigKey, value: string) {
+  async function updateAllConfigs(updates: Record<ConfigKey, string>) {
     loading.value = true
     error.value = null
     try {
-      const updated = await configService.update(key, { value })
-      const index = configs.value.findIndex((c) => c.key === key)
-      if (index !== -1) {
-        configs.value[index] = updated
-      }
-      ElMessage.success(`Configuration "${key}" updated successfully`)
-      return updated
+      const updated = await configService.updateAll(updates)
+      configs.value = updated
     } catch (err: any) {
       const errorMsg =
-        err.response?.data?.error?.message || err.message || 'Failed to update config'
+        err.response?.data?.message || err.message || 'Failed to update config'
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err
@@ -68,7 +73,9 @@ export const useConfigStore = defineStore('config', () => {
     debtThreshold,
     pointToVnd,
     fundSplitPercent,
+    autoSettlement,
+    pointsPerWin,
     fetchConfigs,
-    updateConfig,
+    updateAllConfigs,
   }
 })

@@ -68,11 +68,14 @@ export const useSettlementStore = defineStore('settlement', () => {
     }
   }
 
-  async function triggerSettlement(debtorId: string) {
+  async function triggerSettlement(debtorId: string, winnerIds?: string[]) {
     loading.value = true
     error.value = null
     try {
-      const settlement = await settlementService.trigger({ debtor_id: debtorId })
+      const settlement = await settlementService.trigger({
+        debtor_id: debtorId,
+        winner_ids: winnerIds,
+      })
       settlements.value.unshift(settlement)
       stats.value.total++
       if (new Date(settlement.settlement_date).toDateString() === new Date().toDateString()) {

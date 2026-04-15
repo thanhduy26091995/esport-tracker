@@ -8,8 +8,8 @@
           <p class="page-subtitle">Track fund balance and transactions</p>
         </div>
         <div class="flex gap-2">
-          <el-button type="success" @click="handleDeposit" :icon="Plus">Deposit</el-button>
-          <el-button type="danger" @click="handleWithdraw" :icon="Minus" :disabled="fundStore.balance === 0">Withdraw</el-button>
+          <el-button type="success" plain @click="handleDeposit" :icon="Plus">Deposit</el-button>
+          <el-button type="danger" plain @click="handleWithdraw" :icon="Minus" :disabled="fundStore.balance === 0">Withdraw</el-button>
         </div>
       </div>
 

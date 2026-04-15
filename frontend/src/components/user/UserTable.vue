@@ -48,9 +48,14 @@
           <span class="date-value">{{ formatDate(row.created_at) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="Actions" width="150" align="right" fixed="right">
+      <el-table-column label="Actions" min-width="260" align="right" fixed="right">
         <template #default="{ row }">
           <div class="actions-cell">
+            <el-tooltip v-if="row.current_score < 0 && row.current_score <= debtThreshold" content="Manually trigger settlement" placement="top">
+              <el-button size="small" type="warning" plain @click="emit('triggerSettlement', row)" :icon="Warning">
+                Settle Debt
+              </el-button>
+            </el-tooltip>
             <el-button size="small" text @click="emit('edit', row)" :icon="Edit">Edit</el-button>
             <el-button size="small" text type="danger" @click="emit('delete', row)" :icon="Delete">Delete</el-button>
           </div>
@@ -62,13 +67,13 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Edit, Delete, Search } from '@element-plus/icons-vue'
+import { Edit, Delete, Search, Warning } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
 
-interface Props { users: User[]; loading?: boolean; conversionRate?: number }
-const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000 })
-const emit = defineEmits<{ edit: [user: User]; delete: [user: User] }>()
+interface Props { users: User[]; loading?: boolean; conversionRate?: number; debtThreshold?: number }
+const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6 })
+const emit = defineEmits<{ edit: [user: User]; delete: [user: User]; triggerSettlement: [user: User] }>()
 
 const searchQuery = ref(''); const scoreFilter = ref('')
 

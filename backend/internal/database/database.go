@@ -54,6 +54,7 @@ func seedConfig(db *gorm.DB) {
 		{Key: "debt_threshold", Value: "-6", Description: "Score threshold that triggers debt settlement"},
 		{Key: "point_to_vnd", Value: "22000", Description: "Conversion rate: 1 point = X VND"},
 		{Key: "fund_split_percent", Value: "50", Description: "Percentage of debt that goes to fund (rest to winners)"},
+		{Key: "auto_settlement", Value: "false", Description: "Automatically trigger settlement when debt threshold is reached (true/false)"},
 	}
 
 	for _, cfg := range configs {

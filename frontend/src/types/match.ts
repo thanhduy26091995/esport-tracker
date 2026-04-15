@@ -29,6 +29,7 @@ export interface CreateMatchRequest {
   team2: string[] // User IDs
   winner_team: TeamNumber
   match_date?: string
+  points_per_win?: number
 }
 
 export interface MatchStats {

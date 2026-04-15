@@ -45,6 +45,32 @@ func (h *ConfigHandler) GetByKey(c *gin.Context) {
 	c.JSON(http.StatusOK, config)
 }
 
+// UpdateAll bulk-updates multiple config values in one request
+func (h *ConfigHandler) UpdateAll(c *gin.Context) {
+	var req map[string]string
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    "VALIDATION_ERROR",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	configs, err := h.configService.UpdateAllConfig(req)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		code := "VALIDATION_ERROR"
+		if err.Error() == "invalid config key" {
+			statusCode = http.StatusNotFound
+			code = "NOT_FOUND"
+		}
+		c.JSON(statusCode, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, configs)
+}
+
 // Update updates a config value
 func (h *ConfigHandler) Update(c *gin.Context) {
 	key := c.Param("key")

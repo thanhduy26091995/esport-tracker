@@ -60,3 +60,22 @@ func (r *FundRepository) CountTotal() (int64, error) {
 	err := r.db.Model(&model.FundTransaction{}).Count(&count).Error
 	return count, err
 }
+
+// GetTotalByType returns the sum of amounts for a given transaction type
+func (r *FundRepository) GetTotalByType(transactionType string) (int, error) {
+	var total int
+	err := r.db.Model(&model.FundTransaction{}).
+		Where("transaction_type = ?", transactionType).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error
+	return total, err
+}
+
+// CountSettlementDeposits returns the count of deposits linked to a settlement
+func (r *FundRepository) CountSettlementDeposits() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.FundTransaction{}).
+		Where("transaction_type = 'deposit' AND related_settlement_id IS NOT NULL").
+		Count(&count).Error
+	return count, err
+}

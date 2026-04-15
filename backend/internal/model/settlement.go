@@ -11,8 +11,10 @@ type DebtSettlement struct {
 	DebtorID           uuid.UUID          `gorm:"type:uuid;not null" json:"debtor_id"`
 	DebtAmount         int                `gorm:"not null" json:"debt_amount"` // Negative debt in points (e.g., -7)
 	MoneyAmount        int                `gorm:"not null" json:"money_amount"` // Total VND amount
-	FundAmount         int                `gorm:"not null" json:"fund_amount"`  // Amount to fund (ToFund alias)
-	WinnerDistribution int                `gorm:"not null" json:"winner_distribution"` // Amount to winners (ToWinners alias)
+	ToFund             float64            `gorm:"type:numeric(12,2);not null" json:"-"` // Legacy numeric column
+	ToWinners          float64            `gorm:"type:numeric(12,2);not null" json:"-"` // Legacy numeric column
+	FundAmount         int                `gorm:"not null" json:"fund_amount"`  // Amount to fund (new column)
+	WinnerDistribution int                `gorm:"not null" json:"winner_distribution"` // Amount to winners (new column)
 	OriginalDebtPoints int                `gorm:"not null" json:"original_debt_points"` // Original debt in points (positive)
 	SettlementDate     time.Time          `gorm:"default:now()" json:"settlement_date"`
 	CreatedAt          time.Time          `json:"created_at"`

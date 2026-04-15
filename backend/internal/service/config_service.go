@@ -57,11 +57,33 @@ func (s *ConfigService) UpdateConfig(key, value string) error {
 		if val < 0 || val > 100 {
 			return errors.New("fund_split_percent must be between 0 and 100")
 		}
+	case "points_per_win":
+		val, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.New("points_per_win must be an integer")
+		}
+		if val <= 0 {
+			return errors.New("points_per_win must be greater than 0")
+		}
+	case "auto_settlement":
+		if value != "true" && value != "false" {
+			return errors.New("auto_settlement must be true or false")
+		}
 	default:
 		return errors.New("invalid config key")
 	}
 
 	return s.configRepo.UpdateByKey(key, value)
+}
+
+// UpdateAllConfig validates and updates all provided key-value config pairs atomically
+func (s *ConfigService) UpdateAllConfig(updates map[string]string) ([]*model.Config, error) {
+	for key, value := range updates {
+		if err := s.UpdateConfig(key, value); err != nil {
+			return nil, err
+		}
+	}
+	return s.configRepo.GetAll()
 }
 
 // GetDebtThreshold returns the debt threshold as an integer
@@ -101,4 +123,26 @@ func (s *ConfigService) GetFundSplitPercent() (int, error) {
 		return 50, err
 	}
 	return val, nil
+}
+
+// GetPointsPerWin returns points awarded per win (default: 1)
+func (s *ConfigService) GetPointsPerWin() (int, error) {
+	config, err := s.configRepo.GetByKey("points_per_win")
+	if err != nil {
+		return 1, err // default value
+	}
+	val, err := strconv.Atoi(config.Value)
+	if err != nil {
+		return 1, err
+	}
+	return val, nil
+}
+
+// GetAutoSettlement returns whether automatic settlement is enabled (default: false)
+func (s *ConfigService) GetAutoSettlement() (bool, error) {
+	config, err := s.configRepo.GetByKey("auto_settlement")
+	if err != nil {
+		return false, err // default: manual
+	}
+	return config.Value == "true", nil
 }

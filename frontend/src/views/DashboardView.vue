@@ -132,6 +132,7 @@
       v-model="showMatchForm"
       :users="userStore.users"
       :debt-threshold="configStore.debtThreshold"
+      :points-per-win="configStore.pointsPerWin"
       :loading="matchStore.loading"
       @submit="handleSubmitMatch"
       @cancel="() => showMatchForm = false"

@@ -79,6 +79,7 @@
         @click="handleSubmit"
         :loading="loading"
         :disabled="!isValid"
+        plain
       >
         {{ type === 'deposit' ? 'Deposit' : 'Withdraw' }}
       </el-button>

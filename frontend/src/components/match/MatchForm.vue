@@ -3,22 +3,23 @@
     :model-value="modelValue"
     title="Record Match"
     @update:model-value="$emit('update:modelValue', $event)"
-    width="600px"
+    width="90%"
+    style="max-width: 600px"
     :close-on-click-modal="false"
+    destroy-on-close
   >
     <el-form
       ref="formRef"
       :model="formData"
       :rules="rules"
-      label-width="120px"
-      label-position="left"
+      label-position="top"
       @submit.prevent="handleSubmit"
     >
       <!-- Match Type -->
       <el-form-item label="Match Type" prop="match_type">
         <el-radio-group v-model="formData.match_type" @change="handleMatchTypeChange">
-          <el-radio-button label="1v1">1 vs 1</el-radio-button>
-          <el-radio-button label="2v2">2 vs 2</el-radio-button>
+          <el-radio-button value="1v1">1 vs 1</el-radio-button>
+          <el-radio-button value="2v2">2 vs 2</el-radio-button>
         </el-radio-group>
       </el-form-item>
 
@@ -26,7 +27,8 @@
       <el-form-item label="Team 1" prop="team1">
         <el-select
           v-model="formData.team1"
-          :multiple="formData.match_type === '2v2'"
+          multiple
+          :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
           placeholder="Select player(s)"
           class="w-full"
           filterable
@@ -56,7 +58,8 @@
       <el-form-item label="Team 2" prop="team2">
         <el-select
           v-model="formData.team2"
-          :multiple="formData.match_type === '2v2'"
+          multiple
+          :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
           placeholder="Select player(s)"
           class="w-full"
           filterable
@@ -85,13 +88,13 @@
       <!-- Winner Selection -->
       <el-form-item label="Winner" prop="winner_team">
         <el-radio-group v-model="formData.winner_team">
-          <el-radio :label="1" :disabled="!isTeam1Valid">
+          <el-radio :value="1" :disabled="!isTeam1Valid">
             Team 1
             <span v-if="team1Names" class="text-sm text-gray-500 ml-2">
               ({{ team1Names }})
             </span>
           </el-radio>
-          <el-radio :label="2" :disabled="!isTeam2Valid">
+          <el-radio :value="2" :disabled="!isTeam2Valid">
             Team 2
             <span v-if="team2Names" class="text-sm text-gray-500 ml-2">
               ({{ team2Names }})
@@ -110,6 +113,22 @@
           format="DD/MM/YYYY HH:mm"
           :disabled-date="disabledDate"
         />
+      </el-form-item>
+
+      <!-- Points Per Win -->
+      <el-form-item label="Points Per Win" prop="points_per_win">
+        <el-input-number
+          v-model="formData.points_per_win"
+          :min="1"
+          :max="99"
+          controls-position="right"
+          class="w-full"
+        />
+        <div class="pts-preview">
+          <span class="pts-win">Winner +{{ formData.points_per_win }}</span>
+          <span class="pts-sep">/</span>
+          <span class="pts-lose">Loser −{{ formData.points_per_win }}</span>
+        </div>
       </el-form-item>
 
       <!-- Warning Messages -->
@@ -170,11 +189,13 @@ interface Props {
   users: User[]
   loading?: boolean
   debtThreshold?: number
+  pointsPerWin?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
-  debtThreshold: -6
+  debtThreshold: -6,
+  pointsPerWin: 1
 })
 
 const emit = defineEmits<{
@@ -190,12 +211,14 @@ const formData = ref<{
   team2: string[]
   winner_team: 1 | 2
   match_date: Date | null
+  points_per_win: number
 }>({
   match_type: '1v1',
   team1: [],
   team2: [],
   winner_team: 1,
-  match_date: null
+  match_date: null,
+  points_per_win: props.pointsPerWin
 })
 
 // Validation rules
@@ -301,7 +324,8 @@ const handleSubmit = async () => {
         match_type: formData.value.match_type,
         team1: formData.value.team1.slice(0, teamSize.value),
         team2: formData.value.team2.slice(0, teamSize.value),
-        winner_team: formData.value.winner_team
+        winner_team: formData.value.winner_team,
+        points_per_win: formData.value.points_per_win
       }
 
       // Add match_date if set
@@ -325,7 +349,8 @@ const resetForm = () => {
     team1: [],
     team2: [],
     winner_team: 1,
-    match_date: null
+    match_date: null,
+    points_per_win: props.pointsPerWin
   }
   formRef.value?.clearValidate()
 }
@@ -335,4 +360,20 @@ const resetForm = () => {
 :deep(.el-select__tags) {
   max-width: 100%;
 }
+
+:deep(.el-input-number) {
+  width: 100%;
+}
+
+.pts-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pts-win  { color: var(--color-success); }
+.pts-sep  { color: var(--text-muted); }
+.pts-lose { color: var(--color-danger); }
 </style>

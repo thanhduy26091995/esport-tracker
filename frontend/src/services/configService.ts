@@ -16,4 +16,9 @@ export const configService = {
     const response = await api.put<Config>(`/config/${key}`, data)
     return response.data
   },
+
+  async updateAll(data: Record<ConfigKey, string>): Promise<Config[]> {
+    const response = await api.put<Config[]>('/config', data)
+    return response.data
+  },
 }

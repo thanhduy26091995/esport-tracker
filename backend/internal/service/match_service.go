@@ -15,25 +15,28 @@ type MatchService struct {
 	matchRepo         *repository.MatchRepository
 	userRepo          *repository.UserRepository
 	settlementService *SettlementService
+	configService     *ConfigService
 	db                *gorm.DB
 }
 
-func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository.UserRepository, settlementService *SettlementService, db *gorm.DB) *MatchService {
+func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository.UserRepository, settlementService *SettlementService, configService *ConfigService, db *gorm.DB) *MatchService {
 	return &MatchService{
 		matchRepo:         matchRepo,
 		userRepo:          userRepo,
 		settlementService: settlementService,
+		configService:     configService,
 		db:                db,
 	}
 }
 
 // CreateMatchRequest represents the request to create a match
 type CreateMatchRequest struct {
-	MatchType   string      `json:"match_type" binding:"required"` // "1v1" or "2v2"
-	Team1       []uuid.UUID `json:"team1" binding:"required"`
-	Team2       []uuid.UUID `json:"team2" binding:"required"`
-	WinnerTeam  int         `json:"winner_team" binding:"required"` // 1 or 2
-	MatchDate   *time.Time  `json:"match_date,omitempty"`
+	MatchType    string      `json:"match_type" binding:"required"` // "1v1" or "2v2"
+	Team1        []uuid.UUID `json:"team1" binding:"required"`
+	Team2        []uuid.UUID `json:"team2" binding:"required"`
+	WinnerTeam   int         `json:"winner_team" binding:"required"` // 1 or 2
+	MatchDate    *time.Time  `json:"match_date,omitempty"`
+	PointsPerWin int         `json:"points_per_win,omitempty"` // 0 = use config default
 }
 
 // CreateMatch creates a new match with participants and updates user scores
@@ -84,6 +87,15 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 		matchDate = *req.MatchDate
 	}
 
+	// Determine points per win (request value takes precedence over config)
+	basePoints := req.PointsPerWin
+	if basePoints <= 0 {
+		basePoints, _ = s.configService.GetPointsPerWin()
+		if basePoints <= 0 {
+			basePoints = 1
+		}
+	}
+
 	// Begin transaction
 	tx := s.db.Begin()
 	defer func() {
@@ -108,9 +120,9 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 	// Create participants and update scores
 	// Team 1 participants
 	for _, userID := range req.Team1 {
-		pointChange := 1
+		pointChange := basePoints
 		if req.WinnerTeam != 1 {
-			pointChange = -1
+			pointChange = -basePoints
 		}
 
 		participant := &model.MatchParticipant{
@@ -137,9 +149,9 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 
 	// Team 2 participants
 	for _, userID := range req.Team2 {
-		pointChange := 1
+		pointChange := basePoints
 		if req.WinnerTeam != 2 {
-			pointChange = -1
+			pointChange = -basePoints
 		}
 
 		participant := &model.MatchParticipant{
@@ -177,11 +189,12 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 
 	// Check if any participant needs settlement (auto-trigger)
 	if s.settlementService != nil {
-		allPlayers := append(req.Team1, req.Team2...)
-		for _, playerID := range allPlayers {
-			// Asynchronously check and trigger settlement
-			// We ignore errors here to not block match creation
-			_ = s.settlementService.CheckAndTriggerSettlement(playerID)
+		autoSettlement, _ := s.configService.GetAutoSettlement()
+		if autoSettlement {
+			allPlayers := append(req.Team1, req.Team2...)
+			for _, playerID := range allPlayers {
+				_ = s.settlementService.CheckAndTriggerSettlement(playerID)
+			}
 		}
 	}
 
@@ -267,7 +280,7 @@ func (s *MatchService) GetMatchStats() (map[string]interface{}, error) {
 	}
 
 	return map[string]interface{}{
-		"total_matches": totalMatches,
-		"today_matches": todayMatches,
+		"total": totalMatches,
+		"today": todayMatches,
 	}, nil
 }

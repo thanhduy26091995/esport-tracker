@@ -5,12 +5,12 @@
       <div class="page-header">
         <div class="page-header-left">
           <h1 class="page-title">Debt Settlements</h1>
-          <p class="page-subtitle">Automatic debt settlement history</p>
+          <p class="page-subtitle">Settlement history — auto-triggered or manually initiated</p>
         </div>
       </div>
 
       <!-- Stats -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
           title="Total Settlements"
           :value="settlementStore.stats.total"
@@ -37,10 +37,28 @@
       <!-- Info banner -->
       <div class="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 text-sm text-blue-700">
         <el-icon class="mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
-        <span>
-          Settlements are triggered automatically when a player's score reaches
-          <strong>{{ configStore.debtThreshold }}</strong> points or below.
-        </span>
+        <div>
+          <p class="font-medium mb-2">How Settlement Works</p>
+          <ul class="list-disc ml-5 space-y-1">
+            <li>
+              <strong>Automatic trigger:</strong> When a player's score reaches
+              <strong>{{ configStore.debtThreshold }}</strong> points or below after a match.
+            </li>
+            <li>
+              <strong>Manual trigger:</strong> Go to Players page and click "Settle Debt" for players with negative scores.
+            </li>
+            <li>
+              <strong>Settlement process:</strong>
+              <ul class="list-circle ml-5 mt-1">
+                <li>Debtor pays full debt amount in real cash</li>
+                <li>{{ configStore.fundSplitPercent }}% goes to fund (virtual credit)</li>
+                <li>{{ 100 - configStore.fundSplitPercent }}% distributed to winners (real cash)</li>
+                <li>Debtor's score reset to 0</li>
+                <li>Winners' points reduced by their share of debt</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
       </div>
 
       <!-- Settlement List -->
