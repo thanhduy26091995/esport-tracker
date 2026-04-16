@@ -58,8 +58,18 @@ func (r *TournamentRepository) GetMatch(id uuid.UUID) (*model.TournamentMatch, e
 }
 
 func (r *TournamentRepository) SaveMatch(m *model.TournamentMatch) error {
-	// Select("*") forces GORM to update all fields including zero values and nil pointers
-	return r.db.Model(m).Select("*").Updates(m).Error
+	// Explicitly select columns to update, including zero-value int (effective_winner=0 for draw)
+	// and nullable pointer (match_id=NULL when reverting). GORM's Updates() skips zero values
+	// by default, so we must name each column explicitly.
+	return r.db.Model(m).Select(
+		"actual_score1", "actual_score2", "effective_winner", "status", "match_id",
+	).Updates(map[string]interface{}{
+		"actual_score1":    m.ActualScore1,
+		"actual_score2":    m.ActualScore2,
+		"effective_winner": m.EffectiveWinner,
+		"status":           m.Status,
+		"match_id":         m.MatchID,
+	}).Error
 }
 
 func (r *TournamentRepository) GetMatchesByTournamentID(tournamentID uuid.UUID) ([]*model.TournamentMatch, error) {
