@@ -59,7 +59,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   // Update a user
-  async function updateUser(id: string, name: string) {
+  async function updateUser(id: string, name: string, tier?: string, handicapRate?: number) {
     // Validate name before sending
     if (!name || name.trim().length === 0) {
       ElMessage.error('Name cannot be empty')
@@ -77,7 +77,11 @@ export const useUserStore = defineStore('user', () => {
     loading.value = true
     error.value = null
     try {
-      const updatedUser = await userService.update(id, { name: name.trim() })
+      const updatedUser = await userService.update(id, {
+        name: name.trim(),
+        ...(tier !== undefined && { tier }),
+        ...(handicapRate !== undefined && { handicap_rate: handicapRate }),
+      })
       const index = users.value.findIndex(u => u.id === id)
       if (index !== -1) {
         users.value[index] = updatedUser

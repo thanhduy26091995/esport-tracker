@@ -13,6 +13,8 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	IsActive     bool      `gorm:"default:true" json:"is_active"`
+	Tier         string    `gorm:"type:varchar(10);default:'normal'" json:"tier"`
+	HandicapRate float64   `gorm:"default:0.0" json:"handicap_rate"`
 }
 
 func (User) TableName() string {

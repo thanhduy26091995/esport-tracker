@@ -5,6 +5,8 @@ export interface User {
   created_at: string
   updated_at: string
   is_active: boolean
+  tier: string
+  handicap_rate: number
 }
 
 export interface CreateUserRequest {
@@ -13,4 +15,6 @@ export interface CreateUserRequest {
 
 export interface UpdateUserRequest {
   name: string
+  tier?: string
+  handicap_rate?: number
 }

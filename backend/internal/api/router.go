@@ -34,6 +34,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	configRepo := repository.NewConfigRepository(db)
 	fundRepo := repository.NewFundRepository(db)
 	settlementRepo := repository.NewSettlementRepository(db)
+	tournamentRepo := repository.NewTournamentRepository(db)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -41,6 +42,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	fundService := service.NewFundService(fundRepo)
 	settlementService := service.NewSettlementService(settlementRepo, userRepo, matchRepo, fundService, configService, db)
 	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, db)
+	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)
@@ -48,6 +50,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	configHandler := NewConfigHandler(configService)
 	fundHandler := NewFundHandler(fundService)
 	settlementHandler := NewSettlementHandler(settlementService)
+	tournamentHandler := NewTournamentHandler(tournamentService)
 
 	// API v1 group
 	v1 := router.Group("/api/v1")
@@ -105,6 +108,17 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 		// User settlement history
 		v1.GET("/users/:id/settlements", settlementHandler.GetByDebtorID) // GET /api/v1/users/:id/settlements
+
+		// Tournament routes
+		tournaments := v1.Group("/tournaments")
+		{
+			tournaments.GET("", tournamentHandler.GetAll)
+			tournaments.POST("", tournamentHandler.Create)
+			tournaments.GET("/:id", tournamentHandler.GetByID)
+			tournaments.DELETE("/:id", tournamentHandler.Delete)
+			tournaments.PUT("/:id/complete", tournamentHandler.Complete)
+			tournaments.POST("/:id/matches/:matchId/result", tournamentHandler.RecordResult)
+		}
 	}
 
 	return router
