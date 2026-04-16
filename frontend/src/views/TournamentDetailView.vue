@@ -34,6 +34,7 @@
           :loading="store.loading"
           :icon="CircleCheck"
           @click="handleComplete"
+          plain
         >
           Mark as Completed
         </el-button>

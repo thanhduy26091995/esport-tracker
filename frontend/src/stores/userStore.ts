@@ -24,7 +24,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   // Create a new user
-  async function createUser(name: string) {
+  async function createUser(name: string, tier?: string, handicapRate?: number) {
     // Validate name before sending
     if (!name || name.trim().length === 0) {
       ElMessage.error('Name cannot be empty')
@@ -42,7 +42,11 @@ export const useUserStore = defineStore('user', () => {
     loading.value = true
     error.value = null
     try {
-      const newUser = await userService.create({ name: name.trim() })
+      const newUser = await userService.create({
+        name: name.trim(),
+        ...(tier !== undefined && { tier }),
+        ...(handicapRate !== undefined && { handicap_rate: handicapRate }),
+      })
       users.value.push(newUser)
       // Sort by score DESC
       users.value.sort((a, b) => b.current_score - a.current_score)

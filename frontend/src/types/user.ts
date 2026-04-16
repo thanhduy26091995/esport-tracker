@@ -11,6 +11,8 @@ export interface User {
 
 export interface CreateUserRequest {
   name: string
+  tier?: string
+  handicap_rate?: number
 }
 
 export interface UpdateUserRequest {

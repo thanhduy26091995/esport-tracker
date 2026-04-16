@@ -125,7 +125,7 @@ const handleSubmit = async (data: { name: string; tier: string; handicap_rate: n
     if (selectedUser.value) {
       await userStore.updateUser(selectedUser.value.id, data.name, data.tier, data.handicap_rate)
     } else {
-      await userStore.createUser(data.name)
+      await userStore.createUser(data.name, data.tier, data.handicap_rate)
     }
     showDialog.value = false
   } catch {}
