@@ -30,21 +30,22 @@ func TestCreateTournamentRequest_AffectsScoreExplicitTrue(t *testing.T) {
 
 // ─── RecordMatchResultRequest — teamHandicap helper ───────────────────────────
 
-func TestTeamHandicap_MaxOfTeam(t *testing.T) {
-	u1 := makeUser("pro", 0.5)
-	u2 := makeUser("normal", 1.0)
+func TestTeamHandicap_MinOfTeam(t *testing.T) {
+	// Pro with -0.5 paired with Normal(0): team handicap = min = -0.5
+	u1 := makeUser("pro", -0.5)
+	u2 := makeUser("normal", 0)
 	userMap := map[uuid.UUID]*model.User{u1.ID: u1, u2.ID: u2}
 
 	result := teamHandicap([]uuid.UUID{u1.ID, u2.ID}, userMap)
-	assert.Equal(t, 1.0, result, "team handicap = max of individual handicaps")
+	assert.Equal(t, -0.5, result, "team handicap = min (most penalizing) of members")
 }
 
 func TestTeamHandicap_SinglePlayer(t *testing.T) {
-	u := makeUser("pro", 0.5)
+	u := makeUser("pro", -0.5)
 	userMap := map[uuid.UUID]*model.User{u.ID: u}
 
 	result := teamHandicap([]uuid.UUID{u.ID}, userMap)
-	assert.Equal(t, 0.5, result)
+	assert.Equal(t, -0.5, result)
 }
 
 func TestTeamHandicap_ZeroHandicaps(t *testing.T) {
@@ -145,10 +146,10 @@ func TestGenerate2v2Schedule_EachMatchHasTwoPlayersPerTeam(t *testing.T) {
 	}
 }
 
-func TestGenerate2v2Schedule_TeamHandicapIsMax(t *testing.T) {
+func TestGenerate2v2Schedule_TeamHandicapIsMin(t *testing.T) {
 	svc := &TournamentService{}
-	// Pro(0.5) + Normal(0) vs Normal(0) + Normal(0)
-	pro := makeUser("pro", 0.5)
+	// Pro(-0.5) + Normal(0) vs Normal(0) + Normal(0)
+	pro := makeUser("pro", -0.5)
 	noop := makeUser("noop", 0)
 	normal1 := makeUser("normal", 0)
 	normal2 := makeUser("normal", 0)
@@ -159,17 +160,17 @@ func TestGenerate2v2Schedule_TeamHandicapIsMax(t *testing.T) {
 	require.Len(t, matches, 1)
 
 	m := matches[0]
-	// One team has the pro (handicap=0.5), other has no handicap
-	maxHandicap := m.HandicapTeam1
-	if m.HandicapTeam2 > maxHandicap {
-		maxHandicap = m.HandicapTeam2
-	}
-	assert.Equal(t, 0.5, maxHandicap, "team containing pro should have handicap 0.5")
+	// One team has the pro (handicap=-0.5), other has no handicap
 	minHandicap := m.HandicapTeam1
 	if m.HandicapTeam2 < minHandicap {
 		minHandicap = m.HandicapTeam2
 	}
-	assert.Equal(t, 0.0, minHandicap, "team without pro should have handicap 0")
+	assert.Equal(t, -0.5, minHandicap, "team containing pro should have handicap -0.5")
+	maxHandicap := m.HandicapTeam1
+	if m.HandicapTeam2 > maxHandicap {
+		maxHandicap = m.HandicapTeam2
+	}
+	assert.Equal(t, 0.0, maxHandicap, "team without pro should have handicap 0")
 }
 
 func TestGenerate2v2Schedule_OddPlayers_ReturnsError(t *testing.T) {
