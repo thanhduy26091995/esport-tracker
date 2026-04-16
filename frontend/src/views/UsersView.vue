@@ -120,12 +120,12 @@ const handleEdit = (user: User) => {
   showDialog.value = true
 }
 
-const handleSubmit = async (name: string) => {
+const handleSubmit = async (data: { name: string; tier: string; handicap_rate: number }) => {
   try {
     if (selectedUser.value) {
-      await userStore.updateUser(selectedUser.value.id, name)
+      await userStore.updateUser(selectedUser.value.id, data.name, data.tier, data.handicap_rate)
     } else {
-      await userStore.createUser(name)
+      await userStore.createUser(data.name, data.tier, data.handicap_rate)
     }
     showDialog.value = false
   } catch {}

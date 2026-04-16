@@ -27,6 +27,7 @@
           <div class="player-cell">
             <div class="player-avatar">{{ row.name.charAt(0).toUpperCase() }}</div>
             <span class="player-name">{{ row.name }}</span>
+            <PlayerTierBadge :tier="row.tier || 'normal'" />
             <el-tag v-if="!row.is_active" type="info" size="small">Inactive</el-tag>
           </div>
         </template>
@@ -70,6 +71,7 @@ import { ref, computed } from 'vue'
 import { Edit, Delete, Search, Warning } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
+import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 
 interface Props { users: User[]; loading?: boolean; conversionRate?: number; debtThreshold?: number }
 const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6 })

@@ -31,12 +31,13 @@ func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository
 
 // CreateMatchRequest represents the request to create a match
 type CreateMatchRequest struct {
-	MatchType    string      `json:"match_type" binding:"required"` // "1v1" or "2v2"
-	Team1        []uuid.UUID `json:"team1" binding:"required"`
-	Team2        []uuid.UUID `json:"team2" binding:"required"`
-	WinnerTeam   int         `json:"winner_team" binding:"required"` // 1 or 2
-	MatchDate    *time.Time  `json:"match_date,omitempty"`
-	PointsPerWin int         `json:"points_per_win,omitempty"` // 0 = use config default
+	MatchType         string      `json:"match_type" binding:"required"` // "1v1" or "2v2"
+	Team1             []uuid.UUID `json:"team1" binding:"required"`
+	Team2             []uuid.UUID `json:"team2" binding:"required"`
+	WinnerTeam        int         `json:"winner_team"` // 0 = draw, 1 or 2
+	MatchDate         *time.Time  `json:"match_date,omitempty"`
+	PointsPerWin      int         `json:"points_per_win,omitempty"` // 0 = use config default
+	TournamentMatchID *uuid.UUID  `json:"tournament_match_id,omitempty"`
 }
 
 // CreateMatch creates a new match with participants and updates user scores
@@ -56,8 +57,8 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 	}
 
 	// Validate winner team
-	if req.WinnerTeam != 1 && req.WinnerTeam != 2 {
-		return nil, errors.New("winner_team must be 1 or 2")
+	if req.WinnerTeam != 0 && req.WinnerTeam != 1 && req.WinnerTeam != 2 {
+		return nil, errors.New("winner_team must be 0, 1, or 2")
 	}
 
 	// Validate no duplicate players
@@ -106,10 +107,11 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 
 	// Create match
 	match := &model.Match{
-		MatchType:  req.MatchType,
-		WinnerTeam: req.WinnerTeam,
-		MatchDate:  matchDate,
-		IsLocked:   false,
+		MatchType:         req.MatchType,
+		WinnerTeam:        req.WinnerTeam,
+		MatchDate:         matchDate,
+		IsLocked:          false,
+		TournamentMatchID: req.TournamentMatchID,
 	}
 
 	if err := tx.Create(match).Error; err != nil {
@@ -120,9 +122,13 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 	// Create participants and update scores
 	// Team 1 participants
 	for _, userID := range req.Team1 {
-		pointChange := basePoints
-		if req.WinnerTeam != 1 {
-			pointChange = -basePoints
+		pointChange := 0
+		if req.WinnerTeam != 0 {
+			if req.WinnerTeam == 1 {
+				pointChange = basePoints
+			} else {
+				pointChange = -basePoints
+			}
 		}
 
 		participant := &model.MatchParticipant{
@@ -149,9 +155,13 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 
 	// Team 2 participants
 	for _, userID := range req.Team2 {
-		pointChange := basePoints
-		if req.WinnerTeam != 2 {
-			pointChange = -basePoints
+		pointChange := 0
+		if req.WinnerTeam != 0 {
+			if req.WinnerTeam == 2 {
+				pointChange = basePoints
+			} else {
+				pointChange = -basePoints
+			}
 		}
 
 		participant := &model.MatchParticipant{
@@ -188,7 +198,8 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 	}
 
 	// Check if any participant needs settlement (auto-trigger)
-	if s.settlementService != nil {
+	// Skip when WinnerTeam=0 (draw/no score change) — no scores changed, no settlement possible
+	if req.WinnerTeam != 0 && s.settlementService != nil {
 		autoSettlement, _ := s.configService.GetAutoSettlement()
 		if autoSettlement {
 			allPlayers := append(req.Team1, req.Team2...)

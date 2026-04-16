@@ -21,6 +21,26 @@
           autofocus
         />
       </el-form-item>
+      <el-form-item label="Tier" prop="tier">
+        <el-select v-model="formData.tier" placeholder="Select tier">
+          <el-option label="Normal" value="normal" />
+          <el-option label="Pro" value="pro" />
+          <el-option label="Noop" value="noop" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Handicap" prop="handicap_rate">
+        <el-input-number
+          v-model="formData.handicap_rate"
+          :min="0"
+          :max="5"
+          :step="0.5"
+          :precision="1"
+          placeholder="0.0"
+        />
+        <span class="el-form-item__helper" style="margin-left: 8px; color: var(--text-muted); font-size: 12px;">
+          penalty goals subtracted from score (e.g. 0.5 = must win by 1+ to count as win)
+        </span>
+      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -54,13 +74,15 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  submit: [name: string]
+  submit: [data: { name: string; tier: string; handicap_rate: number }]
   cancel: []
 }>()
 
 const formRef = ref<FormInstance>()
 const formData = ref({
-  name: ''
+  name: '',
+  tier: 'normal',
+  handicap_rate: 0
 })
 
 const isEdit = ref(false)
@@ -78,9 +100,13 @@ watch(() => props.user, (newUser) => {
   if (newUser) {
     isEdit.value = true
     formData.value.name = newUser.name
+    formData.value.tier = newUser.tier || 'normal'
+    formData.value.handicap_rate = newUser.handicap_rate ?? 0
   } else {
     isEdit.value = false
     formData.value.name = ''
+    formData.value.tier = 'normal'
+    formData.value.handicap_rate = 0
   }
 }, { immediate: true })
 
@@ -96,7 +122,11 @@ const handleSubmit = async () => {
 
   await formRef.value.validate((valid) => {
     if (valid) {
-      emit('submit', formData.value.name)
+      emit('submit', {
+        name: formData.value.name,
+        tier: formData.value.tier,
+        handicap_rate: formData.value.handicap_rate,
+      })
     }
   })
 }
@@ -108,6 +138,8 @@ const handleCancel = () => {
 
 const resetForm = () => {
   formData.value.name = ''
+  formData.value.tier = 'normal'
+  formData.value.handicap_rate = 0
   formRef.value?.clearValidate()
 }
 </script>

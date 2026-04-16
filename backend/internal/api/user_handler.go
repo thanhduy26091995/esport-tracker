@@ -24,7 +24,9 @@ type CreateUserRequest struct {
 
 // UpdateUserRequest represents the request body for updating a user
 type UpdateUserRequest struct {
-	Name string `json:"name" binding:"required"`
+	Name         string  `json:"name"`
+	Tier         string  `json:"tier"`
+	HandicapRate float64 `json:"handicap_rate"`
 }
 
 // GetAll handles GET /users
@@ -149,7 +151,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.UpdateUser(id, req.Name)
+	user, err := h.userService.UpdateUser(id, req.Name, req.Tier, req.HandicapRate)
 	if err != nil {
 		// Check if user not found
 		if err.Error() == "user not found" {

@@ -89,7 +89,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Menu, Trophy, HomeFilled, UserFilled, TrendCharts, DocumentCopy, Wallet, Setting } from '@element-plus/icons-vue'
+import { Menu, Trophy, HomeFilled, UserFilled, TrendCharts, DocumentCopy, Wallet, Setting, Grid } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const mobileMenuOpen = ref(false)
@@ -98,6 +98,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeFilled },
   { name: 'Players', href: '/users', icon: UserFilled },
   { name: 'Matches', href: '/matches', icon: TrendCharts },
+  { name: 'Tournaments', href: '/tournaments', icon: Grid },
   { name: 'Settlements', href: '/settlements', icon: DocumentCopy },
   { name: 'Fund', href: '/fund', icon: Wallet },
   { name: 'Settings', href: '/settings', icon: Setting },

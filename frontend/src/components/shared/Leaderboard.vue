@@ -21,6 +21,7 @@
 
         <!-- Name -->
         <span class="lb-name">{{ user.name }}</span>
+        <PlayerTierBadge :tier="user.tier || 'normal'" />
 
         <!-- Score -->
         <span class="score-pill" :class="user.current_score > 0 ? 'score-pill-positive' : user.current_score < 0 ? 'score-pill-negative' : 'score-pill-zero'">
@@ -44,6 +45,7 @@ import { computed } from 'vue'
 import { Loading, Warning } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
+import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 
 interface Props {
   users: User[]

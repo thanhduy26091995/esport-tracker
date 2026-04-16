@@ -13,7 +13,8 @@ type Match struct {
 	MatchDate    time.Time          `gorm:"default:now()" json:"match_date"`
 	RecordedBy   string             `gorm:"type:varchar(100)" json:"recorded_by"`
 	CreatedAt    time.Time          `json:"created_at"`
-	IsLocked     bool               `gorm:"default:false" json:"is_locked"`
+	IsLocked             bool               `gorm:"default:false" json:"is_locked"`
+	TournamentMatchID    *uuid.UUID         `gorm:"type:uuid" json:"tournament_match_id,omitempty"`
 	Participants []MatchParticipant `gorm:"foreignKey:MatchID;constraint:OnDelete:CASCADE" json:"participants,omitempty"`
 }
 
