@@ -189,16 +189,17 @@ func (s *TournamentService) generate2v2Schedule(users []*model.User) ([]model.To
 	return matches, nil
 }
 
-// teamHandicap returns the minimum (most penalizing) handicap_rate in a team.
-// Using min ensures a Pro player's negative handicap applies to the whole team.
+// teamHandicap returns the maximum (most penalizing) handicap_rate in a team.
+// handicap_rate is stored as a positive number; higher value = more penalty.
+// Using max ensures the Pro player's handicap applies to the whole team.
 func teamHandicap(playerIDs []uuid.UUID, userMap map[uuid.UUID]*model.User) float64 {
-	min := 0.0
+	max := 0.0
 	for _, id := range playerIDs {
-		if u, ok := userMap[id]; ok && u.HandicapRate < min {
-			min = u.HandicapRate
+		if u, ok := userMap[id]; ok && u.HandicapRate > max {
+			max = u.HandicapRate
 		}
 	}
-	return min
+	return max
 }
 
 // RecordMatchResultRequest is the input for recording a result

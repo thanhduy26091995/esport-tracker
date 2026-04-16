@@ -30,22 +30,22 @@ func TestCreateTournamentRequest_AffectsScoreExplicitTrue(t *testing.T) {
 
 // ─── RecordMatchResultRequest — teamHandicap helper ───────────────────────────
 
-func TestTeamHandicap_MinOfTeam(t *testing.T) {
-	// Pro with -0.5 paired with Normal(0): team handicap = min = -0.5
-	u1 := makeUser("pro", -0.5)
+func TestTeamHandicap_MaxOfTeam(t *testing.T) {
+	// Pro with 0.5 handicap paired with Normal(0): team handicap = max = 0.5
+	u1 := makeUser("pro", 0.5)
 	u2 := makeUser("normal", 0)
 	userMap := map[uuid.UUID]*model.User{u1.ID: u1, u2.ID: u2}
 
 	result := teamHandicap([]uuid.UUID{u1.ID, u2.ID}, userMap)
-	assert.Equal(t, -0.5, result, "team handicap = min (most penalizing) of members")
+	assert.Equal(t, 0.5, result, "team handicap = max (most penalizing) of members")
 }
 
 func TestTeamHandicap_SinglePlayer(t *testing.T) {
-	u := makeUser("pro", -0.5)
+	u := makeUser("pro", 0.5)
 	userMap := map[uuid.UUID]*model.User{u.ID: u}
 
 	result := teamHandicap([]uuid.UUID{u.ID}, userMap)
-	assert.Equal(t, -0.5, result)
+	assert.Equal(t, 0.5, result)
 }
 
 func TestTeamHandicap_ZeroHandicaps(t *testing.T) {
@@ -123,7 +123,7 @@ func TestGenerate2v2Schedule_CorrectMatchCount(t *testing.T) {
 	svc := &TournamentService{}
 	// 4 players: dynamic scheduler covers all C(4,2)=6 opponent pairs in ~2 rounds
 	players := []*model.User{
-		makeUser("pro", -0.5),
+		makeUser("pro", 0.5),
 		makeUser("noop", 0),
 		makeUser("normal", 0),
 		makeUser("normal", 0),
@@ -162,7 +162,7 @@ func TestGenerate2v2Schedule_EachMatchHasTwoPlayersPerTeam(t *testing.T) {
 
 func TestGenerate2v2Schedule_TeamHandicapIsMin(t *testing.T) {
 	svc := &TournamentService{}
-	pro := makeUser("pro", -0.5)
+	pro := makeUser("pro", 0.5)
 	noop := makeUser("noop", 0)
 	normal1 := makeUser("normal", 0)
 	normal2 := makeUser("normal", 0)
@@ -172,16 +172,16 @@ func TestGenerate2v2Schedule_TeamHandicapIsMin(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, matches)
 
-	// Every round where pro is active should have their team's handicap = -0.5
+	// Every round where pro is active should have their team's handicap = 0.5
 	proID := pro.ID
 	for _, m := range matches {
 		inT1 := m.Team1Player1ID == proID || (m.Team1Player2ID != nil && *m.Team1Player2ID == proID)
 		inT2 := m.Team2Player1ID == proID || (m.Team2Player2ID != nil && *m.Team2Player2ID == proID)
 		if inT1 {
-			assert.Equal(t, -0.5, m.HandicapTeam1, "team1 with pro should have handicap -0.5")
+			assert.Equal(t, 0.5, m.HandicapTeam1, "team1 with pro should have handicap 0.5")
 		}
 		if inT2 {
-			assert.Equal(t, -0.5, m.HandicapTeam2, "team2 with pro should have handicap -0.5")
+			assert.Equal(t, 0.5, m.HandicapTeam2, "team2 with pro should have handicap 0.5")
 		}
 	}
 }

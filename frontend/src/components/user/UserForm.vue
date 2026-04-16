@@ -38,7 +38,7 @@
           placeholder="0.0"
         />
         <span class="el-form-item__helper" style="margin-left: 8px; color: #909399; font-size: 12px;">
-          goals advantage for opponents
+          penalty goals subtracted from score (e.g. 0.5 = must win by 1+ to count as win)
         </span>
       </el-form-item>
     </el-form>
