@@ -121,16 +121,30 @@ func TestGenerate1v1Schedule_RoundsAndOrderSet(t *testing.T) {
 
 func TestGenerate2v2Schedule_CorrectMatchCount(t *testing.T) {
 	svc := &TournamentService{}
-	// 4 players → 2 teams → C(2,2)=1 match
+	// 4 players: dynamic scheduler covers all C(4,2)=6 opponent pairs in ~2 rounds
 	players := []*model.User{
-		makeUser("pro", 0.5),
+		makeUser("pro", -0.5),
 		makeUser("noop", 0),
 		makeUser("normal", 0),
 		makeUser("normal", 0),
 	}
 	matches, err := svc.generate2v2Schedule(players)
 	require.NoError(t, err)
-	assert.Len(t, matches, 1, "4 players → 2 teams → 1 match")
+	assert.GreaterOrEqual(t, len(matches), 2, "4 players need at least 2 rounds to cover all opponent pairs")
+	covered := make(map[pairKey]bool)
+	for _, m := range matches {
+		for _, p1 := range []uuid.UUID{m.Team1Player1ID, *m.Team1Player2ID} {
+			for _, p2 := range []uuid.UUID{m.Team2Player1ID, *m.Team2Player2ID} {
+				covered[makePairKey(p1, p2)] = true
+			}
+		}
+	}
+	for i := 0; i < len(players); i++ {
+		for j := i + 1; j < len(players); j++ {
+			k := makePairKey(players[i].ID, players[j].ID)
+			assert.True(t, covered[k], "pair not covered")
+		}
+	}
 }
 
 func TestGenerate2v2Schedule_EachMatchHasTwoPlayersPerTeam(t *testing.T) {
@@ -148,7 +162,6 @@ func TestGenerate2v2Schedule_EachMatchHasTwoPlayersPerTeam(t *testing.T) {
 
 func TestGenerate2v2Schedule_TeamHandicapIsMin(t *testing.T) {
 	svc := &TournamentService{}
-	// Pro(-0.5) + Normal(0) vs Normal(0) + Normal(0)
 	pro := makeUser("pro", -0.5)
 	noop := makeUser("noop", 0)
 	normal1 := makeUser("normal", 0)
@@ -157,20 +170,20 @@ func TestGenerate2v2Schedule_TeamHandicapIsMin(t *testing.T) {
 
 	matches, err := svc.generate2v2Schedule(players)
 	require.NoError(t, err)
-	require.Len(t, matches, 1)
+	require.NotEmpty(t, matches)
 
-	m := matches[0]
-	// One team has the pro (handicap=-0.5), other has no handicap
-	minHandicap := m.HandicapTeam1
-	if m.HandicapTeam2 < minHandicap {
-		minHandicap = m.HandicapTeam2
+	// Every round where pro is active should have their team's handicap = -0.5
+	proID := pro.ID
+	for _, m := range matches {
+		inT1 := m.Team1Player1ID == proID || (m.Team1Player2ID != nil && *m.Team1Player2ID == proID)
+		inT2 := m.Team2Player1ID == proID || (m.Team2Player2ID != nil && *m.Team2Player2ID == proID)
+		if inT1 {
+			assert.Equal(t, -0.5, m.HandicapTeam1, "team1 with pro should have handicap -0.5")
+		}
+		if inT2 {
+			assert.Equal(t, -0.5, m.HandicapTeam2, "team2 with pro should have handicap -0.5")
+		}
 	}
-	assert.Equal(t, -0.5, minHandicap, "team containing pro should have handicap -0.5")
-	maxHandicap := m.HandicapTeam1
-	if m.HandicapTeam2 > maxHandicap {
-		maxHandicap = m.HandicapTeam2
-	}
-	assert.Equal(t, 0.0, maxHandicap, "team without pro should have handicap 0")
 }
 
 func TestGenerate2v2Schedule_OddPlayers_ReturnsError(t *testing.T) {

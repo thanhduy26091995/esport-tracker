@@ -149,9 +149,8 @@ func (s *TournamentService) generate1v1Schedule(users []*model.User) ([]model.To
 }
 
 func (s *TournamentService) generate2v2Schedule(users []*model.User) ([]model.TournamentMatch, error) {
-	teams, err := AssignTeams2v2(users)
-	if err != nil {
-		return nil, err
+	if len(users) < 4 {
+		return nil, errors.New("2v2 requires at least 4 players")
 	}
 
 	userMap := make(map[uuid.UUID]*model.User)
@@ -159,35 +158,33 @@ func (s *TournamentService) generate2v2Schedule(users []*model.User) ([]model.To
 		userMap[u.ID] = u
 	}
 
-	n := len(teams)
-	rounds := GenerateRoundRobin(n)
+	slots := GenerateSchedule2v2(users)
+	if len(slots) == 0 {
+		return nil, errors.New("failed to generate 2v2 schedule")
+	}
 
-	var matches []model.TournamentMatch
-	for ri, round := range rounds {
-		for mi, pair := range round {
-			t1 := teams[pair.A]
-			t2 := teams[pair.B]
+	matches := make([]model.TournamentMatch, 0, len(slots))
+	for ri, slot := range slots {
+		t1IDs := slot.Team1[:]
+		t2IDs := slot.Team2[:]
 
-			h1 := teamHandicap(t1.Players, userMap)
-			h2 := teamHandicap(t2.Players, userMap)
+		h1 := teamHandicap(t1IDs, userMap)
+		h2 := teamHandicap(t2IDs, userMap)
 
-			m := model.TournamentMatch{
-				Round:          ri + 1,
-				MatchOrder:     mi + 1,
-				Team1Player1ID: t1.Players[0],
-				Team2Player1ID: t2.Players[0],
-				HandicapTeam1:  h1,
-				HandicapTeam2:  h2,
-				Status:         "pending",
-			}
-			if len(t1.Players) > 1 {
-				m.Team1Player2ID = &t1.Players[1]
-			}
-			if len(t2.Players) > 1 {
-				m.Team2Player2ID = &t2.Players[1]
-			}
-			matches = append(matches, m)
+		p2ID := slot.Team1[1]
+		p4ID := slot.Team2[1]
+		m := model.TournamentMatch{
+			Round:          ri + 1,
+			MatchOrder:     1,
+			Team1Player1ID: slot.Team1[0],
+			Team1Player2ID: &p2ID,
+			Team2Player1ID: slot.Team2[0],
+			Team2Player2ID: &p4ID,
+			HandicapTeam1:  h1,
+			HandicapTeam2:  h2,
+			Status:         "pending",
 		}
+		matches = append(matches, m)
 	}
 	return matches, nil
 }
