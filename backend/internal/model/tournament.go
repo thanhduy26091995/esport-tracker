@@ -11,7 +11,7 @@ type Tournament struct {
 	Name         string                  `gorm:"type:varchar(200);not null" json:"name"`
 	MatchType    string                  `gorm:"type:varchar(10);not null" json:"match_type"` // "1v1" | "2v2"
 	Status       string                  `gorm:"type:varchar(20);default:'active'" json:"status"` // active | completed
-	AffectsScore bool                    `gorm:"default:true" json:"affects_score"`
+	AffectsScore *bool                   `gorm:"not null;default:true" json:"affects_score"`
 	EntryFee     int                     `gorm:"default:0" json:"entry_fee"`
 	CreatedAt    time.Time               `json:"created_at"`
 	UpdatedAt    time.Time               `json:"updated_at"`

@@ -36,12 +36,13 @@ type CreateTournamentRequest struct {
 	EntryFee     int         `json:"entry_fee"`
 }
 
-// affectsScore returns the resolved affects_score value (default: true)
-func (r *CreateTournamentRequest) affectsScore() bool {
+// resolvedAffectsScore returns a non-nil *bool (defaults to true if nil)
+func (r *CreateTournamentRequest) resolvedAffectsScore() *bool {
 	if r.AffectsScore == nil {
-		return true
+		t := true
+		return &t
 	}
-	return *r.AffectsScore
+	return r.AffectsScore
 }
 
 // CreateTournament creates a new tournament with a generated round-robin schedule
@@ -108,7 +109,7 @@ func (s *TournamentService) CreateTournament(req *CreateTournamentRequest) (*mod
 		Name:         req.Name,
 		MatchType:    req.MatchType,
 		Status:       "active",
-		AffectsScore: req.affectsScore(),
+		AffectsScore: req.resolvedAffectsScore(),
 		EntryFee:     req.EntryFee,
 		Participants: participants,
 		Matches:      tournamentMatches,
@@ -235,7 +236,7 @@ func (s *TournamentService) RecordMatchResult(tournamentID, matchID uuid.UUID, r
 	effectiveWinner := EffectiveWinner(req.ActualScore1, req.ActualScore2, tm.HandicapTeam1, tm.HandicapTeam2)
 
 	matchWinnerTeam := 0
-	if tournament.AffectsScore && effectiveWinner != 0 {
+	if (tournament.AffectsScore == nil || *tournament.AffectsScore) && effectiveWinner != 0 {
 		matchWinnerTeam = effectiveWinner
 	}
 

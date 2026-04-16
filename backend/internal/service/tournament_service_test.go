@@ -13,19 +13,19 @@ import (
 
 func TestCreateTournamentRequest_AffectsScoreDefaultsTrue(t *testing.T) {
 	req := &CreateTournamentRequest{}
-	assert.True(t, req.affectsScore(), "nil AffectsScore should default to true")
+	assert.True(t, *req.resolvedAffectsScore(), "nil AffectsScore should default to true")
 }
 
 func TestCreateTournamentRequest_AffectsScoreExplicitFalse(t *testing.T) {
 	f := false
 	req := &CreateTournamentRequest{AffectsScore: &f}
-	assert.False(t, req.affectsScore(), "explicit false should be false")
+	assert.False(t, *req.resolvedAffectsScore(), "explicit false should be false")
 }
 
 func TestCreateTournamentRequest_AffectsScoreExplicitTrue(t *testing.T) {
 	tr := true
 	req := &CreateTournamentRequest{AffectsScore: &tr}
-	assert.True(t, req.affectsScore(), "explicit true should be true")
+	assert.True(t, *req.resolvedAffectsScore(), "explicit true should be true")
 }
 
 // ─── RecordMatchResultRequest — teamHandicap helper ───────────────────────────
