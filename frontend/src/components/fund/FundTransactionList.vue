@@ -1,20 +1,20 @@
 <template>
   <div>
     <div class="filter-bar">
-      <el-select v-model="typeFilter" placeholder="Transaction Type" clearable class="w-44">
-        <el-option label="All Types" value="" />
-        <el-option label="Deposits" value="deposit" />
-        <el-option label="Withdrawals" value="withdrawal" />
+      <el-select v-model="typeFilter" :placeholder="t('fund.filterType')" clearable class="w-44">
+        <el-option :label="t('fund.allTypes')" value="" />
+        <el-option :label="t('fund.deposits')" value="deposit" />
+        <el-option :label="t('fund.withdrawals')" value="withdrawal" />
       </el-select>
-      <span class="filter-count">{{ filteredTransactions.length }} of {{ transactions.length }}</span>
+      <span class="filter-count">{{ t('fund.filterCount', { filtered: filteredTransactions.length, total: transactions.length }) }}</span>
     </div>
 
     <div v-if="!loading && filteredTransactions.length === 0" class="empty-state">
       <svg class="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
       </svg>
-      <p class="empty-state-title">{{ hasFilters ? 'No transactions found' : 'No transactions yet' }}</p>
-      <p class="empty-state-desc">{{ hasFilters ? 'Try adjusting your filters' : 'Fund transactions will appear here' }}</p>
+      <p class="empty-state-title">{{ hasFilters ? t('fund.noTransactionsFound') : t('fund.noTransactions') }}</p>
+      <p class="empty-state-desc">{{ hasFilters ? t('matches.tryAdjustFilters') : t('fund.transactionsAppearHere') }}</p>
     </div>
 
     <div v-else class="tx-list">
@@ -29,9 +29,9 @@
         <div class="tx-info">
           <div class="tx-top">
             <span class="tx-type" :class="t.transaction_type === 'deposit' ? 'tx-type--deposit' : 'tx-type--withdraw'">
-              {{ t.transaction_type }}
+              {{ t.transaction_type === 'deposit' ? $t('fund.transactionDeposit') : $t('fund.transactionWithdrawal') }}
             </span>
-            <el-tag v-if="t.related_settlement_id" type="warning" size="small" effect="plain">Settlement</el-tag>
+            <el-tag v-if="t.related_settlement_id" type="warning" size="small" effect="plain">{{ $t('fund.settlementTag') }}</el-tag>
           </div>
           <p class="tx-desc">{{ t.description }}</p>
           <p class="tx-date">{{ formatDateTime(t.transaction_date) }}</p>
@@ -50,6 +50,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Minus } from '@element-plus/icons-vue'
 import type { FundTransaction } from '@/types/fund'
 import { formatVND } from '@/utils/formatters'
@@ -57,6 +58,7 @@ import { formatDateTime } from '@/utils/date'
 
 interface Props { transactions: FundTransaction[]; loading?: boolean }
 const props = withDefaults(defineProps<Props>(), { loading: false })
+const { t } = useI18n()
 
 const typeFilter = ref(''); const currentPage = ref(1); const pageSize = 20
 const hasFilters = computed(() => !!typeFilter.value)

@@ -8,6 +8,8 @@ import type {
   FundStats,
 } from '@/types/fund'
 import { fundService } from '@/services/fundService'
+import { getErrorMessage, translate } from '@/utils/i18n'
+import { formatNumber } from '@/utils/formatters'
 
 export const useFundStore = defineStore('fund', () => {
   const transactions = ref<FundTransaction[]>([])
@@ -62,11 +64,10 @@ export const useFundStore = defineStore('fund', () => {
       balance.value += transaction.amount
       stats.value.total_deposits += transaction.amount
       stats.value.balance = balance.value
-      ElMessage.success(`Deposited ${transaction.amount.toLocaleString('vi-VN')} VND`)
+      ElMessage.success(translate('toast.depositSuccess', { amount: formatNumber(transaction.amount) }))
       return transaction
     } catch (err: any) {
-      const errorMsg =
-        err.response?.data?.error?.message || err.message || 'Failed to deposit'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err
@@ -84,11 +85,10 @@ export const useFundStore = defineStore('fund', () => {
       balance.value -= transaction.amount
       stats.value.total_withdrawals += transaction.amount
       stats.value.balance = balance.value
-      ElMessage.success(`Withdrew ${transaction.amount.toLocaleString('vi-VN')} VND`)
+      ElMessage.success(translate('toast.withdrawSuccess', { amount: formatNumber(transaction.amount) }))
       return transaction
     } catch (err: any) {
-      const errorMsg =
-        err.response?.data?.error?.message || err.message || 'Failed to withdraw'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err

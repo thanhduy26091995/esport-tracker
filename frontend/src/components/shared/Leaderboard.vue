@@ -3,7 +3,7 @@
     <div v-if="loading" class="lb-loading">
       <el-icon class="animate-spin" :size="24" style="color:var(--text-muted)"><Loading /></el-icon>
     </div>
-    <div v-else-if="displayUsers.length === 0" class="lb-empty">No players yet</div>
+    <div v-else-if="displayUsers.length === 0" class="lb-empty">{{ t('leaderboard.noPlayers') }}</div>
     <div v-else class="lb-list">
       <div v-for="(user, index) in displayUsers" :key="user.id" class="lb-row">
         <!-- Rank -->
@@ -34,7 +34,7 @@
 
       <div v-if="showDebtThreshold && debtThreshold < 0" class="lb-threshold">
         <el-icon :size="12"><Warning /></el-icon>
-        Settlement at {{ debtThreshold }} pts
+        {{ t('leaderboard.settlementAt', { threshold: debtThreshold }) }}
       </div>
     </div>
   </div>
@@ -42,6 +42,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Loading, Warning } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
@@ -63,6 +64,8 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false, limit: 10, compact: false, showValue: true,
   showViewAll: false, showDebtThreshold: false, debtThreshold: -6, conversionRate: 22000
 })
+
+const { t } = useI18n()
 
 defineEmits<{ viewAll: [] }>()
 

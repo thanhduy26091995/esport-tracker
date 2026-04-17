@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="Settlement Details"
+    :title="t('settlements.detailsTitle')"
     @update:model-value="$emit('update:modelValue', $event)"
     width="90%"
     style="max-width: 680px"
@@ -23,34 +23,34 @@
       <!-- Summary row -->
       <div class="sd-summary">
         <div class="sd-stat">
-          <dt>Original Debt</dt>
-          <dd class="sd-stat-val sd-stat-val--red">{{ settlement.original_debt_points }} pts</dd>
+          <dt>{{ t('settlements.originalDebt') }}</dt>
+          <dd class="sd-stat-val sd-stat-val--red">{{ settlement.original_debt_points }} {{ t('common.pointsUnit') }}</dd>
         </div>
         <div class="sd-stat-divider" />
         <div class="sd-stat">
-          <dt>Total Paid</dt>
+          <dt>{{ t('settlements.totalPaid') }}</dt>
           <dd class="sd-stat-val">{{ formatVND(settlement.money_amount) }}</dd>
         </div>
         <div class="sd-stat-divider" />
         <div class="sd-stat">
-          <dt>To Fund</dt>
+          <dt>{{ t('settlements.toFund') }}</dt>
           <dd class="sd-stat-val sd-stat-val--green">{{ formatVND(settlement.fund_amount) }}</dd>
         </div>
         <div class="sd-stat-divider" />
         <div class="sd-stat">
-          <dt>To Winners</dt>
+          <dt>{{ t('settlements.toWinners') }}</dt>
           <dd class="sd-stat-val sd-stat-val--blue">{{ formatVND(settlement.winner_distribution) }}</dd>
         </div>
       </div>
 
       <!-- Winners table -->
       <div v-if="settlement.winners?.length" class="sd-section">
-        <p class="sd-section-title">Winner Payouts ({{ settlement.winners.length }})</p>
+        <p class="sd-section-title">{{ t('settlements.winnerPayouts', { count: settlement.winners.length }) }}</p>
         <div class="sd-winners">
           <div class="sd-winner-header">
-            <span>Player</span>
-            <span>Cash Received</span>
-            <span>Points Deducted</span>
+            <span>{{ t('settlements.colPlayer') }}</span>
+            <span>{{ t('settlements.colCashReceived') }}</span>
+            <span>{{ t('settlements.colPointsDeducted') }}</span>
           </div>
           <div v-for="w in settlement.winners" :key="w.id" class="sd-winner-row">
             <div class="sd-winner-name">
@@ -58,7 +58,7 @@
               {{ w.winner.name }}
             </div>
             <span class="sd-winner-cash">+{{ formatVND(w.money_amount) }}</span>
-            <span class="sd-winner-pts">−{{ w.points_deducted }}</span>
+            <span class="sd-winner-pts">−{{ w.points_deducted }} {{ t('common.pointsUnit') }}</span>
           </div>
         </div>
       </div>
@@ -67,26 +67,27 @@
       <div class="sd-process">
         <p class="sd-process-title">
           <el-icon style="margin-right:6px;vertical-align:middle"><InfoFilled /></el-icon>
-          Settlement Process
+          {{ t('settlements.processTitle') }}
         </p>
         <ol class="sd-process-list">
-          <li>{{ settlement.debtor.name }} had {{ settlement.original_debt_points }} points debt (below threshold)</li>
-          <li>{{ settlement.debtor.name }} paid {{ formatVND(settlement.money_amount) }} in real cash</li>
-          <li>{{ fundSplitPercent }}% ({{ formatVND(settlement.fund_amount) }}) added to fund</li>
-          <li>{{ 100 - fundSplitPercent }}% ({{ formatVND(settlement.winner_distribution) }}) split among {{ settlement.winners?.length ?? 0 }} winner(s)</li>
-          <li>Winners received cash and had points deducted proportionally</li>
-          <li>{{ settlement.debtor.name }}'s score reset to 0</li>
+          <li>{{ t('settlements.processStep1', { name: settlement.debtor.name, points: settlement.original_debt_points }) }}</li>
+          <li>{{ t('settlements.processStep2', { name: settlement.debtor.name, amount: formatVND(settlement.money_amount) }) }}</li>
+          <li>{{ t('settlements.processStep3', { percent: fundSplitPercent, amount: formatVND(settlement.fund_amount) }) }}</li>
+          <li>{{ t('settlements.processStep4', { percent: 100 - fundSplitPercent, amount: formatVND(settlement.winner_distribution), count: settlement.winners?.length ?? 0 }) }}</li>
+          <li>{{ t('settlements.processStep5') }}</li>
+          <li>{{ t('settlements.processStep6', { name: settlement.debtor.name }) }}</li>
         </ol>
       </div>
     </div>
 
     <template #footer>
-      <el-button size="large" @click="$emit('update:modelValue', false)">Close</el-button>
+      <el-button size="large" @click="$emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Warning, InfoFilled } from '@element-plus/icons-vue'
 import type { DebtSettlement } from '@/types/settlement'
 import { formatVND } from '@/utils/formatters'
@@ -100,6 +101,7 @@ interface Props {
 
 withDefaults(defineProps<Props>(), { fundSplitPercent: 50 })
 defineEmits<{ 'update:modelValue': [value: boolean] }>()
+const { t } = useI18n()
 </script>
 
 <style scoped>

@@ -1,5 +1,7 @@
+import { getIntlLocale } from '@/utils/intl'
+
 export function formatVND(amount: number): string {
-  return new Intl.NumberFormat('vi-VN', {
+  return new Intl.NumberFormat(getIntlLocale(), {
     style: 'currency',
     currency: 'VND',
     minimumFractionDigits: 0,

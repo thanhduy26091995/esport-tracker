@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="Trigger Debt Settlement"
+    :title="t('settlements.triggerTitle')"
     @update:model-value="$emit('update:modelValue', $event)"
     width="90%"
     style="max-width: 600px"
@@ -15,7 +15,7 @@
         </div>
         <div class="debtor-info">
           <p class="debtor-name">{{ debtor.name }}</p>
-          <p class="debtor-sub">Debt Settlement</p>
+          <p class="debtor-sub">{{ t('settlements.triggerSubtitle') }}</p>
         </div>
         <div class="debtor-amount">{{ formatVND(totalAmount) }}</div>
       </div>
@@ -23,30 +23,30 @@
       <!-- Distribution -->
       <div class="dist-grid">
         <div class="dist-item dist-item--green">
-          <span class="dist-label">Fund ({{ fundSplitPercent }}%)</span>
+          <span class="dist-label">{{ t('settlements.fundShare', { percent: fundSplitPercent }) }}</span>
           <span class="dist-val">{{ formatVND(fundAmount) }}</span>
         </div>
         <div class="dist-item dist-item--blue">
-          <span class="dist-label">Winners ({{ 100 - fundSplitPercent }}%)</span>
+          <span class="dist-label">{{ t('settlements.winnersShare', { percent: 100 - fundSplitPercent }) }}</span>
           <span class="dist-val">{{ formatVND(winnerAmount) }}</span>
         </div>
       </div>
 
       <!-- Winner selection -->
       <div class="section">
-        <p class="section-label">Select Winners <span style="color:var(--color-danger)">*</span></p>
-        <p class="section-hint">Must have a positive score to be eligible.</p>
+        <p class="section-label">{{ t('settlements.selectWinners') }} <span style="color:var(--color-danger)">*</span></p>
+        <p class="section-hint">{{ t('settlements.eligibleHint') }}</p>
         <el-select
           v-model="selectedWinners"
           multiple
-          placeholder="Select winners"
+          :placeholder="t('settlements.selectWinnersPlaceholder')"
           class="w-full"
           size="large"
         >
           <el-option
             v-for="user in eligibleWinners"
             :key="user.id"
-            :label="`${user.name} (+${user.current_score} pts)`"
+            :label="`${user.name} (+${user.current_score} ${t('common.pointsUnit')})`"
             :value="user.id"
           >
             <div class="opt-row">
@@ -56,18 +56,18 @@
           </el-option>
         </el-select>
         <p v-if="selectedWinners.length > 0" class="section-hint mt-2">
-          {{ selectedWinners.length }} winner(s) — each receives {{ formatVND(Math.floor(winnerAmount / selectedWinners.length)) }}
+          {{ t('settlements.winnersCountShare', { count: selectedWinners.length, amount: formatVND(Math.floor(winnerAmount / selectedWinners.length)) }) }}
         </p>
       </div>
 
       <!-- Payout preview -->
       <div v-if="selectedWinners.length > 0" class="payout-table">
-        <div class="payout-header">Payout Distribution</div>
+        <div class="payout-header">{{ t('settlements.payoutDistribution') }}</div>
         <div v-for="w in winnerDistribution" :key="w.id" class="payout-row">
           <span class="payout-name">{{ w.name }}</span>
           <div class="payout-right">
             <span class="payout-cash">{{ formatVND(w.amount) }}</span>
-            <span class="payout-pts">−{{ w.pointsDeducted }} pts</span>
+            <span class="payout-pts">−{{ w.pointsDeducted }} {{ t('common.pointsUnit') }}</span>
           </div>
         </div>
       </div>
@@ -76,7 +76,7 @@
       <el-alert type="warning" :closable="false" show-icon class="mt-4">
         <template #title>
           <span style="font-size:13px">
-            After settlement, <strong>{{ debtor.name }}</strong>'s score resets to 0 and all their matches are locked.
+            {{ t('settlements.postSettlementWarning', { name: debtor.name }) }}
           </span>
         </template>
       </el-alert>
@@ -84,7 +84,7 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleCancel">Cancel</el-button>
+        <el-button @click="handleCancel">{{ t('common.cancel') }}</el-button>
         <el-button
           type="primary"
           size="large"
@@ -92,7 +92,7 @@
           :disabled="selectedWinners.length === 0"
           :loading="loading"
         >
-          Confirm Settlement
+          {{ t('settlements.confirmSettlement') }}
         </el-button>
       </div>
     </template>
@@ -101,6 +101,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Warning } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import { formatVND } from '@/utils/formatters'
@@ -121,6 +122,7 @@ const emit = defineEmits<{
   confirm: [winnerIds: string[]]
   cancel: []
 }>()
+const { t } = useI18n()
 
 const selectedWinners = ref<string[]>([])
 
@@ -139,7 +141,7 @@ const winnerDistribution = computed(() => {
   const n = selectedWinners.value.length
   return selectedWinners.value.map(id => ({
     id,
-    name: props.users.find(u => u.id === id)?.name || 'Unknown',
+    name: props.users.find(u => u.id === id)?.name || t('errors.notFound'),
     amount: Math.floor(winnerAmount.value / n),
     pointsDeducted: Math.floor(debtPoints.value / n)
   }))

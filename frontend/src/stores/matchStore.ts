@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Match, CreateMatchRequest, MatchStats } from '@/types/match'
 import { matchService } from '@/services/matchService'
+import { getErrorMessage, translate } from '@/utils/i18n'
 
 export const useMatchStore = defineStore('match', () => {
   const matches = ref<Match[]>([])
@@ -53,11 +54,10 @@ export const useMatchStore = defineStore('match', () => {
       if (new Date(newMatch.match_date).toDateString() === new Date().toDateString()) {
         stats.value.today++
       }
-      ElMessage.success('Match recorded successfully')
+      ElMessage.success(translate('toast.matchCreated'))
       return newMatch
     } catch (err: any) {
-      const errorMsg =
-        err.response?.data?.error?.message || err.message || 'Failed to create match'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err
@@ -75,10 +75,9 @@ export const useMatchStore = defineStore('match', () => {
       if (index !== -1) {
         matches.value.splice(index, 1)
       }
-      ElMessage.success('Match deleted successfully')
+      ElMessage.success(translate('toast.matchDeleted'))
     } catch (err: any) {
-      const errorMsg =
-        err.response?.data?.error?.message || err.message || 'Failed to delete match'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err

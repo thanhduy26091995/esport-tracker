@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="isEdit ? 'Edit User' : 'Add New User'"
+    :title="isEdit ? t('users.editUser') : t('users.addUser')"
     @update:model-value="$emit('update:modelValue', $event)"
     width="500px"
   >
@@ -12,23 +12,23 @@
       label-width="100px"
       @submit.prevent="handleSubmit"
     >
-      <el-form-item label="Name" prop="name">
+      <el-form-item :label="t('users.form.name')" prop="name">
         <el-input
           v-model="formData.name"
-          placeholder="Enter player name"
+          :placeholder="t('users.form.namePlaceholder')"
           maxlength="100"
           show-word-limit
           autofocus
         />
       </el-form-item>
-      <el-form-item label="Tier" prop="tier">
-        <el-select v-model="formData.tier" placeholder="Select tier">
-          <el-option label="Normal" value="normal" />
-          <el-option label="Pro" value="pro" />
-          <el-option label="Noop" value="noop" />
+      <el-form-item :label="t('users.form.tier')" prop="tier">
+        <el-select v-model="formData.tier" :placeholder="t('users.form.tierPlaceholder')">
+          <el-option :label="t('users.tierNormal')" value="normal" />
+          <el-option :label="t('users.tierPro')" value="pro" />
+          <el-option :label="t('users.tierNoop')" value="noop" />
         </el-select>
       </el-form-item>
-      <el-form-item label="Handicap" prop="handicap_rate">
+      <el-form-item :label="t('users.form.handicap')" prop="handicap_rate">
         <el-input-number
           v-model="formData.handicap_rate"
           :min="0"
@@ -38,26 +38,27 @@
           placeholder="0.0"
         />
         <span class="el-form-item__helper" style="margin-left: 8px; color: var(--text-muted); font-size: 12px;">
-          penalty goals subtracted from score (e.g. 0.5 = must win by 1+ to count as win)
+          {{ t('users.form.handicapHint') }}
         </span>
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <el-button @click="handleCancel">Cancel</el-button>
+      <el-button @click="handleCancel">{{ t('common.cancel') }}</el-button>
       <el-button
         type="primary"
         @click="handleSubmit"
         :loading="loading"
       >
-        {{ isEdit ? 'Update' : 'Create' }}
+        {{ isEdit ? t('common.update') : t('common.create') }}
       </el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { User } from '@/types/user'
 
@@ -86,14 +87,15 @@ const formData = ref({
 })
 
 const isEdit = ref(false)
+const { t } = useI18n()
 
 // Rules for form validation
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   name: [
-    { required: true, message: 'Please enter a name', trigger: 'blur' },
-    { min: 2, max: 100, message: 'Name should be 2-100 characters', trigger: 'blur' }
+    { required: true, message: t('validation.nameRequired'), trigger: 'blur' },
+    { min: 2, max: 100, message: t('validation.nameMinMax'), trigger: 'blur' }
   ]
-}
+}))
 
 // Watch for user prop changes to populate form
 watch(() => props.user, (newUser) => {

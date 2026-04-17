@@ -4,25 +4,25 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <el-button text @click="router.push('/tournaments')" :icon="ArrowLeft">Back</el-button>
+          <el-button text @click="router.push('/tournaments')" :icon="ArrowLeft">{{ t('common.back') }}</el-button>
           <div>
             <h1 class="page-title">{{ store.currentTournament?.name ?? '…' }}</h1>
             <div class="flex gap-2 mt-1" v-if="store.currentTournament">
-              <el-tag size="small">{{ store.currentTournament.match_type }}</el-tag>
+              <el-tag size="small">{{ getMatchTypeLabel(store.currentTournament.match_type) }}</el-tag>
               <el-tag
                 :type="store.currentTournament.status === 'completed' ? 'success' : 'primary'"
                 size="small"
               >
-                {{ store.currentTournament.status }}
+                {{ getTournamentStatusLabel(store.currentTournament.status) }}
               </el-tag>
               <el-tag
                 :type="store.currentTournament.affects_score ? 'warning' : 'info'"
                 size="small"
               >
-                {{ store.currentTournament.affects_score ? 'Affects Score' : 'No Score Effect' }}
+                {{ getTournamentAffectsScoreLabel(store.currentTournament.affects_score) }}
               </el-tag>
               <el-tag v-if="store.currentTournament.entry_fee > 0" type="default" size="small">
-                Fee: {{ store.currentTournament.entry_fee.toLocaleString('vi-VN') }}₫
+                {{ t('tournaments.detail.entryFee', { amount: formatVND(store.currentTournament.entry_fee) }) }}
               </el-tag>
             </div>
           </div>
@@ -36,7 +36,7 @@
           @click="handleComplete"
           plain
         >
-          Mark as Completed
+          {{ t('tournaments.detail.completeButton') }}
         </el-button>
       </div>
 
@@ -49,7 +49,7 @@
           <!-- Left: Schedule -->
           <div class="lg:col-span-2">
             <div v-for="round in groupedRounds" :key="round.number" class="mb-6">
-              <h3 class="section-title">Round {{ round.number }}</h3>
+              <h3 class="section-title">{{ t('tournaments.detail.round', { number: round.number }) }}</h3>
               <div
                 v-for="match in round.matches"
                 :key="match.id"
@@ -91,7 +91,7 @@
                         </span>
                       </template>
                       <template v-else>
-                        <span class="vs-text">VS</span>
+                        <span class="vs-text">{{ t('common.vs') }}</span>
                       </template>
                     </div>
 
@@ -114,12 +114,12 @@
 
                   <!-- Completed: winner label -->
                   <div v-if="match.status === 'completed'" class="match-result-label">
-                    <el-tag v-if="match.effective_winner === 0" type="info" size="small">Draw</el-tag>
+                    <el-tag v-if="match.effective_winner === 0" type="info" size="small">{{ t('tournaments.detail.draw') }}</el-tag>
                     <el-tag v-else-if="match.effective_winner === 1" type="success" size="small">
-                      {{ getTeam1Label(match) }} wins
+                      {{ t('tournaments.detail.wins', { team: getTeam1Label(match) }) }}
                     </el-tag>
                     <el-tag v-else type="success" size="small">
-                      {{ getTeam2Label(match) }} wins
+                      {{ t('tournaments.detail.wins', { team: getTeam2Label(match) }) }}
                     </el-tag>
                   </div>
 
@@ -152,12 +152,12 @@
                       class="ml-3"
                     >
                       →
-                      <template v-if="effectiveWinnerPreview(match) === 0">Draw</template>
+                      <template v-if="effectiveWinnerPreview(match) === 0">{{ t('tournaments.detail.draw') }}</template>
                       <template v-else-if="effectiveWinnerPreview(match) === 1">
-                        {{ getTeam1Label(match) }} wins
+                        {{ t('tournaments.detail.wins', { team: getTeam1Label(match) }) }}
                       </template>
                       <template v-else>
-                        {{ getTeam2Label(match) }} wins
+                        {{ t('tournaments.detail.wins', { team: getTeam2Label(match) }) }}
                       </template>
                     </el-tag>
 
@@ -168,7 +168,7 @@
                       :loading="store.loading"
                       @click="handleRecordResult(match)"
                     >
-                      Submit
+                      {{ t('tournaments.detail.submitResult') }}
                     </el-button>
                   </div>
                 </div>
@@ -181,7 +181,7 @@
             <!-- Participants -->
             <div class="card mb-4">
               <div class="card-body">
-                <h3 class="section-title">Participants ({{ store.currentTournament.participants.length }})</h3>
+                <h3 class="section-title">{{ t('tournaments.detail.participants', { count: store.currentTournament.participants.length }) }}</h3>
                 <div
                   v-for="p in store.currentTournament.participants"
                   :key="p.id"
@@ -202,10 +202,10 @@
             <!-- Standings -->
             <div class="card">
               <div class="card-body">
-                <h3 class="section-title">Standings</h3>
+                <h3 class="section-title">{{ t('tournaments.detail.standings') }}</h3>
                 <el-table :data="standings" size="small">
                   <el-table-column label="#" type="index" width="36" />
-                  <el-table-column label="Player" min-width="110">
+                  <el-table-column :label="t('tournaments.detail.player')" min-width="110">
                     <template #default="{ row }">
                       <div class="flex items-center gap-1 flex-wrap">
                         <span>{{ row.user?.name }}</span>
@@ -213,17 +213,17 @@
                       </div>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="wins" label="W" width="38" align="center" />
-                  <el-table-column prop="draws" label="D" width="38" align="center" />
-                  <el-table-column prop="losses" label="L" width="38" align="center" />
-                  <el-table-column label="GD" width="50" align="center">
+                  <el-table-column prop="wins" :label="t('tournaments.detail.winsShort')" width="38" align="center" />
+                  <el-table-column prop="draws" :label="t('tournaments.detail.drawsShort')" width="38" align="center" />
+                  <el-table-column prop="losses" :label="t('tournaments.detail.lossesShort')" width="38" align="center" />
+                  <el-table-column :label="t('tournaments.detail.goalDifference')" width="50" align="center">
                     <template #default="{ row }">
                       <span :class="row.goals_for - row.goals_against >= 0 ? 'text-success' : 'text-danger'">
                         {{ row.goals_for - row.goals_against >= 0 ? '+' : '' }}{{ row.goals_for - row.goals_against }}
                       </span>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="points" label="Pts" width="44" align="center">
+                  <el-table-column prop="points" :label="t('tournaments.detail.pointsShort')" width="56" align="center">
                     <template #default="{ row }">
                       <strong>{{ row.points }}</strong>
                     </template>
@@ -241,14 +241,18 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ArrowLeft, CircleCheck, Loading } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useTournamentStore } from '@/stores/tournamentStore'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 import type { Tournament, TournamentMatch, TournamentStanding } from '@/types/tournament'
+import { formatVND } from '@/utils/formatters'
+import { getMatchTypeLabel, getTournamentAffectsScoreLabel, getTournamentStatusLabel } from '@/utils/tournamentLabels'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 const store = useTournamentStore()
 
 const tournamentId = route.params.id as string
@@ -333,11 +337,11 @@ const handleRecordResult = async (match: TournamentMatch) => {
 // ── Complete tournament ───────────────────────────────────────────────────────
 const handleComplete = () => {
   ElMessageBox.confirm(
-    'Mark this tournament as completed? This will finalize all scores.',
-    'Complete Tournament',
+    t('tournaments.detail.completeConfirm'),
+    t('tournaments.detail.completeTitle'),
     {
-      confirmButtonText: 'Complete',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: t('tournaments.detail.completeButton'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     }
   )

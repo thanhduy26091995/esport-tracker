@@ -5,8 +5,8 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">Dashboard</h1>
-          <p class="page-subtitle">FC25 Esport Score Tracker Overview</p>
+          <h1 class="page-title">{{ t('dashboard.pageTitle') }}</h1>
+          <p class="page-subtitle">{{ t('dashboard.pageSubtitle') }}</p>
         </div>
         <el-button
           type="primary"
@@ -15,21 +15,21 @@
           :disabled="userStore.users.length < 2"
           size="large"
         >
-          Record Match
+          {{ t('dashboard.recordMatch') }}
         </el-button>
       </div>
 
       <div v-if="userStore.users.length < 2" class="info-banner info-banner--warning mb-6">
         <el-icon><Warning /></el-icon>
-        Need at least 2 players to record a match.
+        {{ t('dashboard.needMorePlayers') }}
       </div>
 
       <!-- Stats grid -->
       <div class="stats-grid">
-        <StatCard title="Total Players"   :value="userStore.users.length"       :icon="User"       :loading="userStore.loading"                          type="info"    />
-        <StatCard title="Today's Matches" :value="getTodayMatchesCount()"        :icon="Trophy"     :loading="matchStore.loading"                         type="success" />
-        <StatCard title="Fund Balance"    :value="formatVND(fundStore.balance)"  :icon="Wallet"     :loading="fundStore.loading"                          type="warning" />
-        <StatCard title="Players in Debt" :value="getDebtorsCount()"             :icon="TrendCharts" :loading="userStore.loading || configStore.loading"  type="danger"  />
+        <StatCard :title="t('dashboard.statTotalPlayers')"   :value="userStore.users.length"       :icon="User"       :loading="userStore.loading"                          type="info"    />
+        <StatCard :title="t('dashboard.statTodayMatches')" :value="getTodayMatchesCount()"        :icon="Trophy"     :loading="matchStore.loading"                         type="success" />
+        <StatCard :title="t('dashboard.statFundBalance')"    :value="formatVND(fundStore.balance)"  :icon="Wallet"     :loading="fundStore.loading"                          type="warning" />
+        <StatCard :title="t('dashboard.statPlayersInDebt')" :value="getDebtorsCount()"             :icon="TrendCharts" :loading="userStore.loading || configStore.loading"  type="danger"  />
       </div>
 
       <!-- Content grid -->
@@ -38,8 +38,8 @@
         <!-- Leaderboard -->
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Top Players</span>
-            <router-link to="/users" class="view-all-link">View all →</router-link>
+            <span class="card-title">{{ t('dashboard.topPlayers') }}</span>
+            <router-link to="/users" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
           </div>
           <div class="card-body">
             <Leaderboard :users="userStore.users" :debt-threshold="configStore.debtThreshold" :limit="10" compact />
@@ -49,8 +49,8 @@
         <!-- Recent Matches -->
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Recent Matches</span>
-            <router-link to="/matches" class="view-all-link">View all →</router-link>
+            <span class="card-title">{{ t('dashboard.recentMatches') }}</span>
+            <router-link to="/matches" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
           </div>
           <div class="card-body">
             <RecentMatches :matches="matchStore.matches.slice(0, 10)" :users="userStore.users" />
@@ -60,8 +60,8 @@
         <!-- Recent Settlements -->
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Recent Settlements</span>
-            <router-link to="/settlements" class="view-all-link">View all →</router-link>
+            <span class="card-title">{{ t('dashboard.recentSettlements') }}</span>
+            <router-link to="/settlements" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
           </div>
           <div class="card-body">
             <div v-if="settlementStore.loading" class="loading-center">
@@ -69,7 +69,7 @@
             </div>
             <div v-else-if="recentSettlements.length === 0" class="empty-state">
               <el-icon :size="36" class="empty-state-icon"><Document /></el-icon>
-              <p class="empty-state-title">No settlements yet</p>
+              <p class="empty-state-title">{{ t('dashboard.noSettlements') }}</p>
             </div>
             <div v-else class="item-list">
               <div
@@ -93,8 +93,8 @@
         <!-- Fund Activity -->
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Recent Fund Activity</span>
-            <router-link to="/fund" class="view-all-link">View all →</router-link>
+            <span class="card-title">{{ t('dashboard.recentFundActivity') }}</span>
+            <router-link to="/fund" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
           </div>
           <div class="card-body">
             <div v-if="fundStore.loading" class="loading-center">
@@ -102,23 +102,23 @@
             </div>
             <div v-else-if="recentTransactions.length === 0" class="empty-state">
               <el-icon :size="36" class="empty-state-icon"><Wallet /></el-icon>
-              <p class="empty-state-title">No transactions yet</p>
+              <p class="empty-state-title">{{ t('dashboard.noTransactions') }}</p>
             </div>
             <div v-else class="item-list">
               <div
-                v-for="t in recentTransactions" :key="t.id"
+                v-for="tx in recentTransactions" :key="tx.id"
                 class="item-row"
                 @click="$router.push('/fund')"
               >
-                <div class="item-avatar" :class="t.transaction_type === 'deposit' ? 'item-avatar--green' : 'item-avatar--red'">
-                  <el-icon :size="14"><component :is="t.transaction_type === 'deposit' ? Plus : Minus" /></el-icon>
+                <div class="item-avatar" :class="tx.transaction_type === 'deposit' ? 'item-avatar--green' : 'item-avatar--red'">
+                  <el-icon :size="14"><component :is="tx.transaction_type === 'deposit' ? Plus : Minus" /></el-icon>
                 </div>
                 <div class="item-info">
-                  <p class="item-title capitalize">{{ t.transaction_type }}</p>
-                  <p class="item-sub">{{ t.description }}</p>
+                  <p class="item-title">{{ tx.transaction_type === 'deposit' ? t('dashboard.deposit') : t('dashboard.withdrawal') }}</p>
+                  <p class="item-sub">{{ tx.description }}</p>
                 </div>
-                <div class="item-amount" :class="t.transaction_type === 'deposit' ? 'item-amount--green' : 'item-amount--red'">
-                  {{ t.transaction_type === 'deposit' ? '+' : '-' }}{{ formatVND(t.amount) }}
+                <div class="item-amount" :class="tx.transaction_type === 'deposit' ? 'item-amount--green' : 'item-amount--red'">
+                  {{ tx.transaction_type === 'deposit' ? '+' : '-' }}{{ formatVND(tx.amount) }}
                 </div>
               </div>
             </div>
@@ -142,6 +142,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { Trophy, User, Plus, Minus, Warning, Wallet, TrendCharts, Document, Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { useMatchStore } from '@/stores/matchStore'
@@ -183,7 +185,7 @@ const getTodayMatchesCount = () => {
 }
 
 const getDebtorsCount = () => userStore.users.filter(u => u.current_score < configStore.debtThreshold).length
-const getUserName = (id: string) => userStore.users.find(u => u.id === id)?.name || 'Unknown'
+const getUserName = (id: string) => userStore.users.find(u => u.id === id)?.name || t('common.unknown')
 
 const handleRecordMatch = () => { showMatchForm.value = true }
 const handleSubmitMatch = async (data: CreateMatchRequest) => {

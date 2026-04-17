@@ -1,20 +1,21 @@
+import { getIntlLocale } from '@/utils/intl'
+
 /**
- * Format a number as Vietnamese Dong (VND)
- * Example: 100000 => "100.000 ₫"
+ * Format a number as Vietnamese Dong (VND) using the active locale.
  */
 export function formatVND(amount: number): string {
-  return new Intl.NumberFormat('vi-VN', {
+  return new Intl.NumberFormat(getIntlLocale(), {
     style: 'currency',
     currency: 'VND',
+    minimumFractionDigits: 0,
   }).format(amount)
 }
 
 /**
- * Format a number with thousand separators (no currency symbol)
- * Example: 100000 => "100.000"
+ * Format a number with locale-aware thousand separators.
  */
 export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('vi-VN').format(value)
+  return new Intl.NumberFormat(getIntlLocale()).format(value)
 }
 
 /**

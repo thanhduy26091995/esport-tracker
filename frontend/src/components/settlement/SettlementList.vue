@@ -1,21 +1,21 @@
 <template>
   <div>
     <div class="filter-bar">
-      <el-select v-model="dateFilter" placeholder="Date Range" clearable class="w-44">
-        <el-option label="All Time" value="" />
-        <el-option label="Today" value="today" />
-        <el-option label="This Week" value="week" />
-        <el-option label="This Month" value="month" />
+      <el-select v-model="dateFilter" :placeholder="t('settlements.filterDateRange')" clearable class="w-44">
+        <el-option :label="t('matches.allTime')" value="" />
+        <el-option :label="t('common.today')" value="today" />
+        <el-option :label="t('common.thisWeek')" value="week" />
+        <el-option :label="t('common.thisMonth')" value="month" />
       </el-select>
-      <span class="filter-count">{{ filteredSettlements.length }} of {{ settlements.length }}</span>
+      <span class="filter-count">{{ t('settlements.filterCount', { filtered: filteredSettlements.length, total: settlements.length }) }}</span>
     </div>
 
     <div v-if="!loading && filteredSettlements.length === 0" class="empty-state">
       <svg class="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <p class="empty-state-title">{{ hasFilters ? 'No settlements found' : 'No settlements yet' }}</p>
-      <p class="empty-state-desc">{{ hasFilters ? 'Try adjusting your filters' : 'Settlements trigger automatically at the debt threshold' }}</p>
+      <p class="empty-state-title">{{ hasFilters ? t('settlements.noSettlementsFound') : t('settlements.noSettlements') }}</p>
+      <p class="empty-state-desc">{{ hasFilters ? t('matches.tryAdjustFilters') : t('settlements.autoHint') }}</p>
     </div>
 
     <div v-else class="sl-list">
@@ -39,19 +39,19 @@
 
         <div class="sl-grid">
           <div class="sl-stat">
-            <dt>Debt Points</dt>
-            <dd class="sl-stat-val sl-stat-val--red">{{ s.original_debt_points }} pts</dd>
+            <dt>{{ t('settlements.debtPoints') }}</dt>
+            <dd class="sl-stat-val sl-stat-val--red">{{ s.original_debt_points }} {{ t('common.pointsUnit') }}</dd>
           </div>
           <div class="sl-stat">
-            <dt>Total Amount</dt>
+            <dt>{{ t('settlements.totalAmount') }}</dt>
             <dd class="sl-stat-val">{{ formatVND(s.money_amount) }}</dd>
           </div>
           <div class="sl-stat">
-            <dt>To Fund</dt>
+            <dt>{{ t('settlements.toFund') }}</dt>
             <dd class="sl-stat-val sl-stat-val--green">{{ formatVND(s.fund_amount) }}</dd>
           </div>
           <div class="sl-stat">
-            <dt>To Winners</dt>
+            <dt>{{ t('settlements.toWinners') }}</dt>
             <dd class="sl-stat-val sl-stat-val--blue">{{ formatVND(s.winner_distribution) }}</dd>
           </div>
         </div>
@@ -62,7 +62,7 @@
           </span>
         </div>
 
-        <p class="sl-hint">Tap for details →</p>
+        <p class="sl-hint">{{ t('settlements.tapForDetails') }}</p>
       </div>
     </div>
 
@@ -74,6 +74,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Warning } from '@element-plus/icons-vue'
 import type { DebtSettlement } from '@/types/settlement'
 import { formatVND } from '@/utils/formatters'
@@ -82,6 +83,7 @@ import { formatDateTime, isToday } from '@/utils/date'
 interface Props { settlements: DebtSettlement[]; loading?: boolean }
 const props = withDefaults(defineProps<Props>(), { loading: false })
 const emit = defineEmits<{ settlementClick: [settlement: DebtSettlement] }>()
+const { t } = useI18n()
 
 const dateFilter = ref(''); const currentPage = ref(1); const pageSize = 20
 const hasFilters = computed(() => !!dateFilter.value)

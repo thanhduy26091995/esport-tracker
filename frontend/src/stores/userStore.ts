@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type { User } from '@/types/user'
 import { userService } from '@/services/userService'
 import { ElMessage } from 'element-plus'
+import { getErrorMessage, translate } from '@/utils/i18n'
 
 export const useUserStore = defineStore('user', () => {
   const users = ref<User[]>([])
@@ -27,15 +28,15 @@ export const useUserStore = defineStore('user', () => {
   async function createUser(name: string, tier?: string, handicapRate?: number) {
     // Validate name before sending
     if (!name || name.trim().length === 0) {
-      ElMessage.error('Name cannot be empty')
+      ElMessage.error(translate('validation.nameRequired'))
       throw new Error('Name is required')
     }
     if (name.trim().length < 2) {
-      ElMessage.error('Name must be at least 2 characters')
+      ElMessage.error(translate('validation.nameMin'))
       throw new Error('Name too short')
     }
     if (name.trim().length > 100) {
-      ElMessage.error('Name must be less than 100 characters')
+      ElMessage.error(translate('validation.nameMax'))
       throw new Error('Name too long')
     }
 
@@ -50,10 +51,10 @@ export const useUserStore = defineStore('user', () => {
       users.value.push(newUser)
       // Sort by score DESC
       users.value.sort((a, b) => b.current_score - a.current_score)
-      ElMessage.success(`User "${newUser.name}" created successfully`)
+      ElMessage.success(translate('toast.userCreated', { name: newUser.name }))
       return newUser
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error?.message || err.message || 'Failed to create user'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err
@@ -66,15 +67,15 @@ export const useUserStore = defineStore('user', () => {
   async function updateUser(id: string, name: string, tier?: string, handicapRate?: number) {
     // Validate name before sending
     if (!name || name.trim().length === 0) {
-      ElMessage.error('Name cannot be empty')
+      ElMessage.error(translate('validation.nameRequired'))
       throw new Error('Name is required')
     }
     if (name.trim().length < 2) {
-      ElMessage.error('Name must be at least 2 characters')
+      ElMessage.error(translate('validation.nameMin'))
       throw new Error('Name too short')
     }
     if (name.trim().length > 100) {
-      ElMessage.error('Name must be less than 100 characters')
+      ElMessage.error(translate('validation.nameMax'))
       throw new Error('Name too long')
     }
 
@@ -90,10 +91,10 @@ export const useUserStore = defineStore('user', () => {
       if (index !== -1) {
         users.value[index] = updatedUser
       }
-      ElMessage.success(`User updated to "${updatedUser.name}"`)
+      ElMessage.success(translate('toast.userUpdated', { name: updatedUser.name }))
       return updatedUser
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error?.message || err.message || 'Failed to update user'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err
@@ -105,7 +106,7 @@ export const useUserStore = defineStore('user', () => {
   // Delete a user
   async function deleteUser(id: string) {
     if (!id) {
-      ElMessage.error('Invalid user ID')
+      ElMessage.error(translate('validation.invalidUserId'))
       throw new Error('User ID is required')
     }
 
@@ -115,9 +116,9 @@ export const useUserStore = defineStore('user', () => {
       await userService.delete(id)
       const deletedUser = users.value.find(u => u.id === id)
       users.value = users.value.filter(u => u.id !== id)
-      ElMessage.success(`User "${deletedUser?.name || 'Unknown'}" deleted successfully`)
+      ElMessage.success(translate('toast.userDeleted', { name: deletedUser?.name || translate('common.unknown') }))
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error?.message || err.message || 'Failed to delete user'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err

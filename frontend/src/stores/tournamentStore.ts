@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type { Tournament, RecordMatchResultRequest, CreateTournamentRequest } from '@/types/tournament'
 import { tournamentService } from '@/services/tournamentService'
 import { ElMessage } from 'element-plus'
+import { getErrorMessage, translate } from '@/utils/i18n'
 
 export const useTournamentStore = defineStore('tournament', () => {
   const tournaments = ref<Tournament[]>([])
@@ -42,10 +43,10 @@ export const useTournamentStore = defineStore('tournament', () => {
     try {
       const tournament = await tournamentService.create(data)
       tournaments.value.unshift(tournament)
-      ElMessage.success(`Tournament "${tournament.name}" created!`)
+      ElMessage.success(translate('toast.tournamentCreated', { name: tournament.name }))
       return tournament
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Failed to create tournament'
+      const msg = getErrorMessage(err)
       error.value = msg
       ElMessage.error(msg)
       throw err
@@ -60,9 +61,9 @@ export const useTournamentStore = defineStore('tournament', () => {
       await tournamentService.delete(id)
       tournaments.value = tournaments.value.filter(t => t.id !== id)
       if (currentTournament.value?.id === id) currentTournament.value = null
-      ElMessage.success('Tournament deleted')
+      ElMessage.success(translate('toast.tournamentDeleted'))
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Failed to delete tournament'
+      const msg = getErrorMessage(err)
       ElMessage.error(msg)
       throw err
     } finally {
@@ -77,10 +78,10 @@ export const useTournamentStore = defineStore('tournament', () => {
       if (currentTournament.value?.id === id) currentTournament.value = updated
       const idx = tournaments.value.findIndex(t => t.id === id)
       if (idx !== -1) tournaments.value[idx] = updated
-      ElMessage.success('Tournament completed!')
+      ElMessage.success(translate('toast.tournamentCompleted'))
       return updated
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Failed to complete tournament'
+      const msg = getErrorMessage(err)
       ElMessage.error(msg)
       throw err
     } finally {
@@ -93,9 +94,9 @@ export const useTournamentStore = defineStore('tournament', () => {
     try {
       await tournamentService.recordResult(tournamentId, matchId, data)
       await fetchTournament(tournamentId)
-      ElMessage.success('Result recorded!')
+      ElMessage.success(translate('toast.resultRecorded'))
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Failed to record result'
+      const msg = getErrorMessage(err)
       ElMessage.error(msg)
       throw err
     } finally {

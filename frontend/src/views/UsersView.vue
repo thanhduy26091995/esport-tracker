@@ -4,32 +4,32 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">Players</h1>
-          <p class="page-subtitle">Manage FC25 players and view their scores</p>
+          <h1 class="page-title">{{ t('users.pageTitle') }}</h1>
+          <p class="page-subtitle">{{ t('users.pageSubtitle') }}</p>
         </div>
         <el-button type="primary" @click="handleAdd" :icon="Plus" size="large">
-          Add Player
+          {{ t('users.addPlayer') }}
         </el-button>
       </div>
 
       <!-- Stats -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard
-          title="Total Players"
+          :title="t('users.statTotalPlayers')"
           :value="userStore.users.length"
           :icon="UserIcon"
           :loading="userStore.loading"
           type="info"
         />
         <StatCard
-          title="Top Score"
+          :title="t('users.statTopScore')"
           :value="topScore >= 0 ? `+${topScore}` : topScore"
           :icon="Trophy"
           :loading="userStore.loading"
           type="success"
         />
         <StatCard
-          title="Players in Debt"
+          :title="t('users.statPlayersInDebt')"
           :value="playersInDebt"
           :icon="Warning"
           :loading="userStore.loading"
@@ -78,6 +78,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { Plus, User as UserIcon, Trophy, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/userStore'
@@ -138,11 +140,11 @@ const handleCancel = () => {
 
 const handleDeleteConfirm = (user: User) => {
   ElMessageBox.confirm(
-    `Are you sure you want to delete "${user.name}"? This action cannot be undone.`,
-    'Delete Player',
+    t('users.deleteConfirm', { name: user.name }),
+    t('users.deleteTitle'),
     {
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
       confirmButtonClass: 'el-button--danger'
     }
@@ -162,7 +164,7 @@ const handleSettlementConfirm = async (winnerIds: string[]) => {
   try {
     await settlementStore.triggerSettlement(settlementDebtor.value.id, winnerIds)
     await userStore.fetchUsers() // Refresh user data
-    ElMessage.success(`Settlement triggered for ${settlementDebtor.value.name}`)
+    ElMessage.success(t('users.settlementSuccess', { name: settlementDebtor.value.name }))
     showSettlementDialog.value = false
     settlementDebtor.value = null
   } catch (error) {

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { DebtSettlement, SettlementStats } from '@/types/settlement'
 import { settlementService } from '@/services/settlementService'
+import { getErrorMessage, translate } from '@/utils/i18n'
 
 export const useSettlementStore = defineStore('settlement', () => {
   const settlements = ref<DebtSettlement[]>([])
@@ -81,11 +82,10 @@ export const useSettlementStore = defineStore('settlement', () => {
       if (new Date(settlement.settlement_date).toDateString() === new Date().toDateString()) {
         stats.value.today++
       }
-      ElMessage.success('Settlement triggered successfully')
+      ElMessage.success(translate('toast.settlementTriggered'))
       return settlement
     } catch (err: any) {
-      const errorMsg =
-        err.response?.data?.error?.message || err.message || 'Failed to trigger settlement'
+      const errorMsg = getErrorMessage(err)
       error.value = errorMsg
       ElMessage.error(errorMsg)
       throw err

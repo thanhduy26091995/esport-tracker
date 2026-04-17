@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="type === 'deposit' ? 'Deposit to Fund' : 'Withdraw from Fund'"
+    :title="type === 'deposit' ? t('fund.dialogDepositTitle') : t('fund.dialogWithdrawTitle')"
     @update:model-value="$emit('update:modelValue', $event)"
     width="500px"
     :close-on-click-modal="false"
@@ -16,13 +16,13 @@
       <!-- Current Balance (for withdrawal) -->
       <div v-if="type === 'withdrawal'" class="mb-4 p-3 bg-blue-50 rounded-lg">
         <div class="text-sm text-blue-900">
-          <span class="font-medium">Current Balance:</span>
+          <span class="font-medium">{{ t('fund.currentBalanceLabel') }}</span>
           <span class="ml-2 text-lg font-bold">{{ formatVND(currentBalance) }}</span>
         </div>
       </div>
 
       <!-- Amount -->
-      <el-form-item label="Amount (VND)" prop="amount">
+      <el-form-item :label="t('fund.amountLabel')" prop="amount">
         <el-input-number
           v-model="formData.amount"
           :min="1000"
@@ -35,23 +35,23 @@
       </el-form-item>
 
       <!-- Description -->
-      <el-form-item label="Description" prop="description">
+      <el-form-item :label="t('fund.descriptionLabel')" prop="description">
         <el-input
           v-model="formData.description"
           type="textarea"
           :rows="3"
-          placeholder="Enter transaction details..."
+          :placeholder="t('fund.descriptionPlaceholder')"
           maxlength="200"
           show-word-limit
         />
       </el-form-item>
 
       <!-- Date (Optional) -->
-      <el-form-item label="Date">
+      <el-form-item :label="t('fund.dateLabel')">
         <el-date-picker
           v-model="formData.date"
           type="datetime"
-          placeholder="Default: Now"
+          :placeholder="t('fund.defaultDatePlaceholder')"
           class="w-full"
           format="DD/MM/YYYY HH:mm"
           :disabled-date="disabledDate"
@@ -67,13 +67,13 @@
         class="mb-4"
       >
         <template #title>
-          You are withdrawing more than 50% of the fund balance
+          {{ t('fund.largeWithdrawalWarning') }}
         </template>
       </el-alert>
     </el-form>
 
     <template #footer>
-      <el-button @click="handleCancel">Cancel</el-button>
+      <el-button @click="handleCancel">{{ t('common.cancel') }}</el-button>
       <el-button
         :type="type === 'deposit' ? 'success' : 'danger'"
         @click="handleSubmit"
@@ -81,7 +81,7 @@
         :disabled="!isValid"
         plain
       >
-        {{ type === 'deposit' ? 'Deposit' : 'Withdraw' }}
+        {{ type === 'deposit' ? t('fund.submitDeposit') : t('fund.submitWithdraw') }}
       </el-button>
     </template>
   </el-dialog>
@@ -89,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatVND } from '@/utils/formatters'
 
@@ -110,6 +111,7 @@ const emit = defineEmits<{
 }>()
 
 const formRef = ref<FormInstance>()
+const { t } = useI18n()
 const formData = ref({
   amount: 10000,
   description: '',
@@ -117,26 +119,16 @@ const formData = ref({
 })
 
 // Validation rules
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   amount: [
-    { required: true, message: 'Please enter amount', trigger: 'blur' },
-    {
-      type: 'number',
-      min: 1000,
-      message: 'Amount must be at least 1,000 VND',
-      trigger: 'blur'
-    }
+    { required: true, message: t('validation.fundAmountRequired'), trigger: 'blur' },
+    { type: 'number', min: 1000, message: t('validation.fundAmountMin'), trigger: 'blur' }
   ],
   description: [
-    { required: true, message: 'Please enter description', trigger: 'blur' },
-    {
-      min: 3,
-      max: 200,
-      message: 'Description should be 3-200 characters',
-      trigger: 'blur'
-    }
+    { required: true, message: t('validation.fundDescRequired'), trigger: 'blur' },
+    { min: 3, max: 200, message: t('validation.fundDescLength'), trigger: 'blur' }
   ]
-}
+}))
 
 const isValid = computed(() => {
   if (!formData.value.amount || formData.value.amount < 1000) return false
@@ -155,7 +147,7 @@ watch(
       // Set default description based on type
       if (!formData.value.description) {
         formData.value.description =
-          props.type === 'deposit' ? 'Manual deposit to fund' : 'Manual withdrawal from fund'
+          props.type === 'deposit' ? t('fund.defaultDepositDescription') : t('fund.defaultWithdrawalDescription')
       }
     }
   }

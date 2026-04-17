@@ -2,31 +2,31 @@
   <div>
     <!-- Filters -->
     <div class="filter-bar">
-      <el-select v-model="typeFilter" placeholder="Type" clearable class="w-32">
-        <el-option label="All Types" value="" />
-        <el-option label="1v1" value="1v1" />
-        <el-option label="2v2" value="2v2" />
+      <el-select v-model="typeFilter" :placeholder="t('matches.filterType')" clearable class="w-32">
+        <el-option :label="t('matches.allTypes')" value="" />
+        <el-option :label="t('matches.types.oneVsOne')" value="1v1" />
+        <el-option :label="t('matches.types.twoVsTwo')" value="2v2" />
       </el-select>
-      <el-select v-model="dateFilter" placeholder="Date" clearable class="w-40">
-        <el-option label="All Time" value="" />
-        <el-option label="Today" value="today" />
-        <el-option label="This Week" value="week" />
-        <el-option label="This Month" value="month" />
+      <el-select v-model="dateFilter" :placeholder="t('matches.filterDate')" clearable class="w-40">
+        <el-option :label="t('matches.allTime')" value="" />
+        <el-option :label="t('common.today')" value="today" />
+        <el-option :label="t('common.thisWeek')" value="week" />
+        <el-option :label="t('common.thisMonth')" value="month" />
       </el-select>
-      <el-select v-model="statusFilter" placeholder="Status" clearable class="w-36">
-        <el-option label="All" value="" />
-        <el-option label="Normal" value="normal" />
-        <el-option label="Locked" value="locked" />
+      <el-select v-model="statusFilter" :placeholder="t('matches.filterStatus')" clearable class="w-36">
+        <el-option :label="t('common.all')" value="" />
+        <el-option :label="t('common.normal')" value="normal" />
+        <el-option :label="t('matches.locked')" value="locked" />
       </el-select>
-      <span class="filter-count">{{ filteredMatches.length }} of {{ matches.length }} matches</span>
+      <span class="filter-count">{{ t('matches.filterCount', { filtered: filteredMatches.length, total: matches.length }) }}</span>
     </div>
 
     <div v-if="!loading && filteredMatches.length === 0" class="empty-state">
       <svg class="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
-      <p class="empty-state-title">{{ hasFilters ? 'No matches found' : 'No matches recorded yet' }}</p>
-      <p class="empty-state-desc">{{ hasFilters ? 'Try adjusting your filters' : 'Start by recording your first match' }}</p>
+      <p class="empty-state-title">{{ hasFilters ? t('matches.noMatchesFound') : t('matches.noMatches') }}</p>
+      <p class="empty-state-desc">{{ hasFilters ? t('matches.tryAdjustFilters') : t('matches.startRecording') }}</p>
     </div>
 
     <div v-else class="match-list">
@@ -39,15 +39,15 @@
         <div class="match-top">
           <div class="flex items-center gap-2">
             <span class="match-type" :class="match.match_type === '1v1' ? 'match-type--1v1' : 'match-type--2v2'">
-              {{ match.match_type }}
+              {{ getMatchTypeLabel(match.match_type) }}
             </span>
             <span class="match-date">{{ formatDateTime(match.match_date) }}</span>
             <span v-if="match.is_locked" class="match-locked">
-              <el-icon :size="11"><Lock /></el-icon> Locked
+              <el-icon :size="11"><Lock /></el-icon> {{ t('matches.locked') }}
             </span>
           </div>
           <el-button v-if="showActions && !match.is_locked" type="danger" size="small" text :icon="Delete" @click="handleDelete(match)">
-            Delete
+            {{ t('common.delete') }}
           </el-button>
         </div>
 
@@ -55,7 +55,7 @@
         <div class="match-teams">
           <div class="match-team">
             <div class="match-team-label" :class="{ 'match-team-label--win': match.winner_team === 1 }">
-              Team 1
+              {{ t('matches.team1') }}
               <el-icon v-if="match.winner_team === 1" :size="12"><Trophy /></el-icon>
             </div>
             <div v-for="p in team1(match)" :key="p.id" class="match-player" :class="{ 'match-player--win': match.winner_team === 1 }">
@@ -65,11 +65,11 @@
               </span>
             </div>
           </div>
-          <div class="match-vs">VS</div>
+          <div class="match-vs">{{ t('common.vs') }}</div>
           <div class="match-team match-team--right">
             <div class="match-team-label" :class="{ 'match-team-label--win': match.winner_team === 2 }">
               <el-icon v-if="match.winner_team === 2" :size="12"><Trophy /></el-icon>
-              Team 2
+              {{ t('matches.team2') }}
             </div>
             <div v-for="p in team2(match)" :key="p.id" class="match-player match-player--right" :class="{ 'match-player--win': match.winner_team === 2 }">
               <span class="match-pts" :class="p.point_change >= 0 ? 'match-pts--pos' : 'match-pts--neg'">
@@ -90,9 +90,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { Delete, Lock, Trophy } from '@element-plus/icons-vue'
 import type { Match, MatchParticipant } from '@/types/match'
 import { formatDateTime, isToday } from '@/utils/date'
+import { getMatchTypeLabel } from '@/utils/tournamentLabels'
 
 interface Props { matches: Match[]; loading?: boolean; showActions?: boolean }
 const props = withDefaults(defineProps<Props>(), { loading: false, showActions: true })

@@ -1,64 +1,64 @@
 <template>
   <div>
     <div class="filter-bar">
-      <el-input v-model="searchQuery" placeholder="Search players..." clearable class="w-64" :prefix-icon="Search" />
-      <el-select v-model="scoreFilter" placeholder="Filter by score" clearable class="w-44">
-        <el-option label="All" value="" />
-        <el-option label="Positive" value="positive" />
-        <el-option label="In Debt" value="negative" />
-        <el-option label="Zero" value="zero" />
+      <el-input v-model="searchQuery" :placeholder="t('users.searchPlaceholder')" clearable class="w-64" :prefix-icon="Search" />
+      <el-select v-model="scoreFilter" :placeholder="t('users.filterByScore')" clearable class="w-44">
+        <el-option :label="t('common.all')" value="" />
+        <el-option :label="t('users.scorePositive')" value="positive" />
+        <el-option :label="t('users.scoreInDebt')" value="negative" />
+        <el-option :label="t('users.scoreZero')" value="zero" />
       </el-select>
-      <span class="filter-count">{{ filteredUsers.length }} of {{ users.length }} players</span>
+      <span class="filter-count">{{ t('users.filterCount', { filtered: filteredUsers.length, total: users.length }) }}</span>
     </div>
 
     <div v-if="!loading && filteredUsers.length === 0" class="empty-state">
       <svg class="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
-      <p class="empty-state-title">{{ searchQuery ? 'No players found' : 'No players yet' }}</p>
-      <p class="empty-state-desc">{{ searchQuery ? 'Try a different search term' : 'Add your first player to get started.' }}</p>
+      <p class="empty-state-title">{{ searchQuery ? t('users.noPlayersFound') : t('users.noPlayers') }}</p>
+      <p class="empty-state-desc">{{ searchQuery ? t('users.tryDifferentSearch') : t('users.addFirstPlayer') }}</p>
     </div>
 
     <el-table v-else :data="filteredUsers" stripe style="width:100%" v-loading="loading"
       :default-sort="{ prop: 'current_score', order: 'descending' }">
       <el-table-column type="index" label="#" width="55" />
-      <el-table-column prop="name" label="Player" min-width="180">
+      <el-table-column prop="name" :label="t('users.colPlayer')" min-width="180">
         <template #default="{ row }">
           <div class="player-cell">
             <div class="player-avatar">{{ row.name.charAt(0).toUpperCase() }}</div>
             <span class="player-name">{{ row.name }}</span>
             <PlayerTierBadge :tier="row.tier || 'normal'" />
-            <el-tag v-if="!row.is_active" type="info" size="small">Inactive</el-tag>
+            <el-tag v-if="!row.is_active" type="info" size="small">{{ t('users.inactive') }}</el-tag>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="current_score" label="Score" width="110" sortable>
+      <el-table-column prop="current_score" :label="t('users.colScore')" width="110" sortable>
         <template #default="{ row }">
           <span class="score-pill" :class="row.current_score > 0 ? 'score-pill-positive' : row.current_score < 0 ? 'score-pill-negative' : 'score-pill-zero'">
             {{ row.current_score > 0 ? '+' : '' }}{{ row.current_score }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="Value (VND)" width="160">
+      <el-table-column :label="t('users.colValue')" width="160">
         <template #default="{ row }">
           <span class="vnd-value">{{ formatVND(pointsToVND(row.current_score, conversionRate)) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="Joined" width="130">
+      <el-table-column :label="t('users.colJoined')" width="130">
         <template #default="{ row }">
           <span class="date-value">{{ formatDate(row.created_at) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="Actions" min-width="260" align="right" fixed="right">
+      <el-table-column :label="t('common.actions')" min-width="260" align="right" fixed="right">
         <template #default="{ row }">
           <div class="actions-cell">
-            <el-tooltip v-if="row.current_score < 0 && row.current_score <= debtThreshold" content="Manually trigger settlement" placement="top">
+            <el-tooltip v-if="row.current_score < 0 && row.current_score <= debtThreshold" :content="t('users.triggerSettlementTooltip')" placement="top">
               <el-button size="small" type="warning" plain @click="emit('triggerSettlement', row)" :icon="Warning">
-                Settle Debt
+                {{ t('users.settleDebt') }}
               </el-button>
             </el-tooltip>
-            <el-button size="small" text @click="emit('edit', row)" :icon="Edit">Edit</el-button>
-            <el-button size="small" text type="danger" @click="emit('delete', row)" :icon="Delete">Delete</el-button>
+            <el-button size="small" text @click="emit('edit', row)" :icon="Edit">{{ t('common.edit') }}</el-button>
+            <el-button size="small" text type="danger" @click="emit('delete', row)" :icon="Delete">{{ t('common.delete') }}</el-button>
           </div>
         </template>
       </el-table-column>
@@ -68,9 +68,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { Edit, Delete, Search, Warning } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
+import { formatDate } from '@/utils/date'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 
 interface Props { users: User[]; loading?: boolean; conversionRate?: number; debtThreshold?: number }
@@ -87,8 +90,6 @@ const filteredUsers = computed(() => {
   else if (scoreFilter.value === 'zero') r = r.filter(u => u.current_score === 0)
   return r
 })
-
-const formatDate = (d: string) => new Date(d).toLocaleDateString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 </script>
 
 <style scoped>

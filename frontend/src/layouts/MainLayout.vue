@@ -14,24 +14,27 @@
             <el-icon color="white" :size="20"><Trophy /></el-icon>
           </div>
           <div>
-            <div class="logo-title">FC25 Tracker</div>
-            <div class="logo-sub">Esport Score System</div>
+            <div class="logo-title">{{ t('common.appName') }}</div>
+            <div class="logo-sub">{{ t('layout.sidebarSubtitle') }}</div>
           </div>
         </div>
         <nav class="sidebar-nav">
           <router-link
             v-for="item in navigation"
-            :key="item.name"
+            :key="item.navKey"
             :to="item.href"
             @click="mobileMenuOpen = false"
             class="nav-item"
             :class="{ 'nav-item--active': isActiveRoute(item.href) }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
-            <span>{{ item.name }}</span>
+            <span>{{ t(item.navKey) }}</span>
           </router-link>
         </nav>
-        <div class="sidebar-footer">v1.0.0 · FC25 Tracker</div>
+        <div class="sidebar-lang">
+          <LanguageSwitcher />
+        </div>
+        <div class="sidebar-footer">{{ t('layout.version') }} v1.0.0 · {{ t('common.appName') }}</div>
       </div>
     </el-drawer>
 
@@ -43,23 +46,26 @@
             <el-icon color="white" :size="20"><Trophy /></el-icon>
           </div>
           <div>
-            <div class="logo-title">FC25 Tracker</div>
-            <div class="logo-sub">Esport Score System</div>
+            <div class="logo-title">{{ t('common.appName') }}</div>
+            <div class="logo-sub">{{ t('layout.sidebarSubtitle') }}</div>
           </div>
         </div>
         <nav class="sidebar-nav">
           <router-link
             v-for="item in navigation"
-            :key="item.name"
+            :key="item.navKey"
             :to="item.href"
             class="nav-item"
             :class="{ 'nav-item--active': isActiveRoute(item.href) }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
-            <span>{{ item.name }}</span>
+            <span>{{ t(item.navKey) }}</span>
           </router-link>
         </nav>
-        <div class="sidebar-footer">v1.0.0 · © 2024 FC25 Tracker</div>
+        <div class="sidebar-lang">
+          <LanguageSwitcher />
+        </div>
+        <div class="sidebar-footer">{{ t('layout.version') }} v1.0.0 · © 2024 {{ t('common.appName') }}</div>
       </div>
     </aside>
 
@@ -73,8 +79,8 @@
           </button>
           <span class="mobile-page-title">{{ currentPageName }}</span>
         </div>
-        <div class="logo-icon logo-icon--sm">
-          <el-icon color="white" :size="16"><Trophy /></el-icon>
+        <div class="mobile-lang">
+          <LanguageSwitcher />
         </div>
       </header>
 
@@ -89,26 +95,29 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Menu, Trophy, HomeFilled, UserFilled, TrendCharts, DocumentCopy, Wallet, Setting, Grid } from '@element-plus/icons-vue'
+import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 
+const { t } = useI18n()
 const route = useRoute()
 const mobileMenuOpen = ref(false)
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeFilled },
-  { name: 'Players', href: '/users', icon: UserFilled },
-  { name: 'Matches', href: '/matches', icon: TrendCharts },
-  { name: 'Tournaments', href: '/tournaments', icon: Grid },
-  { name: 'Settlements', href: '/settlements', icon: DocumentCopy },
-  { name: 'Fund', href: '/fund', icon: Wallet },
-  { name: 'Settings', href: '/settings', icon: Setting },
+  { navKey: 'nav.dashboard', href: '/', icon: HomeFilled },
+  { navKey: 'nav.players', href: '/users', icon: UserFilled },
+  { navKey: 'nav.matches', href: '/matches', icon: TrendCharts },
+  { navKey: 'nav.tournaments', href: '/tournaments', icon: Grid },
+  { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
+  { navKey: 'nav.fund', href: '/fund', icon: Wallet },
+  { navKey: 'nav.settings', href: '/settings', icon: Setting },
 ]
 
 const isActiveRoute = (href: string): boolean =>
   href === '/' ? route.path === '/' : route.path.startsWith(href)
 
 const currentPageName = computed(() =>
-  navigation.find(item => isActiveRoute(item.href))?.name || 'FC25 Tracker'
+  navigation.find(item => isActiveRoute(item.href)) ? t(navigation.find(item => isActiveRoute(item.href))!.navKey) : t('common.appName')
 )
 </script>
 
@@ -230,6 +239,11 @@ const currentPageName = computed(() =>
   color: #334155;
 }
 
+.sidebar-lang {
+  padding: 10px 16px 8px;
+  border-top: 1px solid var(--sidebar-border);
+}
+
 /* ── Main area ── */
 .main-area {
   display: flex;
@@ -277,6 +291,10 @@ const currentPageName = computed(() =>
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.mobile-lang :deep(.language-label) {
+  display: none;
 }
 
 /* ── Scrollable page ── */

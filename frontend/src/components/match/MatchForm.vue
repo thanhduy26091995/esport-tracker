@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="Record Match"
+    :title="t('matches.form.recordTitle')"
     @update:model-value="$emit('update:modelValue', $event)"
     width="90%"
     style="max-width: 600px"
@@ -16,20 +16,20 @@
       @submit.prevent="handleSubmit"
     >
       <!-- Match Type -->
-      <el-form-item label="Match Type" prop="match_type">
+      <el-form-item :label="t('matches.form.type')" prop="match_type">
         <el-radio-group v-model="formData.match_type" @change="handleMatchTypeChange">
-          <el-radio-button value="1v1">1 vs 1</el-radio-button>
-          <el-radio-button value="2v2">2 vs 2</el-radio-button>
+          <el-radio-button value="1v1">{{ t('matches.types.oneVsOne') }}</el-radio-button>
+          <el-radio-button value="2v2">{{ t('matches.types.twoVsTwo') }}</el-radio-button>
         </el-radio-group>
       </el-form-item>
 
       <!-- Team 1 -->
-      <el-form-item label="Team 1" prop="team1">
+      <el-form-item :label="t('matches.form.team1')" prop="team1">
         <el-select
           v-model="formData.team1"
           multiple
           :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
-          placeholder="Select player(s)"
+          :placeholder="t('matches.form.selectPlayersPlaceholder')"
           class="w-full"
           filterable
           :disabled="loading || !availableUsers.length"
@@ -55,12 +55,12 @@
       </el-form-item>
 
       <!-- Team 2 -->
-      <el-form-item label="Team 2" prop="team2">
+      <el-form-item :label="t('matches.form.team2')" prop="team2">
         <el-select
           v-model="formData.team2"
           multiple
           :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
-          placeholder="Select player(s)"
+          :placeholder="t('matches.form.selectPlayersPlaceholder')"
           class="w-full"
           filterable
           :disabled="loading || !availableUsers.length"
@@ -86,16 +86,16 @@
       </el-form-item>
 
       <!-- Winner Selection -->
-      <el-form-item label="Winner" prop="winner_team">
+      <el-form-item :label="t('matches.form.winner')" prop="winner_team">
         <el-radio-group v-model="formData.winner_team">
           <el-radio :value="1" :disabled="!isTeam1Valid">
-            Team 1
+            {{ t('matches.team1') }}
             <span v-if="team1Names" class="text-sm text-gray-500 ml-2">
               ({{ team1Names }})
             </span>
           </el-radio>
           <el-radio :value="2" :disabled="!isTeam2Valid">
-            Team 2
+            {{ t('matches.team2') }}
             <span v-if="team2Names" class="text-sm text-gray-500 ml-2">
               ({{ team2Names }})
             </span>
@@ -104,11 +104,11 @@
       </el-form-item>
 
       <!-- Match Date (Optional) -->
-      <el-form-item label="Match Date" prop="match_date">
+      <el-form-item :label="t('matches.form.matchDate')" prop="match_date">
         <el-date-picker
           v-model="formData.match_date"
           type="datetime"
-          placeholder="Default: Now"
+          :placeholder="t('matches.form.matchDatePlaceholder')"
           class="w-full"
           format="DD/MM/YYYY HH:mm"
           :disabled-date="disabledDate"
@@ -116,7 +116,7 @@
       </el-form-item>
 
       <!-- Points Per Win -->
-      <el-form-item label="Points Per Win" prop="points_per_win">
+      <el-form-item :label="t('matches.form.pointsPerWin')" prop="points_per_win">
         <el-input-number
           v-model="formData.points_per_win"
           :min="1"
@@ -125,9 +125,9 @@
           class="w-full"
         />
         <div class="pts-preview">
-          <span class="pts-win">Winner +{{ formData.points_per_win }}</span>
+          <span class="pts-win">{{ t('matches.form.pointsPreviewWinner', { value: formData.points_per_win }) }}</span>
           <span class="pts-sep">/</span>
-          <span class="pts-lose">Loser −{{ formData.points_per_win }}</span>
+          <span class="pts-lose">{{ t('matches.form.pointsPreviewLoser', { value: formData.points_per_win }) }}</span>
         </div>
       </el-form-item>
 
@@ -140,7 +140,7 @@
         class="mb-4"
       >
         <template #title>
-          Warning: {{ debtWarningMessage }}
+          {{ debtWarningMessage }}
         </template>
       </el-alert>
 
@@ -152,7 +152,7 @@
         class="mb-4"
       >
         <template #title>
-          Players cannot be on both teams
+          {{ t('matches.form.duplicatePlayers') }}
         </template>
       </el-alert>
     </el-form>
@@ -160,17 +160,17 @@
     <template #footer>
       <div class="flex justify-between items-center">
         <div class="text-sm text-gray-500">
-          <span v-if="isValid">✓ Ready to record</span>
+          <span v-if="isValid">✓ {{ t('matches.form.ready') }}</span>
         </div>
         <div class="space-x-2">
-          <el-button @click="handleCancel">Cancel</el-button>
+          <el-button @click="handleCancel">{{ t('common.cancel') }}</el-button>
           <el-button
             type="primary"
             @click="handleSubmit"
             :loading="loading"
             :disabled="!isValid"
           >
-            Record Match
+            {{ t('matches.form.submit') }}
           </el-button>
         </div>
       </div>
@@ -180,6 +180,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { User } from '@/types/user'
 import type { CreateMatchRequest, MatchType } from '@/types/match'
@@ -205,6 +206,7 @@ const emit = defineEmits<{
 }>()
 
 const formRef = ref<FormInstance>()
+const { t } = useI18n()
 const formData = ref<{
   match_type: MatchType
   team1: string[]
@@ -222,12 +224,12 @@ const formData = ref<{
 })
 
 // Validation rules
-const rules: FormRules = {
-  match_type: [{ required: true, message: 'Please select match type' }],
-  team1: [{ required: true, message: 'Please select Team 1 players' }],
-  team2: [{ required: true, message: 'Please select Team 2 players' }],
-  winner_team: [{ required: true, message: 'Please select winner' }]
-}
+const rules = computed<FormRules>(() => ({
+  match_type: [{ required: true, message: t('validation.selectMatchType') }],
+  team1: [{ required: true, message: t('validation.selectTeam1') }],
+  team2: [{ required: true, message: t('validation.selectTeam2') }],
+  winner_team: [{ required: true, message: t('validation.selectWinner') }]
+}))
 
 // Computed
 const availableUsers = computed(() => props.users.filter((u) => u.is_active))
@@ -287,9 +289,9 @@ const debtWarningMessage = computed(() => {
     .map((u) => u!.name)
 
   if (debtPlayers.length === 1) {
-    return `${debtPlayers[0]} is at debt threshold and may trigger settlement`
+    return t('matches.form.debtWarningOne', { name: debtPlayers[0] })
   }
-  return `${debtPlayers.join(', ')} are at debt threshold and may trigger settlement`
+  return t('matches.form.debtWarningMany', { names: debtPlayers.join(', ') })
 })
 
 // Handle match type change

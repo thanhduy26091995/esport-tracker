@@ -4,12 +4,12 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">Fund Management</h1>
-          <p class="page-subtitle">Track fund balance and transactions</p>
+          <h1 class="page-title">{{ t('fund.pageTitle') }}</h1>
+          <p class="page-subtitle">{{ t('fund.pageSubtitle') }}</p>
         </div>
         <div class="flex gap-2">
-          <el-button type="success" plain @click="handleDeposit" :icon="Plus">Deposit</el-button>
-          <el-button type="danger" plain @click="handleWithdraw" :icon="Minus" :disabled="fundStore.balance === 0">Withdraw</el-button>
+          <el-button type="success" plain @click="handleDeposit" :icon="Plus">{{ t('fund.deposit') }}</el-button>
+          <el-button type="danger" plain @click="handleWithdraw" :icon="Minus" :disabled="fundStore.balance === 0">{{ t('fund.withdraw') }}</el-button>
         </div>
       </div>
 
@@ -19,9 +19,9 @@
         <div class="balance-deco balance-deco--2" />
         <div class="balance-content">
           <div>
-            <p class="balance-label">Current Balance</p>
+            <p class="balance-label">{{ t('fund.currentBalance') }}</p>
             <p class="balance-value">{{ formatVND(fundStore.balance) }}</p>
-            <p class="balance-sub">FC25 Esport Fund</p>
+            <p class="balance-sub">{{ t('fund.balanceSubtitle') }}</p>
           </div>
           <div class="balance-icon">
             <el-icon :size="32" color="white"><Wallet /></el-icon>
@@ -31,15 +31,15 @@
 
       <!-- Stats -->
       <div class="stats-grid-3 mb-6">
-        <StatCard title="Total Deposits"     :value="formatVND(fundStore.stats.total_deposits)"    :icon="TrendCharts" :loading="fundStore.loading" type="success" />
-        <StatCard title="Total Withdrawals"  :value="formatVND(fundStore.stats.total_withdrawals)" :icon="TrendCharts" :loading="fundStore.loading" type="danger"  />
-        <StatCard title="Settlement Deposits" :value="fundStore.stats.settlement_deposits"          :icon="Document"   :loading="fundStore.loading" type="warning" />
+        <StatCard :title="t('fund.statTotalDeposits')"     :value="formatVND(fundStore.stats.total_deposits)"    :icon="TrendCharts" :loading="fundStore.loading" type="success" />
+        <StatCard :title="t('fund.statTotalWithdrawals')"  :value="formatVND(fundStore.stats.total_withdrawals)" :icon="TrendCharts" :loading="fundStore.loading" type="danger"  />
+        <StatCard :title="t('fund.statSettlementDeposits')" :value="fundStore.stats.settlement_deposits"          :icon="Document"   :loading="fundStore.loading" type="warning" />
       </div>
 
       <!-- Transactions -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Transaction History</span>
+          <span class="card-title">{{ t('fund.transactionHistory') }}</span>
         </div>
         <div class="card-body">
           <FundTransactionList :transactions="fundStore.transactions" :loading="fundStore.loading" />
@@ -54,6 +54,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Minus, Wallet, TrendCharts, Document } from '@element-plus/icons-vue'
 import { useFundStore } from '@/stores/fundStore'
 import FundTransactionList from '@/components/fund/FundTransactionList.vue'
@@ -61,6 +62,7 @@ import FundForm from '@/components/fund/FundForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import { formatVND } from '@/utils/formatters'
 
+const { t } = useI18n()
 const fundStore = useFundStore()
 const showFundForm = ref(false)
 const fundFormType = ref<'deposit' | 'withdrawal'>('deposit')

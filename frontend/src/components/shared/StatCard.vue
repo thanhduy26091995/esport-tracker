@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowUp, ArrowDown, User } from '@element-plus/icons-vue'
+import { formatNumber } from '@/utils/formatters'
 
 interface Props {
   title: string
@@ -39,7 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const displayValue = computed(() =>
-  typeof props.value === 'number' ? props.value.toLocaleString('vi-VN') : props.value
+  typeof props.value === 'number' ? formatNumber(props.value) : props.value
 )
 </script>
 

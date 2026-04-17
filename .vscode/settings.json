@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd /Users/duyb/Documents/Growth/esport/frontend && node <<'NODE'\nconst fs = require\\('fs'\\)\nconst vi = JSON\\.parse\\(fs\\.readFileSync\\('src/locales/vi\\.json', 'utf8'\\)\\)\nconst en = JSON\\.parse\\(fs\\.readFileSync\\('src/locales/en\\.json', 'utf8'\\)\\)\nfunction walk\\(obj, prefix = ''\\) \\{\n  const keys = \\[\\]\n  for \\(const \\[key, value\\] of Object\\.entries\\(obj\\)\\) \\{\n    const next = prefix \\? `\\$\\{prefix\\}\\.\\$\\{key\\}` : key\n    if \\(value && typeof value === 'object' && !Array\\.isArray\\(value\\)\\) \\{\n      keys\\.push\\(\\.\\.\\.walk\\(value, next\\)\\)\n    \\} else \\{\n      keys\\.push\\(next\\)\n    \\}\n  \\}\n  return keys\n\\}\nconst viKeys = walk\\(vi\\)\nconst enKeys = walk\\(en\\)\nconst missingInEn = viKeys\\.filter\\(key => !enKeys\\.includes\\(key\\)\\)\nconst missingInVi = enKeys\\.filter\\(key => !viKeys\\.includes\\(key\\)\\)\nconsole\\.log\\(JSON\\.stringify\\(\\{\n  viKeyCount: viKeys\\.length,\n  enKeyCount: enKeys\\.length,\n  missingInEn,\n  missingInVi\n\\}, null, 2\\)\\)\nNODE$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

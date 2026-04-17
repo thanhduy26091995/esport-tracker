@@ -4,8 +4,8 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">Match History</h1>
-          <p class="page-subtitle">Record and view all FC25 matches</p>
+          <h1 class="page-title">{{ t('matches.pageTitle') }}</h1>
+          <p class="page-subtitle">{{ t('matches.pageSubtitle') }}</p>
         </div>
         <el-button
           type="primary"
@@ -14,28 +14,28 @@
           size="large"
           :disabled="!hasEnoughPlayers"
         >
-          Record Match
+          {{ t('matches.recordMatch') }}
         </el-button>
       </div>
 
       <!-- Stats -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard
-          title="Total Matches"
+          :title="t('matches.statTotal')"
           :value="matchStore.stats.total"
           :icon="Trophy"
           :loading="matchStore.loading"
           type="info"
         />
         <StatCard
-          title="Today's Matches"
+          :title="t('matches.statToday')"
           :value="matchStore.stats.today"
           :icon="Calendar"
           :loading="matchStore.loading"
           type="success"
         />
         <StatCard
-          title="Locked Matches"
+          :title="t('matches.statLocked')"
           :value="lockedMatchCount"
           :icon="Lock"
           :loading="matchStore.loading"
@@ -52,8 +52,8 @@
         class="mb-6"
       >
         <template #title>
-          Need at least 2 active players to record a match.
-          <router-link to="/users" class="text-blue-600 hover:underline ml-1">Add players →</router-link>
+          {{ t('matches.needMorePlayers') }}
+          <router-link to="/users" class="text-blue-600 hover:underline ml-1">{{ t('users.addPlayers') }}</router-link>
         </template>
       </el-alert>
 
@@ -84,6 +84,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { Plus, Trophy, Calendar, Lock } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useMatchStore } from '@/stores/matchStore'
@@ -132,11 +134,11 @@ const handleCancelMatch = () => { showMatchForm.value = false }
 
 const handleDeleteConfirm = (match: Match) => {
   ElMessageBox.confirm(
-    'Are you sure you want to delete this match? This action cannot be undone.',
-    'Delete Match',
+    t('matches.deleteConfirm'),
+    t('matches.deleteTitle'),
     {
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
       confirmButtonClass: 'el-button--danger'
     }

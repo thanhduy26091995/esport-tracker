@@ -3,7 +3,7 @@
     <div v-if="loading" class="rm-loading">
       <el-icon class="animate-spin" :size="24" style="color:var(--text-muted)"><Loading /></el-icon>
     </div>
-    <div v-else-if="displayMatches.length === 0" class="rm-empty">No recent matches</div>
+    <div v-else-if="displayMatches.length === 0" class="rm-empty">{{ t('matches.noRecent') }}</div>
     <div v-else class="rm-list">
       <div
         v-for="match in displayMatches" :key="match.id"
@@ -13,12 +13,12 @@
         <div class="rm-top">
           <div class="flex items-center gap-2">
             <span class="rm-type" :class="match.match_type === '1v1' ? 'rm-type--1v1' : 'rm-type--2v2'">
-              {{ match.match_type }}
+              {{ getMatchTypeLabel(match.match_type) }}
             </span>
             <span class="rm-time">{{ formatRelativeTime(match.match_date) }}</span>
           </div>
           <span v-if="match.is_locked" class="rm-locked">
-            <el-icon :size="10"><Lock /></el-icon> Locked
+            <el-icon :size="10"><Lock /></el-icon> {{ t('matches.locked') }}
           </span>
         </div>
         <div class="rm-teams">
@@ -30,7 +30,7 @@
               </span>
             </span>
           </div>
-          <div class="rm-vs">VS</div>
+          <div class="rm-vs">{{ t('common.vs') }}</div>
           <div class="rm-team rm-team--right">
             <span v-for="p in team2(match)" :key="p.id" class="rm-player" :class="{ 'rm-player--win': match.winner_team === 2 }">
               {{ p.user.name }}
@@ -47,9 +47,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { Loading, Lock } from '@element-plus/icons-vue'
 import type { Match, MatchParticipant } from '@/types/match'
 import { formatRelativeTime } from '@/utils/date'
+import { getMatchTypeLabel } from '@/utils/tournamentLabels'
 
 interface Props { matches: Match[]; loading?: boolean; limit?: number }
 const props = withDefaults(defineProps<Props>(), { loading: false, limit: 5 })

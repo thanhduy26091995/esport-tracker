@@ -1,11 +1,12 @@
+import { getIntlLocale } from '@/utils/intl'
+
 /**
- * Format a date string to Vietnamese short format
- * Example: "2024-04-14T10:30:00Z" => "14/04/2024"
+ * Format a date string using the active locale.
  */
 export function formatDate(dateString: string): string {
   try {
     const date = new Date(dateString)
-    return date.toLocaleDateString('vi-VN', {
+    return date.toLocaleDateString(getIntlLocale(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
@@ -16,13 +17,12 @@ export function formatDate(dateString: string): string {
 }
 
 /**
- * Format a date string to Vietnamese full format with time
- * Example: "2024-04-14T10:30:00Z" => "14/04/2024 10:30"
+ * Format a date string with date and time using the active locale.
  */
 export function formatDateTime(dateString: string): string {
   try {
     const date = new Date(dateString)
-    return date.toLocaleDateString('vi-VN', {
+    return date.toLocaleString(getIntlLocale(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -35,8 +35,7 @@ export function formatDateTime(dateString: string): string {
 }
 
 /**
- * Format a date string as relative time
- * Example: "2024-04-14T10:30:00Z" => "2 hours ago"
+ * Format a date string as relative time using the active locale.
  */
 export function formatRelativeTime(dateString: string): string {
   try {
@@ -46,11 +45,12 @@ export function formatRelativeTime(dateString: string): string {
     const diffMins = Math.floor(diffMs / 60000)
     const diffHours = Math.floor(diffMins / 60)
     const diffDays = Math.floor(diffHours / 24)
+    const relativeTime = new Intl.RelativeTimeFormat(getIntlLocale(), { numeric: 'auto' })
 
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${diffMins} phút trước`
-    if (diffHours < 24) return `${diffHours} giờ trước`
-    if (diffDays < 30) return `${diffDays} ngày trước`
+    if (diffMins < 1) return relativeTime.format(0, 'second')
+    if (diffMins < 60) return relativeTime.format(-diffMins, 'minute')
+    if (diffHours < 24) return relativeTime.format(-diffHours, 'hour')
+    if (diffDays < 30) return relativeTime.format(-diffDays, 'day')
     return formatDate(dateString)
   } catch {
     return dateString

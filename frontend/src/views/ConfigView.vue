@@ -5,8 +5,8 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">Settings</h1>
-          <p class="page-subtitle">Manage system settings and game rules</p>
+          <h1 class="page-title">{{ t('config.pageTitle') }}</h1>
+          <p class="page-subtitle">{{ t('config.pageSubtitle') }}</p>
         </div>
       </div>
 
@@ -24,9 +24,9 @@
           <!-- Settlement Mode (prominent) -->
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Settlement Mode</span>
+              <span class="card-title">{{ t('config.settlementMode') }}</span>
               <span class="mode-badge" :class="formData.auto_settlement ? 'mode-badge--auto' : 'mode-badge--manual'">
-                {{ formData.auto_settlement ? 'AUTO' : 'MANUAL' }}
+                {{ formData.auto_settlement ? t('config.auto') : t('config.manual') }}
               </span>
             </div>
             <div class="card-body">
@@ -35,11 +35,11 @@
                   <el-icon :size="20"><component :is="formData.auto_settlement ? Lightning : User" /></el-icon>
                 </div>
                 <div class="mode-text">
-                  <p class="mode-label">{{ formData.auto_settlement ? 'Automatic Settlement' : 'Manual Settlement' }}</p>
+                  <p class="mode-label">{{ formData.auto_settlement ? t('config.automaticSettlement') : t('config.manualSettlement') }}</p>
                   <p class="mode-desc">
                     {{ formData.auto_settlement
-                      ? 'Settlement triggers automatically when a player reaches the debt threshold after a match.'
-                      : 'Settlement must be triggered manually from the Players page. Recommended for team-controlled timing.' }}
+                      ? t('config.autoDesc')
+                      : t('config.manualDesc') }}
                   </p>
                 </div>
                 <el-switch
@@ -55,14 +55,14 @@
           <!-- Debt Threshold -->
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Debt Threshold</span>
-              <span class="cfg-badge cfg-badge--warning">Points</span>
+              <span class="card-title">{{ t('config.debtThreshold') }}</span>
+              <span class="cfg-badge cfg-badge--warning">{{ t('config.pointsBadge') }}</span>
             </div>
             <div class="card-body">
               <el-input
                 v-model.number="formData.debt_threshold"
                 type="number"
-                placeholder="e.g. -6"
+                :placeholder="t('config.debtThresholdPlaceholder')"
                 :max="0"
                 size="large"
                 class="w-full"
@@ -70,17 +70,17 @@
                 <template #prefix>
                   <el-icon><Warning /></el-icon>
                 </template>
-                <template #suffix>pts</template>
+                <template #suffix>{{ t('config.pointsBadge').toLowerCase() }}</template>
               </el-input>
               <p class="cfg-hint">
-                When a player's score reaches this value (must be ≤ 0), settlement can be triggered.
+                {{ t('config.debtThresholdHint') }}
               </p>
               <p v-if="formData.debt_threshold > 0" class="cfg-error">
-                Value must be less than or equal to 0
+                {{ t('config.valueMaxZero') }}
               </p>
               <div v-if="formData.debt_threshold <= 0" class="cfg-preview">
-                <span class="cfg-preview-label">Trigger at</span>
-                <span class="cfg-preview-val cfg-preview-val--red">{{ formData.debt_threshold }} points</span>
+                <span class="cfg-preview-label">{{ t('config.triggerAt') }}</span>
+                <span class="cfg-preview-val cfg-preview-val--red">{{ t('config.triggerPoints', { value: formData.debt_threshold }) }}</span>
               </div>
             </div>
           </div>
@@ -88,14 +88,14 @@
           <!-- Point to VND -->
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Point Value</span>
-              <span class="cfg-badge cfg-badge--info">Conversion</span>
+              <span class="card-title">{{ t('config.pointValue') }}</span>
+              <span class="cfg-badge cfg-badge--info">{{ t('config.conversion') }}</span>
             </div>
             <div class="card-body">
               <el-input
                 v-model.number="formData.point_to_vnd"
                 type="number"
-                placeholder="e.g. 22000"
+                :placeholder="t('config.pointValuePlaceholder')"
                 :min="1"
                 size="large"
                 class="w-full"
@@ -103,17 +103,17 @@
                 <template #prefix>
                   <el-icon><Money /></el-icon>
                 </template>
-                <template #suffix>VND / pt</template>
+                <template #suffix>{{ t('config.pointValueSuffix') }}</template>
               </el-input>
               <p class="cfg-hint">
-                How much 1 point is worth in Vietnamese Dong. Used for all debt calculations.
+                {{ t('config.pointValueHint') }}
               </p>
               <p v-if="formData.point_to_vnd <= 0" class="cfg-error">
-                Value must be greater than 0
+                {{ t('config.valueGreaterThanZero') }}
               </p>
               <div v-if="formData.point_to_vnd > 0" class="cfg-preview">
-                <span class="cfg-preview-label">Example: -10 pts =</span>
-                <span class="cfg-preview-val cfg-preview-val--red">{{ formatVND(formData.point_to_vnd * 10) }} debt</span>
+                <span class="cfg-preview-label">{{ t('config.exampleDebt') }}</span>
+                <span class="cfg-preview-val cfg-preview-val--red">{{ t('config.exampleDebtValue', { amount: formatVND(formData.point_to_vnd * 10) }) }}</span>
               </div>
             </div>
           </div>
@@ -121,14 +121,14 @@
           <!-- Points Per Win -->
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Points Per Win</span>
-              <span class="cfg-badge cfg-badge--info">Per Match</span>
+              <span class="card-title">{{ t('config.pointsPerWin') }}</span>
+              <span class="cfg-badge cfg-badge--info">{{ t('config.perMatch') }}</span>
             </div>
             <div class="card-body">
               <el-input
                 v-model.number="formData.points_per_win"
                 type="number"
-                placeholder="e.g. 1"
+                :placeholder="t('config.pointsPerWinPlaceholder')"
                 :min="1"
                 size="large"
                 class="w-full"
@@ -136,19 +136,19 @@
                 <template #prefix>
                   <el-icon><Trophy /></el-icon>
                 </template>
-                <template #suffix>pts</template>
+                <template #suffix>{{ t('config.pointsBadge').toLowerCase() }}</template>
               </el-input>
               <p class="cfg-hint">
-                Points awarded to the winning team (and deducted from the losers) per match. Default is 1.
+                {{ t('config.pointsPerWinHint') }}
               </p>
               <p v-if="formData.points_per_win <= 0" class="cfg-error">
-                Value must be greater than 0
+                {{ t('config.valueGreaterThanZero') }}
               </p>
               <div v-if="formData.points_per_win > 0" class="cfg-preview">
-                <span class="cfg-preview-label">Winner gets</span>
-                <span class="cfg-preview-val" style="color:var(--color-success)">+{{ formData.points_per_win }} pts</span>
-                <span class="cfg-preview-label ml-2">Loser gets</span>
-                <span class="cfg-preview-val cfg-preview-val--red">-{{ formData.points_per_win }} pts</span>
+                <span class="cfg-preview-label">{{ t('config.winnerGets') }}</span>
+                <span class="cfg-preview-val" style="color:var(--color-success)">+{{ formData.points_per_win }} {{ t('common.pointsUnit') }}</span>
+                <span class="cfg-preview-label ml-2">{{ t('config.loserGets') }}</span>
+                <span class="cfg-preview-val cfg-preview-val--red">-{{ formData.points_per_win }} {{ t('common.pointsUnit') }}</span>
               </div>
             </div>
           </div>
@@ -156,8 +156,8 @@
           <!-- Fund Split -->
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Fund Split</span>
-              <span class="cfg-badge cfg-badge--success">{{ formData.fund_split_percent }}% → Fund</span>
+              <span class="card-title">{{ t('config.fundSplit') }}</span>
+              <span class="cfg-badge cfg-badge--success">{{ t('config.fundSplitBadge', { percent: formData.fund_split_percent }) }}</span>
             </div>
             <div class="card-body">
               <div class="split-row">
@@ -176,16 +176,16 @@
                 </el-input>
               </div>
               <p class="cfg-hint">
-                Percentage of each settlement going to the fund. The rest is split among winners.
+                {{ t('config.fundSplitHint') }}
               </p>
               <div v-if="formData.fund_split_percent >= 0 && formData.fund_split_percent <= 100"
                    class="split-preview">
                 <div class="split-bar">
                   <div class="split-bar-fund" :style="{ width: formData.fund_split_percent + '%' }">
-                    <span v-if="formData.fund_split_percent >= 15">{{ formData.fund_split_percent }}% Fund</span>
+                    <span v-if="formData.fund_split_percent >= 15">{{ t('config.fundSplitBarFund', { percent: formData.fund_split_percent }) }}</span>
                   </div>
                   <div class="split-bar-winners" :style="{ width: (100 - formData.fund_split_percent) + '%' }">
-                    <span v-if="(100 - formData.fund_split_percent) >= 15">{{ 100 - formData.fund_split_percent }}% Winners</span>
+                    <span v-if="(100 - formData.fund_split_percent) >= 15">{{ t('config.fundSplitBarWinners', { percent: 100 - formData.fund_split_percent }) }}</span>
                   </div>
                 </div>
               </div>
@@ -195,7 +195,7 @@
           <!-- Actions -->
           <div class="cfg-actions">
             <el-button @click="handleReset" :disabled="!hasChanges">
-              Reset
+              {{ t('config.reset') }}
             </el-button>
             <el-button
               type="primary"
@@ -204,7 +204,7 @@
               :loading="configStore.loading"
               :disabled="!isFormValid || !hasChanges"
             >
-              Save Changes
+              {{ t('config.saveChanges') }}
             </el-button>
           </div>
         </div>
@@ -213,42 +213,42 @@
         <div class="cfg-sidebar">
           <div class="card cfg-summary-card">
             <div class="card-header">
-              <span class="card-title">Current Config</span>
+              <span class="card-title">{{ t('config.currentConfig') }}</span>
             </div>
             <div class="card-body cfg-summary-body">
               <div class="cfg-summary-item">
-                <span class="cfg-summary-label">Settlement Mode</span>
+                <span class="cfg-summary-label">{{ t('config.currentSettlementMode') }}</span>
                 <span class="cfg-summary-val"
                   :class="configStore.autoSettlement ? 'cfg-summary-val--green' : 'cfg-summary-val--muted'">
-                  {{ configStore.autoSettlement ? 'Auto' : 'Manual' }}
+                  {{ configStore.autoSettlement ? t('config.auto') : t('config.manual') }}
                 </span>
               </div>
               <div class="cfg-summary-item">
-                <span class="cfg-summary-label">Debt Threshold</span>
-                <span class="cfg-summary-val cfg-summary-val--red">{{ configStore.debtThreshold }} pts</span>
+                <span class="cfg-summary-label">{{ t('config.currentDebtThreshold') }}</span>
+                <span class="cfg-summary-val cfg-summary-val--red">{{ configStore.debtThreshold }} {{ t('common.pointsUnit') }}</span>
               </div>
               <div class="cfg-summary-item">
-                <span class="cfg-summary-label">Point Value</span>
+                <span class="cfg-summary-label">{{ t('config.currentPointValue') }}</span>
                 <span class="cfg-summary-val">{{ formatVND(configStore.pointToVnd) }}</span>
               </div>
               <div class="cfg-summary-item">
-                <span class="cfg-summary-label">Fund Split</span>
+                <span class="cfg-summary-label">{{ t('config.currentFundSplit') }}</span>
                 <span class="cfg-summary-val cfg-summary-val--green">{{ configStore.fundSplitPercent }}%</span>
               </div>
               <div class="cfg-summary-item">
-                <span class="cfg-summary-label">Points Per Win</span>
-                <span class="cfg-summary-val">{{ configStore.pointsPerWin }} pts</span>
+                <span class="cfg-summary-label">{{ t('config.currentPointsPerWin') }}</span>
+                <span class="cfg-summary-val">{{ configStore.pointsPerWin }} {{ t('common.pointsUnit') }}</span>
               </div>
             </div>
           </div>
 
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Important Notice</span>
+              <span class="card-title">{{ t('config.importantNotice') }}</span>
             </div>
             <div class="card-body">
               <p class="cfg-notice-text">
-                Changes apply to all future matches and settlements. Existing records will not be recalculated.
+                {{ t('config.importantNoticeText') }}
               </p>
             </div>
           </div>
@@ -262,9 +262,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, h } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { Loading, Warning, Money, User, Trophy } from '@element-plus/icons-vue'
 import { useConfigStore } from '@/stores/configStore'
 import { formatVND } from '@/utils/formatters'
+
+const { t } = useI18n()
 
 const Lightning = {
   render: () => h('svg', { viewBox: '0 0 24 24', fill: 'currentColor', style: 'width:1em;height:1em' }, [
@@ -323,11 +326,11 @@ const hasChanges = computed(() =>
 
 const handleReset = () => {
   resetFormData()
-  ElMessage.info('Reset to saved values')
+  ElMessage.info(t('toast.configReset'))
 }
 
 const handleSubmit = async () => {
-  if (!isFormValid.value) { ElMessage.error('Please fix validation errors before saving'); return }
+  if (!isFormValid.value) { ElMessage.error(t('validation.fixErrors')); return }
   try {
     await configStore.updateAllConfigs({
       debt_threshold: formData.value.debt_threshold.toString(),
@@ -336,7 +339,7 @@ const handleSubmit = async () => {
       auto_settlement: formData.value.auto_settlement.toString(),
       points_per_win: formData.value.points_per_win.toString(),
     })
-    ElMessage.success('Configuration saved')
+    ElMessage.success(t('toast.configSaved'))
   } catch {}
 }
 </script>

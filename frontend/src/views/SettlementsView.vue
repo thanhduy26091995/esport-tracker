@@ -4,29 +4,29 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">Debt Settlements</h1>
-          <p class="page-subtitle">Settlement history — auto-triggered or manually initiated</p>
+          <h1 class="page-title">{{ t('settlements.pageTitle') }}</h1>
+          <p class="page-subtitle">{{ t('settlements.pageSubtitle') }}</p>
         </div>
       </div>
 
       <!-- Stats -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
-          title="Total Settlements"
+          :title="t('settlements.statTotal')"
           :value="settlementStore.stats.total"
           :icon="Document"
           :loading="settlementStore.loading"
           type="info"
         />
         <StatCard
-          title="Today's Settlements"
+          :title="t('settlements.statToday')"
           :value="settlementStore.stats.today"
           :icon="Calendar"
           :loading="settlementStore.loading"
           type="warning"
         />
         <StatCard
-          title="Current Debtors"
+          :title="t('settlements.statCurrentDebtors')"
           :value="currentDebtors"
           :icon="Warning"
           :loading="userStore.loading"
@@ -38,23 +38,24 @@
       <div class="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 text-sm text-blue-700">
         <el-icon class="mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
         <div>
-          <p class="font-medium mb-2">How Settlement Works</p>
+          <p class="font-medium mb-2">{{ t('settlements.infoTitle') }}</p>
           <ul class="list-disc ml-5 space-y-1">
             <li>
-              <strong>Automatic trigger:</strong> When a player's score reaches
-              <strong>{{ configStore.debtThreshold }}</strong> points or below after a match.
+              <strong>{{ t('settlements.autoTriggerLabel') }}</strong>
+              {{ t('settlements.autoTriggerDesc', { threshold: configStore.debtThreshold }) }}
             </li>
             <li>
-              <strong>Manual trigger:</strong> Go to Players page and click "Settle Debt" for players with negative scores.
+              <strong>{{ t('settlements.manualTriggerLabel') }}</strong>
+              {{ t('settlements.manualTriggerDesc', { action: t('users.settleDebt') }) }}
             </li>
             <li>
-              <strong>Settlement process:</strong>
+              <strong>{{ t('settlements.processLabel') }}</strong>
               <ul class="list-circle ml-5 mt-1">
-                <li>Debtor pays full debt amount in real cash</li>
-                <li>{{ configStore.fundSplitPercent }}% goes to fund (virtual credit)</li>
-                <li>{{ 100 - configStore.fundSplitPercent }}% distributed to winners (real cash)</li>
-                <li>Debtor's score reset to 0</li>
-                <li>Winners' points reduced by their share of debt</li>
+                <li>{{ t('settlements.processDebtorPays') }}</li>
+                <li>{{ t('settlements.processFundShare', { percent: configStore.fundSplitPercent }) }}</li>
+                <li>{{ t('settlements.processWinnerShare', { percent: 100 - configStore.fundSplitPercent }) }}</li>
+                <li>{{ t('settlements.processDebtorReset') }}</li>
+                <li>{{ t('settlements.processWinnerReduction') }}</li>
               </ul>
             </li>
           </ul>
@@ -84,6 +85,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Document, Calendar, Warning, InfoFilled } from '@element-plus/icons-vue'
 import { useSettlementStore } from '@/stores/settlementStore'
 import { useUserStore } from '@/stores/userStore'
@@ -93,6 +95,7 @@ import SettlementDetails from '@/components/settlement/SettlementDetails.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import type { DebtSettlement } from '@/types/settlement'
 
+const { t } = useI18n()
 const settlementStore = useSettlementStore()
 const userStore = useUserStore()
 const configStore = useConfigStore()
