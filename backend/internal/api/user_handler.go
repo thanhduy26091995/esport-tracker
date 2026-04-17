@@ -19,7 +19,9 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 
 // CreateUserRequest represents the request body for creating a user
 type CreateUserRequest struct {
-	Name string `json:"name" binding:"required"`
+	Name         string  `json:"name" binding:"required"`
+	Tier         string  `json:"tier"`
+	HandicapRate float64 `json:"handicap_rate"`
 }
 
 // UpdateUserRequest represents the request body for updating a user
@@ -87,7 +89,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.CreateUser(req.Name)
+	user, err := h.userService.CreateUser(req.Name, req.Tier, req.HandicapRate)
 	if err != nil {
 		// Check if it's a duplicate name error
 		if err.Error() == "user with name '"+req.Name+"' already exists" {
@@ -103,7 +105,9 @@ func (h *UserHandler) Create(c *gin.Context) {
 		// Check if it's a validation error
 		if err.Error() == "name cannot be empty" || 
 		   err.Error() == "name must be at least 2 characters" ||
-		   err.Error() == "name cannot exceed 100 characters" {
+		   err.Error() == "name cannot exceed 100 characters" ||
+		   err.Error() == "tier must be one of: pro, normal, noop" ||
+		   err.Error() == "handicap_rate must be between 0 and 5" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": gin.H{
 					"code":    "VALIDATION_ERROR",

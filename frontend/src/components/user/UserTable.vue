@@ -19,8 +19,9 @@
       <p class="empty-state-desc">{{ searchQuery ? t('users.tryDifferentSearch') : t('users.addFirstPlayer') }}</p>
     </div>
 
-    <el-table v-else :data="filteredUsers" stripe style="width:100%" v-loading="loading"
-      :default-sort="{ prop: 'current_score', order: 'descending' }">
+    <div v-else class="user-table-wrap">
+      <el-table :data="filteredUsers" stripe style="width:100%" class="user-table" v-loading="loading"
+        :default-sort="{ prop: 'current_score', order: 'descending' }">
       <el-table-column type="index" label="#" width="55" />
       <el-table-column prop="name" :label="t('users.colPlayer')" min-width="180">
         <template #default="{ row }">
@@ -49,7 +50,7 @@
           <span class="date-value">{{ formatDate(row.created_at) }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('common.actions')" min-width="260" align="right" fixed="right">
+      <el-table-column :label="t('common.actions')" min-width="260" align="right">
         <template #default="{ row }">
           <div class="actions-cell">
             <el-tooltip v-if="row.current_score < 0 && row.current_score <= debtThreshold" :content="t('users.triggerSettlementTooltip')" placement="top">
@@ -62,7 +63,8 @@
           </div>
         </template>
       </el-table-column>
-    </el-table>
+      </el-table>
+    </div>
   </div>
 </template>
 
@@ -107,5 +109,34 @@ const filteredUsers = computed(() => {
 .vnd-value { font-size: 12px; color: var(--text-muted); }
 .date-value { font-size: 12px; color: var(--text-muted); }
 
-.actions-cell { display: flex; justify-content: flex-end; gap: 4px; }
+.user-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.user-table {
+  min-width: 760px;
+}
+
+.actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .filter-count {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .actions-cell {
+    justify-content: flex-start;
+  }
+
+  .user-table {
+    min-width: 680px;
+  }
+}
 </style>

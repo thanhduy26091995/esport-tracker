@@ -6,7 +6,7 @@
           <h1 class="page-title">{{ t('tournaments.pageTitle') }}</h1>
           <p class="page-subtitle">{{ t('tournaments.pageSubtitle') }}</p>
         </div>
-        <el-button type="primary" @click="router.push('/tournaments/create')" :icon="Plus" size="large">
+        <el-button type="primary" class="tournament-create-button" @click="router.push('/tournaments/create')" :icon="Plus" size="large">
           {{ t('tournaments.createButton') }}
         </el-button>
       </div>
@@ -39,12 +39,14 @@
       <!-- Table -->
       <div class="card">
         <div class="card-body">
-          <el-table
-            :data="store.tournaments"
-            v-loading="store.loading"
-            stripe
-            :empty-text="t('tournaments.empty')"
-          >
+          <div class="tournament-table-wrap">
+            <el-table
+              :data="store.tournaments"
+              v-loading="store.loading"
+              stripe
+              class="tournament-table"
+              :empty-text="t('tournaments.empty')"
+            >
             <el-table-column prop="name" :label="t('tournaments.colName')" min-width="180" />
             <el-table-column prop="match_type" :label="t('tournaments.colType')" width="100">
               <template #default="{ row }">
@@ -75,13 +77,16 @@
                 {{ formatDate(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column :label="t('common.actions')" width="160" align="right" fixed="right">
+            <el-table-column :label="t('common.actions')" width="170" align="right">
               <template #default="{ row }">
-                <el-button size="small" text @click="router.push(`/tournaments/${row.id}`)">{{ t('common.view') }}</el-button>
-                <el-button size="small" text type="danger" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
+                <div class="tournament-actions-cell">
+                  <el-button size="small" text @click="router.push(`/tournaments/${row.id}`)">{{ t('common.view') }}</el-button>
+                  <el-button size="small" text type="danger" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
+                </div>
               </template>
             </el-table-column>
-          </el-table>
+            </el-table>
+          </div>
         </div>
       </div>
     </div>
@@ -124,3 +129,48 @@ const handleDelete = (tournament: Tournament) => {
     .catch(() => {})
 }
 </script>
+
+<style scoped>
+.tournament-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.tournament-table {
+  min-width: 760px;
+}
+
+.tournament-actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-header-left {
+    width: 100%;
+  }
+
+  .page-subtitle {
+    white-space: normal;
+  }
+
+  .tournament-create-button {
+    width: 100%;
+  }
+
+  .tournament-table {
+    min-width: 700px;
+  }
+
+  .tournament-actions-cell {
+    justify-content: flex-start;
+  }
+}
+</style>

@@ -59,7 +59,7 @@
               <el-icon v-if="match.winner_team === 1" :size="12"><Trophy /></el-icon>
             </div>
             <div v-for="p in team1(match)" :key="p.id" class="match-player" :class="{ 'match-player--win': match.winner_team === 1 }">
-              <span>{{ p.user.name }}</span>
+              <span class="match-player-name">{{ p.user.name }}</span>
               <span class="match-pts" :class="p.point_change >= 0 ? 'match-pts--pos' : 'match-pts--neg'">
                 {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
               </span>
@@ -75,7 +75,7 @@
               <span class="match-pts" :class="p.point_change >= 0 ? 'match-pts--pos' : 'match-pts--neg'">
                 {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
               </span>
-              <span>{{ p.user.name }}</span>
+              <span class="match-player-name">{{ p.user.name }}</span>
             </div>
           </div>
         </div>
@@ -165,10 +165,11 @@ const handlePageChange = (page: number) => { currentPage.value = page; window.sc
 .match-date { font-size: 12px; color: var(--text-muted); }
 .match-locked { font-size: 11px; color: var(--color-warning); display: flex; align-items: center; gap: 3px; font-weight: 600; }
 
-.match-teams { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 12px; align-items: start; }
+.match-teams { display: grid; grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr); gap: 12px; align-items: start; }
 
-.match-team { display: flex; flex-direction: column; gap: 6px; }
-.match-team--right { align-items: flex-end; }
+.match-team { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.match-team--right { align-items: stretch; }
+.match-team--right .match-team-label { justify-content: flex-end; }
 
 .match-team-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
@@ -180,10 +181,17 @@ const handlePageChange = (page: number) => { currentPage.value = page; window.sc
 .match-player {
   display: flex; align-items: center; justify-content: space-between;
   padding: 5px 10px; border-radius: 8px; background: var(--surface-page);
-  font-size: 12px; color: var(--text-secondary); gap: 6px;
+  font-size: 12px; color: var(--text-secondary); gap: 6px; width: 100%; min-width: 0;
 }
 .match-player--win { background: var(--color-success-bg); color: var(--color-success); font-weight: 600; }
 .match-player--right { flex-direction: row-reverse; }
+
+.match-player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .match-pts { font-size: 11px; font-weight: 700; }
 .match-pts--pos { color: var(--color-success); }

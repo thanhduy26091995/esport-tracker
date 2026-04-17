@@ -101,7 +101,7 @@
     "settleDebt": "Thanh toán nợ",
     "tierNormal": "Bình thường",
     "tierPro": "Pro",
-    "tierNoop": "Noop",
+    "tierNoop": "Noob",
     "form": {
       "name": "Tên người chơi",
       "namePlaceholder": "Nhập tên người chơi",
@@ -111,6 +111,9 @@
       "handicapHint": "bàn thắng bị trừ khỏi điểm (vd: 0.5 = phải thắng hơn 1 bàn mới tính)",
       "submit": "Lưu người chơi"
     }
+  },
+  "players": {
+    "quickCreate": "Tạo player mới"
   },
   "matches": {
     "title": "Quản lý trận đấu",
@@ -305,7 +308,10 @@
     "submitDeposit": "Nạp tiền",
     "submitWithdraw": "Rút tiền",
     "defaultDepositDescription": "Nạp tiền thủ công vào quỹ",
-    "defaultWithdrawalDescription": "Rút tiền thủ công từ quỹ"
+    "defaultWithdrawalDescription": "Rút tiền thủ công từ quỹ",
+    "momoQrTitle": "Quét QR Momo để nạp tiền",
+    "momoQrDesc": "Mở app Momo và quét mã QR này để chuyển tiền vào quỹ",
+    "momoQrAlt": "Momo QR Code"
   },
   "config": {
     "title": "Cấu hình hệ thống",

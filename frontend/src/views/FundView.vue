@@ -29,6 +29,19 @@
         </div>
       </div>
 
+      <!-- Momo QR -->
+      <div class="momo-qr-card">
+        <div class="momo-qr-body">
+          <div class="momo-qr-image-wrap" @click="showQrFullScreen = true" style="cursor: pointer;">
+            <img :src="momoQr" :alt="t('fund.momoQrAlt')" class="momo-qr-image" />
+          </div>
+          <div class="momo-qr-info">
+            <p class="momo-qr-title">{{ t('fund.momoQrTitle') }}</p>
+            <p class="momo-qr-desc">{{ t('fund.momoQrDesc') }}</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Stats -->
       <div class="stats-grid-3 mb-6">
         <StatCard :title="t('fund.statTotalDeposits')"     :value="formatVND(fundStore.stats.total_deposits)"    :icon="TrendCharts" :loading="fundStore.loading" type="success" />
@@ -48,6 +61,14 @@
 
       <FundForm v-model="showFundForm" :type="fundFormType" :current-balance="fundStore.balance"
         :loading="fundStore.loading" @submit="handleSubmitTransaction" @cancel="() => showFundForm = false" />
+
+      <!-- Full Screen QR Modal -->
+      <el-dialog v-model="showQrFullScreen" :title="t('fund.momoQrTitle')" width="90%" :close-on-click-modal="true" :show-close="true">
+        <div class="qr-fullscreen-content">
+          <img :src="momoQr" :alt="t('fund.momoQrAlt')" class="qr-fullscreen-image" />
+          <p class="qr-fullscreen-hint">{{ t('fund.momoQrDesc') }}</p>
+        </div>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -61,11 +82,13 @@ import FundTransactionList from '@/components/fund/FundTransactionList.vue'
 import FundForm from '@/components/fund/FundForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import { formatVND } from '@/utils/formatters'
+import momoQr from '@/assets/momo-qr.jpg'
 
 const { t } = useI18n()
 const fundStore = useFundStore()
 const showFundForm = ref(false)
 const fundFormType = ref<'deposit' | 'withdrawal'>('deposit')
+const showQrFullScreen = ref(false)
 
 onMounted(async () => { await Promise.all([fundStore.fetchStats(), fundStore.fetchTransactions()]) })
 
@@ -142,5 +165,87 @@ const handleSubmitTransaction = async (data: { amount: number; description: stri
   backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+}
+
+.momo-qr-card {
+  border-radius: 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.momo-qr-body {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.momo-qr-image-wrap {
+  flex-shrink: 0;
+  width: 140px;
+  height: 140px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.momo-qr-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.momo-qr-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.momo-qr-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.momo-qr-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .momo-qr-body {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+
+.qr-fullscreen-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.qr-fullscreen-image {
+  width: 100%;
+  max-width: 500px;
+  height: auto;
+  border-radius: 12px;
+  border: 2px solid var(--border-default);
+}
+
+.qr-fullscreen-hint {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.6;
 }
 </style>

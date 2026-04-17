@@ -136,6 +136,7 @@
       :loading="matchStore.loading"
       @submit="handleSubmitMatch"
       @cancel="() => showMatchForm = false"
+      @request-users-refresh="handleRefreshUsers"
     />
   </div>
 </template>
@@ -190,6 +191,9 @@ const getUserName = (id: string) => userStore.users.find(u => u.id === id)?.name
 const handleRecordMatch = () => { showMatchForm.value = true }
 const handleSubmitMatch = async (data: CreateMatchRequest) => {
   try { await matchStore.createMatch(data); showMatchForm.value = false; await userStore.fetchUsers() } catch {}
+}
+const handleRefreshUsers = async () => {
+  await userStore.fetchUsers()
 }
 </script>
 

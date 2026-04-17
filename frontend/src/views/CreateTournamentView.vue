@@ -13,7 +13,7 @@
           <el-form
             ref="formRef"
             :model="form"
-            label-width="140px"
+            label-position="top"
             @submit.prevent="handleSubmit"
           >
             <el-form-item
@@ -51,7 +51,10 @@
                     </el-checkbox>
                   </div>
                 </el-checkbox-group>
-                <div class="mt-2" style="font-size: 12px; color: #909399">
+                <el-button :icon="Plus" class="quick-create-player-button" @click="showQuickCreatePlayer = true" :title="t('players.quickCreate')">
+                  {{ t('players.quickCreate') }}
+                </el-button>
+                <div class="el-form-item__helper mt-2">
                   {{ t('tournaments.form.selectedCount', { count: form.player_ids.length }) }}
                   <el-tag
                     v-if="form.match_type === '2v2' && form.player_ids.length % 2 !== 0"
@@ -94,6 +97,13 @@
               <el-button @click="router.push('/tournaments')" size="large">{{ t('common.cancel') }}</el-button>
             </el-form-item>
           </el-form>
+
+          <UserForm
+            v-model="showQuickCreatePlayer"
+            :loading="quickCreateLoading"
+            @submit="handlePlayerCreated"
+            @cancel="showQuickCreatePlayer = false"
+          />
         </div>
       </div>
     </div>
@@ -104,17 +114,20 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import { useTournamentStore } from '@/stores/tournamentStore'
 import { useUserStore } from '@/stores/userStore'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
+import UserForm from '@/components/user/UserForm.vue'
 
 const router = useRouter()
 const { t } = useI18n()
 const store = useTournamentStore()
 const userStore = useUserStore()
 const formRef = ref<FormInstance>()
+const showQuickCreatePlayer = ref(false)
+const quickCreateLoading = ref(false)
 
 const form = ref({
   name: '',
@@ -125,6 +138,17 @@ const form = ref({
 })
 
 onMounted(() => userStore.fetchUsers())
+
+const handlePlayerCreated = async (data: { name: string; tier: string; handicap_rate: number }) => {
+  quickCreateLoading.value = true
+  try {
+    await userStore.createUser(data.name, data.tier, data.handicap_rate)
+    await userStore.fetchUsers()
+    showQuickCreatePlayer.value = false
+  } finally {
+    quickCreateLoading.value = false
+  }
+}
 
 const handleSubmit = async () => {
   if (!formRef.value) return
@@ -145,5 +169,26 @@ const handleSubmit = async () => {
 
 .player-checkbox {
   margin-bottom: 8px;
+}
+
+.quick-create-player-button {
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  :deep(.el-input-number) {
+    width: 100%;
+  }
+
+  .quick-create-player-button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>

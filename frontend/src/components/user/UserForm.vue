@@ -3,13 +3,14 @@
     :model-value="modelValue"
     :title="isEdit ? t('users.editUser') : t('users.addUser')"
     @update:model-value="$emit('update:modelValue', $event)"
-    width="500px"
+    width="92%"
+    style="max-width: 500px"
   >
     <el-form
       ref="formRef"
       :model="formData"
       :rules="rules"
-      label-width="100px"
+      label-position="top"
       @submit.prevent="handleSubmit"
     >
       <el-form-item :label="t('users.form.name')" prop="name">
@@ -22,7 +23,7 @@
         />
       </el-form-item>
       <el-form-item :label="t('users.form.tier')" prop="tier">
-        <el-select v-model="formData.tier" :placeholder="t('users.form.tierPlaceholder')">
+        <el-select v-model="formData.tier" :placeholder="t('users.form.tierPlaceholder')" class="w-full">
           <el-option :label="t('users.tierNormal')" value="normal" />
           <el-option :label="t('users.tierPro')" value="pro" />
           <el-option :label="t('users.tierNoop')" value="noop" />
@@ -35,23 +36,26 @@
           :max="5"
           :step="0.5"
           :precision="1"
+          class="w-full"
           placeholder="0.0"
         />
-        <span class="el-form-item__helper" style="margin-left: 8px; color: var(--text-muted); font-size: 12px;">
+        <span class="el-form-item__helper">
           {{ t('users.form.handicapHint') }}
         </span>
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <el-button @click="handleCancel">{{ t('common.cancel') }}</el-button>
-      <el-button
-        type="primary"
-        @click="handleSubmit"
-        :loading="loading"
-      >
-        {{ isEdit ? t('common.update') : t('common.create') }}
-      </el-button>
+      <div class="user-form-footer">
+        <el-button @click="handleCancel">{{ t('common.cancel') }}</el-button>
+        <el-button
+          type="primary"
+          @click="handleSubmit"
+          :loading="loading"
+        >
+          {{ isEdit ? t('common.update') : t('common.create') }}
+        </el-button>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -145,3 +149,25 @@ const resetForm = () => {
   formRef.value?.clearValidate()
 }
 </script>
+
+<style scoped>
+:deep(.el-input-number) {
+  width: 100%;
+}
+
+.user-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .user-form-footer {
+    width: 100%;
+  }
+
+  .user-form-footer .el-button {
+    flex: 1;
+  }
+}
+</style>

@@ -13,6 +13,7 @@
       :model="formData"
       :rules="rules"
       label-position="top"
+      class="match-form"
       @submit.prevent="handleSubmit"
     >
       <!-- Match Type -->
@@ -25,64 +26,70 @@
 
       <!-- Team 1 -->
       <el-form-item :label="t('matches.form.team1')" prop="team1">
-        <el-select
-          v-model="formData.team1"
-          multiple
-          :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
-          :placeholder="t('matches.form.selectPlayersPlaceholder')"
-          class="w-full"
-          filterable
-          :disabled="loading || !availableUsers.length"
-        >
-          <el-option
-            v-for="user in availableUsersForTeam1"
-            :key="user.id"
-            :label="`${user.name} (${user.current_score > 0 ? '+' : ''}${user.current_score})`"
-            :value="user.id"
-            :disabled="formData.team2.includes(user.id)"
+        <div class="select-with-action">
+          <el-select
+            v-model="formData.team1"
+            multiple
+            :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
+            :placeholder="t('matches.form.selectPlayersPlaceholder')"
+            class="flex-1"
+            filterable
+            :disabled="loading"
           >
-            <div class="flex items-center justify-between">
-              <span>{{ user.name }}</span>
-              <el-tag
-                :type="user.current_score >= 0 ? 'success' : 'danger'"
-                size="small"
-              >
-                {{ user.current_score > 0 ? '+' : '' }}{{ user.current_score }}
-              </el-tag>
-            </div>
-          </el-option>
-        </el-select>
+            <el-option
+              v-for="user in availableUsersForTeam1"
+              :key="user.id"
+              :label="`${user.name} (${user.current_score > 0 ? '+' : ''}${user.current_score})`"
+              :value="user.id"
+              :disabled="formData.team2.includes(user.id)"
+            >
+              <div class="flex items-center justify-between">
+                <span>{{ user.name }}</span>
+                <el-tag
+                  :type="user.current_score >= 0 ? 'success' : 'danger'"
+                  size="small"
+                >
+                  {{ user.current_score > 0 ? '+' : '' }}{{ user.current_score }}
+                </el-tag>
+              </div>
+            </el-option>
+          </el-select>
+          <el-button :icon="Plus" text class="quick-create-icon-button" @click="handleQuickCreatePlayer('team1')" :title="t('players.quickCreate')" />
+        </div>
       </el-form-item>
 
       <!-- Team 2 -->
       <el-form-item :label="t('matches.form.team2')" prop="team2">
-        <el-select
-          v-model="formData.team2"
-          multiple
-          :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
-          :placeholder="t('matches.form.selectPlayersPlaceholder')"
-          class="w-full"
-          filterable
-          :disabled="loading || !availableUsers.length"
-        >
-          <el-option
-            v-for="user in availableUsersForTeam2"
-            :key="user.id"
-            :label="`${user.name} (${user.current_score > 0 ? '+' : ''}${user.current_score})`"
-            :value="user.id"
-            :disabled="formData.team1.includes(user.id)"
+        <div class="select-with-action">
+          <el-select
+            v-model="formData.team2"
+            multiple
+            :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
+            :placeholder="t('matches.form.selectPlayersPlaceholder')"
+            class="flex-1"
+            filterable
+            :disabled="loading"
           >
-            <div class="flex items-center justify-between">
-              <span>{{ user.name }}</span>
-              <el-tag
-                :type="user.current_score >= 0 ? 'success' : 'danger'"
-                size="small"
-              >
-                {{ user.current_score > 0 ? '+' : '' }}{{ user.current_score }}
-              </el-tag>
-            </div>
-          </el-option>
-        </el-select>
+            <el-option
+              v-for="user in availableUsersForTeam2"
+              :key="user.id"
+              :label="`${user.name} (${user.current_score > 0 ? '+' : ''}${user.current_score})`"
+              :value="user.id"
+              :disabled="formData.team1.includes(user.id)"
+            >
+              <div class="flex items-center justify-between">
+                <span>{{ user.name }}</span>
+                <el-tag
+                  :type="user.current_score >= 0 ? 'success' : 'danger'"
+                  size="small"
+                >
+                  {{ user.current_score > 0 ? '+' : '' }}{{ user.current_score }}
+                </el-tag>
+              </div>
+            </el-option>
+          </el-select>
+          <el-button :icon="Plus" text class="quick-create-icon-button" @click="handleQuickCreatePlayer('team2')" :title="t('players.quickCreate')" />
+        </div>
       </el-form-item>
 
       <!-- Winner Selection -->
@@ -158,11 +165,11 @@
     </el-form>
 
     <template #footer>
-      <div class="flex justify-between items-center">
-        <div class="text-sm text-gray-500">
+      <div class="match-form-footer">
+        <div class="match-form-ready text-sm text-gray-500">
           <span v-if="isValid">✓ {{ t('matches.form.ready') }}</span>
         </div>
-        <div class="space-x-2">
+        <div class="match-form-actions">
           <el-button @click="handleCancel">{{ t('common.cancel') }}</el-button>
           <el-button
             type="primary"
@@ -175,6 +182,13 @@
         </div>
       </div>
     </template>
+
+    <UserForm
+      v-model="showQuickCreatePlayer"
+      :loading="quickCreateLoading"
+      @submit="handlePlayerCreated"
+      @cancel="handleQuickCreateCancel"
+    />
   </el-dialog>
 </template>
 
@@ -182,8 +196,11 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import type { CreateMatchRequest, MatchType } from '@/types/match'
+import UserForm from '@/components/user/UserForm.vue'
+import { useUserStore } from '@/stores/userStore'
 
 interface Props {
   modelValue: boolean
@@ -203,10 +220,15 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   submit: [data: CreateMatchRequest]
   cancel: []
+  'request-users-refresh': []
 }>()
 
 const formRef = ref<FormInstance>()
 const { t } = useI18n()
+const userStore = useUserStore()
+const showQuickCreatePlayer = ref(false)
+const quickCreateTarget = ref<'team1' | 'team2' | null>(null)
+const quickCreateLoading = ref(false)
 const formData = ref<{
   match_type: MatchType
   team1: string[]
@@ -317,6 +339,28 @@ const disabledDate = (date: Date) => {
   return date > new Date()
 }
 
+const handleQuickCreatePlayer = (target: 'team1' | 'team2') => {
+  quickCreateTarget.value = target
+  showQuickCreatePlayer.value = true
+}
+
+const handleQuickCreateCancel = () => {
+  quickCreateTarget.value = null
+  showQuickCreatePlayer.value = false
+}
+
+const handlePlayerCreated = async (data: { name: string; tier: string; handicap_rate: number }) => {
+  quickCreateLoading.value = true
+  try {
+    await userStore.createUser(data.name, data.tier, data.handicap_rate)
+    showQuickCreatePlayer.value = false
+    quickCreateTarget.value = null
+    emit('request-users-refresh')
+  } finally {
+    quickCreateLoading.value = false
+  }
+}
+
 const handleSubmit = async () => {
   if (!formRef.value || !isValid.value) return
 
@@ -367,6 +411,27 @@ const resetForm = () => {
   width: 100%;
 }
 
+:deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+:deep(.el-radio) {
+  margin-right: 0;
+}
+
+.select-with-action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-create-icon-button {
+  flex-shrink: 0;
+}
+
 .pts-preview {
   display: flex;
   align-items: center;
@@ -378,4 +443,47 @@ const resetForm = () => {
 .pts-win  { color: var(--color-success); }
 .pts-sep  { color: var(--text-muted); }
 .pts-lose { color: var(--color-danger); }
+
+.form-item-label-with-action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.match-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.match-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .match-form-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .match-form-actions {
+    width: 100%;
+  }
+
+  .match-form-actions .el-button {
+    flex: 1;
+  }
+
+  .match-form-ready {
+    order: 2;
+  }
+
+  .quick-create-icon-button {
+    align-self: center;
+  }
+}
 </style>

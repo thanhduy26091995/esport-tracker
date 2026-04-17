@@ -7,7 +7,7 @@
           <el-button text @click="router.push('/tournaments')" :icon="ArrowLeft">{{ t('common.back') }}</el-button>
           <div>
             <h1 class="page-title">{{ store.currentTournament?.name ?? '…' }}</h1>
-            <div class="flex gap-2 mt-1" v-if="store.currentTournament">
+            <div class="header-tags" v-if="store.currentTournament">
               <el-tag size="small">{{ getMatchTypeLabel(store.currentTournament.match_type) }}</el-tag>
               <el-tag
                 :type="store.currentTournament.status === 'completed' ? 'success' : 'primary'"
@@ -45,15 +45,16 @@
       </div>
 
       <template v-else-if="store.currentTournament">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 detail-layout">
           <!-- Left: Schedule -->
           <div class="lg:col-span-2">
             <div v-for="round in groupedRounds" :key="round.number" class="mb-6">
               <h3 class="section-title">{{ t('tournaments.detail.round', { number: round.number }) }}</h3>
+              <div class="round-matches">
               <div
                 v-for="match in round.matches"
                 :key="match.id"
-                class="match-card card mb-3"
+                class="match-card card"
               >
                 <div class="card-body">
                   <!-- Teams row -->
@@ -128,50 +129,58 @@
                     v-else-if="store.currentTournament?.status === 'active'"
                     class="result-input-row"
                   >
-                    <el-input-number
-                      v-model="scoreInputs[match.id].score1"
-                      :min="0"
-                      :max="99"
-                      size="small"
-                      style="width: 90px"
-                    />
-                    <span class="mx-2 text-muted">:</span>
-                    <el-input-number
-                      v-model="scoreInputs[match.id].score2"
-                      :min="0"
-                      :max="99"
-                      size="small"
-                      style="width: 90px"
-                    />
+                    <div class="score-input-grid">
+                      <div class="score-input-cell">
+                        <span class="score-input-label">{{ getTeam1Label(match) }}</span>
+                        <el-input-number
+                          v-model="scoreInputs[match.id].score1"
+                          :min="0"
+                          :max="99"
+                          size="small"
+                          class="score-input-number"
+                        />
+                      </div>
+                      <div class="score-input-cell">
+                        <span class="score-input-label">{{ getTeam2Label(match) }}</span>
+                        <el-input-number
+                          v-model="scoreInputs[match.id].score2"
+                          :min="0"
+                          :max="99"
+                          size="small"
+                          class="score-input-number"
+                        />
+                      </div>
+                    </div>
 
                     <!-- Effective winner preview -->
-                    <el-tag
-                      v-if="effectiveWinnerPreview(match) !== null"
-                      :type="effectiveWinnerPreview(match) === 0 ? 'info' : 'warning'"
-                      size="small"
-                      class="ml-3"
-                    >
-                      →
-                      <template v-if="effectiveWinnerPreview(match) === 0">{{ t('tournaments.detail.draw') }}</template>
-                      <template v-else-if="effectiveWinnerPreview(match) === 1">
-                        {{ t('tournaments.detail.wins', { team: getTeam1Label(match) }) }}
-                      </template>
-                      <template v-else>
-                        {{ t('tournaments.detail.wins', { team: getTeam2Label(match) }) }}
-                      </template>
-                    </el-tag>
+                    <div class="result-input-actions">
+                      <el-tag
+                        v-if="effectiveWinnerPreview(match) !== null"
+                        :type="effectiveWinnerPreview(match) === 0 ? 'info' : 'warning'"
+                        size="small"
+                      >
+                        →
+                        <template v-if="effectiveWinnerPreview(match) === 0">{{ t('tournaments.detail.draw') }}</template>
+                        <template v-else-if="effectiveWinnerPreview(match) === 1">
+                          {{ t('tournaments.detail.wins', { team: getTeam1Label(match) }) }}
+                        </template>
+                        <template v-else>
+                          {{ t('tournaments.detail.wins', { team: getTeam2Label(match) }) }}
+                        </template>
+                      </el-tag>
 
-                    <el-button
-                      size="small"
-                      type="primary"
-                      class="ml-3"
-                      :loading="store.loading"
-                      @click="handleRecordResult(match)"
-                    >
-                      {{ t('tournaments.detail.submitResult') }}
-                    </el-button>
+                      <el-button
+                        size="small"
+                        type="primary"
+                        :loading="store.loading"
+                        @click="handleRecordResult(match)"
+                      >
+                        {{ t('tournaments.detail.submitResult') }}
+                      </el-button>
+                    </div>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           </div>
@@ -203,7 +212,8 @@
             <div class="card">
               <div class="card-body">
                 <h3 class="section-title">{{ t('tournaments.detail.standings') }}</h3>
-                <el-table :data="standings" size="small">
+                <div class="standings-table-wrap">
+                  <el-table :data="standings" size="small" class="standings-table">
                   <el-table-column label="#" type="index" width="36" />
                   <el-table-column :label="t('tournaments.detail.player')" min-width="110">
                     <template #default="{ row }">
@@ -228,7 +238,8 @@
                       <strong>{{ row.points }}</strong>
                     </template>
                   </el-table-column>
-                </el-table>
+                  </el-table>
+                </div>
               </div>
             </div>
           </div>
@@ -419,40 +430,64 @@ function computeStandings(tournament: Tournament): TournamentStanding[] {
   letter-spacing: 0.05em;
 }
 
-.match-teams {
+.header-tags {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.round-matches {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
+.match-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 8px;
+}
+
 .team {
-  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .team--left {
-  justify-content: flex-end;
-  text-align: right;
+  grid-column: 1;
+  grid-row: 1;
+  justify-content: center;
+  text-align: center;
 }
 
 .team--right {
-  justify-content: flex-start;
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: center;
+  text-align: center;
 }
 
 .team-players {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  align-items: center;
 }
 
 .player-name {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.4;
 }
 
 .handicap-badge {
@@ -474,10 +509,12 @@ function computeStandings(tournament: Tournament): TournamentStanding[] {
 }
 
 .match-vs {
+  grid-column: 1 / -1;
+  grid-row: 2;
   display: flex;
   align-items: center;
   gap: 4px;
-  min-width: 60px;
+  min-width: 84px;
   justify-content: center;
 }
 
@@ -512,12 +549,47 @@ function computeStandings(tournament: Tournament): TournamentStanding[] {
 
 .result-input-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-subtle);
+  gap: 10px;
+}
+
+.score-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.score-input-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.score-input-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.35;
+}
+
+.score-input-number {
+  width: 100%;
+  max-width: 120px;
+}
+
+.result-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px;
 }
 
 .participant-row {
@@ -543,5 +615,52 @@ function computeStandings(tournament: Tournament): TournamentStanding[] {
 
 .text-muted {
   color: var(--text-muted);
+}
+
+.standings-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.standings-table {
+  min-width: 360px;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .header-tags {
+    justify-content: center;
+  }
+
+  .match-teams {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .team,
+  .team--left,
+  .team--right {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .team-players {
+    align-items: center;
+  }
+
+  .player-name {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .match-vs {
+    order: -1;
+    min-width: 0;
+  }
 }
 </style>

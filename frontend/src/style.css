@@ -50,6 +50,20 @@
     color: var(--text-primary);
   }
 
+  /* ── Forms ── */
+  .el-form-item__helper {
+    @apply text-xs mt-1;
+    color: var(--text-muted);
+  }
+
+  .form-item-label-with-action {
+    @apply w-full flex items-center justify-between gap-2;
+  }
+
+  .select-with-action {
+    @apply flex items-center gap-2 w-full;
+  }
+
   .card-body {
     @apply p-5;
   }

@@ -37,7 +37,7 @@ func (s *UserService) GetByID(id uuid.UUID) (*model.User, error) {
 }
 
 // CreateUser creates a new user with validation
-func (s *UserService) CreateUser(name string) (*model.User, error) {
+func (s *UserService) CreateUser(name string, tier string, handicapRate float64) (*model.User, error) {
 	// Validate name
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -59,11 +59,24 @@ func (s *UserService) CreateUser(name string) (*model.User, error) {
 		return nil, fmt.Errorf("user with name '%s' already exists", name)
 	}
 
+	// Apply defaults and validate optional fields
+	if tier == "" {
+		tier = "normal"
+	}
+	if tier != "pro" && tier != "normal" && tier != "noop" {
+		return nil, fmt.Errorf("tier must be one of: pro, normal, noop")
+	}
+	if handicapRate < 0 || handicapRate > 5 {
+		return nil, fmt.Errorf("handicap_rate must be between 0 and 5")
+	}
+
 	// Create user
 	user := &model.User{
 		Name:         name,
 		CurrentScore: 0,
 		IsActive:     true,
+		Tier:         tier,
+		HandicapRate: handicapRate,
 	}
 
 	if err := s.repo.Create(user); err != nil {

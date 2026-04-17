@@ -101,7 +101,7 @@
     "settleDebt": "Settle Debt",
     "tierNormal": "Normal",
     "tierPro": "Pro",
-    "tierNoop": "Noop",
+    "tierNoop": "Noob",
     "form": {
       "name": "Player Name",
       "namePlaceholder": "Enter player name",
@@ -111,6 +111,9 @@
       "handicapHint": "penalty goals subtracted from score (e.g. 0.5 = must win by 1+ to count as win)",
       "submit": "Save Player"
     }
+  },
+  "players": {
+    "quickCreate": "Create new player"
   },
   "matches": {
     "title": "Match Management",
@@ -305,7 +308,10 @@
     "submitDeposit": "Deposit",
     "submitWithdraw": "Withdraw",
     "defaultDepositDescription": "Manual deposit to fund",
-    "defaultWithdrawalDescription": "Manual withdrawal from fund"
+    "defaultWithdrawalDescription": "Manual withdrawal from fund",
+    "momoQrTitle": "Scan Momo QR to deposit",
+    "momoQrDesc": "Open Momo app and scan this QR code to transfer money to the fund",
+    "momoQrAlt": "Momo QR Code"
   },
   "config": {
     "title": "System Configuration",

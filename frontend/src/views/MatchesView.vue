@@ -77,6 +77,7 @@
         :points-per-win="configStore.pointsPerWin"
         @submit="handleSubmitMatch"
         @cancel="handleCancelMatch"
+        @request-users-refresh="handleRefreshUsers"
       />
     </div>
   </div>
@@ -128,6 +129,10 @@ const handleSubmitMatch = async (data: CreateMatchRequest) => {
     showMatchForm.value = false
     await userStore.fetchUsers()
   } catch {}
+}
+
+const handleRefreshUsers = async () => {
+  await userStore.fetchUsers()
 }
 
 const handleCancelMatch = () => { showMatchForm.value = false }

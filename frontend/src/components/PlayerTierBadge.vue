@@ -12,7 +12,7 @@ const props = defineProps<{ tier: string }>()
 const tierLabel = computed(() => {
   switch (props.tier) {
     case 'pro': return 'Pro'
-    case 'noop': return 'Noop'
+    case 'noop': return 'Noob'
     default: return 'Normal'
   }
 })
