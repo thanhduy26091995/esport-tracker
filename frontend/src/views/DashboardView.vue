@@ -42,7 +42,14 @@
             <router-link to="/users" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
           </div>
           <div class="card-body">
-            <Leaderboard :users="userStore.users" :debt-threshold="configStore.debtThreshold" :limit="10" compact />
+            <UserTable
+              :users="leaderboardUsers.slice(0, 10)"
+              :loading="userStore.loading"
+              :conversion-rate="configStore.pointToVnd"
+              :debt-threshold="configStore.debtThreshold"
+              :show-filter-bar="false"
+              :show-actions="false"
+            />
           </div>
         </div>
 
@@ -152,12 +159,13 @@ import { useSettlementStore } from '@/stores/settlementStore'
 import { useFundStore } from '@/stores/fundStore'
 import { useConfigStore } from '@/stores/configStore'
 import StatCard from '@/components/shared/StatCard.vue'
-import Leaderboard from '@/components/shared/Leaderboard.vue'
+import UserTable from '@/components/user/UserTable.vue'
 import RecentMatches from '@/components/match/RecentMatches.vue'
 import MatchForm from '@/components/match/MatchForm.vue'
 import { formatVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import type { CreateMatchRequest } from '@/types/match'
+import { sortByStrategy } from '@/utils/sort'
 
 const userStore = useUserStore()
 const matchStore = useMatchStore()
@@ -166,9 +174,12 @@ const fundStore = useFundStore()
 const configStore = useConfigStore()
 const showMatchForm = ref(false)
 
+const leaderboardUsers = computed(() => sortByStrategy(userStore.users, 'default'))
+
 onMounted(async () => {
   await Promise.all([
-    userStore.fetchUsers(), matchStore.fetchMatches(),
+    userStore.fetchUsers(),
+    matchStore.fetchMatches(),
     settlementStore.fetchSettlements(), fundStore.fetchStats(),
     fundStore.fetchTransactions(), configStore.fetchConfigs()
   ])
@@ -222,6 +233,7 @@ const handleRefreshUsers = async () => {
   font-weight: 500;
   color: var(--color-primary);
   text-decoration: none;
+  flex-shrink: 0;
 }
 .view-all-link:hover { color: var(--color-primary-dark); }
 

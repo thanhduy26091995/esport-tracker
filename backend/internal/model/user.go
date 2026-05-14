@@ -20,3 +20,9 @@ type User struct {
 func (User) TableName() string {
 	return "users"
 }
+
+type UserWithPaymentTotal struct {
+	User
+	TotalPaid       int `json:"total_paid"`
+	TotalDebtPoints int `json:"total_debt_points"`
+}

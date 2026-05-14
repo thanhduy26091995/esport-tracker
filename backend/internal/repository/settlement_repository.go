@@ -26,6 +26,7 @@ func (r *SettlementRepository) GetByID(id uuid.UUID) (*model.DebtSettlement, err
 	var settlement model.DebtSettlement
 	err := r.db.Preload("Debtor").
 		Preload("Winners").
+		Preload("Winners.Winner").
 		First(&settlement, "id = ?", id).Error
 	if err != nil {
 		return nil, err
@@ -38,6 +39,7 @@ func (r *SettlementRepository) GetAll(limit, offset int) ([]*model.DebtSettlemen
 	var settlements []*model.DebtSettlement
 	query := r.db.Preload("Debtor").
 		Preload("Winners").
+		Preload("Winners.Winner").
 		Order("settlement_date DESC, created_at DESC")
 
 	if limit > 0 {
@@ -53,6 +55,7 @@ func (r *SettlementRepository) GetByDebtorID(debtorID uuid.UUID, limit int) ([]*
 	var settlements []*model.DebtSettlement
 	query := r.db.Preload("Debtor").
 		Preload("Winners").
+		Preload("Winners.Winner").
 		Where("debtor_id = ?", debtorID).
 		Order("settlement_date DESC, created_at DESC")
 

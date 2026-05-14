@@ -58,10 +58,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		// User routes
 		users := v1.Group("/users")
 		{
-			users.GET("", userHandler.GetAll)              // GET /api/v1/users
-			users.POST("", userHandler.Create)             // POST /api/v1/users
-			users.GET("/leaderboard", userHandler.GetLeaderboard) // GET /api/v1/users/leaderboard
-			users.GET("/:id", userHandler.GetByID)         // GET /api/v1/users/:id
+			users.GET("", userHandler.GetAll)                            // GET /api/v1/users
+			users.POST("", userHandler.Create)                           // POST /api/v1/users
+			users.GET("/leaderboard", userHandler.GetLeaderboard)        // GET /api/v1/users/leaderboard
+			users.GET("/payment-ranking", userHandler.GetPaymentRanking) // GET /api/v1/users/payment-ranking
+			users.GET("/:id", userHandler.GetByID)                       // GET /api/v1/users/:id
 			users.GET("/:id/matches", matchHandler.GetByUserID) // GET /api/v1/users/:id/matches
 			users.PUT("/:id", userHandler.Update)          // PUT /api/v1/users/:id
 			users.DELETE("/:id", userHandler.Delete)       // DELETE /api/v1/users/:id

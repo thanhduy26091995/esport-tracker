@@ -243,6 +243,21 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	})
 }
 
+// GetPaymentRanking handles GET /users/payment-ranking
+func (h *UserHandler) GetPaymentRanking(c *gin.Context) {
+	users, err := h.userService.GetPaymentRanking()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{
+				"code":    "INTERNAL_ERROR",
+				"message": "Failed to fetch payment ranking",
+			},
+		})
+		return
+	}
+	c.JSON(http.StatusOK, users)
+}
+
 // GetLeaderboard handles GET /users/leaderboard
 func (h *UserHandler) GetLeaderboard(c *gin.Context) {
 	limit := 0 // Default: no limit

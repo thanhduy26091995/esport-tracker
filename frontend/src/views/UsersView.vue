@@ -39,12 +39,24 @@
 
       <!-- Player Table -->
       <div class="card">
+        <div class="card-header users-card-header">
+          <span class="card-title">{{ t('users.pageTitle') }}</span>
+          <div class="sort-tabs">
+            <button
+              v-for="s in sortOptions" :key="s.value"
+              class="sort-tab"
+              :class="{ 'sort-tab--active': sortStrategy === s.value }"
+              @click="onSortChange(s.value)"
+            >{{ s.label }}</button>
+          </div>
+        </div>
         <div class="card-body">
           <UserTable
-            :users="userStore.users"
+            :users="sortedUsers"
             :loading="userStore.loading"
             :conversion-rate="configStore.pointToVnd"
             :debt-threshold="configStore.debtThreshold"
+            :show-total-paid="sortStrategy === 'debt-first'"
             @edit="handleEdit"
             @delete="handleDeleteConfirm"
             @trigger-settlement="handleTriggerSettlement"
@@ -90,6 +102,7 @@ import UserForm from '@/components/user/UserForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import SettlementTriggerDialog from '@/components/settlement/SettlementTriggerDialog.vue'
 import type { User } from '@/types/user'
+import { sortByStrategy, type PlayerSortStrategy } from '@/utils/sort'
 
 const userStore = useUserStore()
 const configStore = useConfigStore()
@@ -98,6 +111,30 @@ const showDialog = ref(false)
 const selectedUser = ref<User | null>(null)
 const showSettlementDialog = ref(false)
 const settlementDebtor = ref<User | null>(null)
+
+const USERS_SORT_KEY = 'users-player-sort'
+
+function readSort(key: string, fallback: PlayerSortStrategy): PlayerSortStrategy {
+  try { return (localStorage.getItem(key) as PlayerSortStrategy) ?? fallback } catch { return fallback }
+}
+
+const sortStrategy = ref<PlayerSortStrategy>(readSort(USERS_SORT_KEY, 'debt-first'))
+
+function onSortChange(s: PlayerSortStrategy) {
+  sortStrategy.value = s
+  try { localStorage.setItem(USERS_SORT_KEY, s) } catch {}
+}
+
+const sortedUsers = computed<User[]>(() => {
+  if (sortStrategy.value === 'debt-first') return userStore.paymentRankingUsers
+  return sortByStrategy(userStore.users, sortStrategy.value)
+})
+
+const sortOptions = computed(() => [
+  { value: 'debt-first' as PlayerSortStrategy,    label: t('dashboard.sortDebtFirst') },
+  { value: 'default' as PlayerSortStrategy,       label: t('dashboard.sortDefault') },
+  { value: 'winners-first' as PlayerSortStrategy, label: t('dashboard.sortWinnersFirst') },
+])
 
 const topScore = computed(() => {
   if (userStore.users.length === 0) return 0
@@ -109,7 +146,7 @@ const playersInDebt = computed(() =>
 )
 
 onMounted(async () => {
-  await Promise.all([userStore.fetchUsers(), configStore.fetchConfigs()])
+  await Promise.all([userStore.fetchUsers(), userStore.fetchPaymentRanking(), configStore.fetchConfigs()])
 })
 
 const handleAdd = () => {
@@ -177,3 +214,14 @@ const handleSettlementCancel = () => {
   showSettlementDialog.value = false
 }
 </script>
+
+<style scoped>
+.users-card-header {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.users-card-header .sort-tabs {
+  flex-shrink: 0;
+}
+</style>

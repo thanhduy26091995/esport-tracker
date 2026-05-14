@@ -80,3 +80,17 @@ func (r *UserRepository) UpdateScore(id uuid.UUID, scoreChange int) error {
 		Where("id = ?", id).
 		UpdateColumn("current_score", gorm.Expr("current_score + ?", scoreChange)).Error
 }
+
+// GetPaymentRanking returns active users sorted by total historical settlement money paid DESC
+func (r *UserRepository) GetPaymentRanking() ([]*model.UserWithPaymentTotal, error) {
+	var results []*model.UserWithPaymentTotal
+	err := r.db.Raw(`
+		SELECT u.*, COALESCE(SUM(s.money_amount), 0) AS total_paid, COALESCE(SUM(s.original_debt_points), 0) AS total_debt_points
+		FROM users u
+		LEFT JOIN debt_settlements s ON u.id = s.debtor_id
+		WHERE u.is_active = true
+		GROUP BY u.id
+		ORDER BY total_paid DESC, u.name ASC
+	`).Scan(&results).Error
+	return results, err
+}

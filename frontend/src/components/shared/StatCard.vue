@@ -53,14 +53,21 @@ const displayValue = computed(() =>
   background: var(--surface-card);
   border-radius: 16px;
   border: 1px solid var(--border-default);
+  border-top-width: 3px;
   box-shadow: var(--shadow-card);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .stat-card:hover {
   box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
+
+.stat-card--info    { border-top-color: var(--color-info); }
+.stat-card--success { border-top-color: var(--color-success); }
+.stat-card--warning { border-top-color: var(--color-warning); }
+.stat-card--danger  { border-top-color: var(--color-danger); }
+.stat-card--default { border-top-color: var(--border-default); }
 
 /* Icon wrapper */
 .stat-icon-wrap {
@@ -110,20 +117,20 @@ const displayValue = computed(() =>
 }
 
 .stat-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .stat-value {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 800;
   line-height: 1.1;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .stat-skeleton {

@@ -1,14 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { User } from '@/types/user'
+import type { User, UserWithPaymentTotal } from '@/types/user'
 import { userService } from '@/services/userService'
 import { ElMessage } from 'element-plus'
 import { getErrorMessage, translate } from '@/utils/i18n'
 
 export const useUserStore = defineStore('user', () => {
   const users = ref<User[]>([])
+  const paymentRankingUsers = ref<UserWithPaymentTotal[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+
+  // Fetch payment ranking (users sorted by total historical settlement money paid)
+  async function fetchPaymentRanking() {
+    try {
+      paymentRankingUsers.value = await userService.getPaymentRanking()
+    } catch (err: any) {
+      console.error('Failed to fetch payment ranking', err)
+    }
+  }
 
   // Fetch all users
   async function fetchUsers() {
@@ -129,9 +139,11 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     users,
+    paymentRankingUsers,
     loading,
     error,
     fetchUsers,
+    fetchPaymentRanking,
     createUser,
     updateUser,
     deleteUser,

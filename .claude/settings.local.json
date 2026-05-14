@@ -9,7 +9,10 @@
       "Bash(ls src/**/*.vue)",
       "Bash(ls dist/assets/*.css)",
       "Bash(grep -c \"bg-blue-600\\\\|bg-slate\\\\|flex\\\\|rounded-xl\\\\|tracking-tight\" /Users/duyb/Documents/Growth/esport/frontend/dist/assets/index-*.css)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(curl -s https://fifa.sitenow.cloud/api/v1/users/payment-ranking)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(npx vue-tsc *)"
     ]
   }
 }

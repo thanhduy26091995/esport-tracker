@@ -153,3 +153,8 @@ func (s *UserService) DeleteUser(id uuid.UUID) error {
 func (s *UserService) GetLeaderboard(limit int) ([]*model.User, error) {
 	return s.repo.GetLeaderboard(limit)
 }
+
+// GetPaymentRanking returns active users sorted by total historical settlement money paid DESC
+func (s *UserService) GetPaymentRanking() ([]*model.UserWithPaymentTotal, error) {
+	return s.repo.GetPaymentRanking()
+}

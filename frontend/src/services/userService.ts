@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { User, CreateUserRequest, UpdateUserRequest } from '@/types/user'
+import type { User, UserWithPaymentTotal, CreateUserRequest, UpdateUserRequest } from '@/types/user'
 
 export const userService = {
   async getAll(): Promise<User[]> {
@@ -35,6 +35,11 @@ export const userService = {
 
   async getStats(): Promise<{ total: number; active: number }> {
     const response = await api.get<{ total: number; active: number }>('/users/stats')
+    return response.data
+  },
+
+  async getPaymentRanking(): Promise<UserWithPaymentTotal[]> {
+    const response = await api.get<UserWithPaymentTotal[]>('/users/payment-ranking')
     return response.data
   },
 }

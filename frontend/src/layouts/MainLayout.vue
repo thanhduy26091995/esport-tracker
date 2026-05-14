@@ -71,16 +71,22 @@
 
     <!-- Main content -->
     <div class="main-area">
-      <!-- Mobile topbar -->
-      <header class="mobile-topbar">
-        <div class="flex items-center gap-3">
+      <!-- Topbar (mobile + desktop) -->
+      <header class="topbar">
+        <div class="topbar-left">
           <button class="mobile-menu-btn" @click="mobileMenuOpen = true">
             <el-icon :size="20"><Menu /></el-icon>
           </button>
-          <span class="mobile-page-title">{{ currentPageName }}</span>
+          <div class="topbar-page-info">
+            <el-icon :size="15" class="topbar-page-icon"><component :is="currentPageIcon" /></el-icon>
+            <span class="topbar-page-title">{{ currentPageName }}</span>
+          </div>
         </div>
-        <div class="mobile-lang">
-          <LanguageSwitcher />
+        <div class="topbar-right">
+          <span class="topbar-date">{{ todayLabel }}</span>
+          <div class="topbar-lang">
+            <LanguageSwitcher />
+          </div>
         </div>
       </header>
 
@@ -116,9 +122,14 @@ const navigation = [
 const isActiveRoute = (href: string): boolean =>
   href === '/' ? route.path === '/' : route.path.startsWith(href)
 
-const currentPageName = computed(() =>
-  navigation.find(item => isActiveRoute(item.href)) ? t(navigation.find(item => isActiveRoute(item.href))!.navKey) : t('common.appName')
-)
+const currentNavItem = computed(() => navigation.find(item => isActiveRoute(item.href)))
+const currentPageName = computed(() => currentNavItem.value ? t(currentNavItem.value.navKey) : t('common.appName'))
+const currentPageIcon = computed(() => currentNavItem.value?.icon ?? HomeFilled)
+
+const todayLabel = computed(() => {
+  const now = new Date()
+  return now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+})
 </script>
 
 <style scoped>
@@ -213,14 +224,14 @@ const currentPageName = computed(() =>
 }
 
 .nav-item:hover {
-  background: var(--sidebar-hover);
-  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
 }
 
 .nav-item--active {
-  background: var(--sidebar-active);
-  color: var(--sidebar-text-active);
-  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.3);
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  box-shadow: inset 3px 0 0 #3b82f6;
 }
 
 .nav-icon {
@@ -253,22 +264,66 @@ const currentPageName = computed(() =>
   overflow: hidden;
 }
 
-/* ── Mobile topbar ── */
-.mobile-topbar {
+/* ── Topbar (all screen sizes) ── */
+.topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  gap: 12px;
+  padding: 0 20px;
+  height: 52px;
   background: var(--surface-card);
-  border-bottom: 1px solid var(--border-subtle);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border-bottom: 1px solid var(--border-default);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   flex-shrink: 0;
 }
 
-@media (min-width: 1024px) {
-  .mobile-topbar {
-    display: none;
-  }
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar-page-info {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.topbar-page-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.topbar-page-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbar-date {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.topbar-lang :deep(.language-label) {
+  display: none;
 }
 
 .mobile-menu-btn {
@@ -281,20 +336,27 @@ const currentPageName = computed(() =>
   display: flex;
   align-items: center;
   transition: background 0.15s;
+  flex-shrink: 0;
 }
 
 .mobile-menu-btn:hover {
   background: var(--surface-subtle);
 }
 
-.mobile-page-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
+@media (min-width: 1024px) {
+  .mobile-menu-btn {
+    display: none;
+  }
+
+  .topbar-date {
+    display: block;
+  }
 }
 
-.mobile-lang :deep(.language-label) {
-  display: none;
+@media (max-width: 1023px) {
+  .topbar-date {
+    display: none;
+  }
 }
 
 /* ── Scrollable page ── */

@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="filter-bar">
+    <div v-if="showFilterBar" class="filter-bar">
       <el-input v-model="searchQuery" :placeholder="t('users.searchPlaceholder')" clearable class="w-64" :prefix-icon="Search" />
       <el-select v-model="scoreFilter" :placeholder="t('users.filterByScore')" clearable class="w-44">
         <el-option :label="t('common.all')" value="" />
@@ -20,8 +20,7 @@
     </div>
 
     <div v-else class="user-table-wrap">
-      <el-table :data="filteredUsers" stripe style="width:100%" class="user-table" v-loading="loading"
-        :default-sort="{ prop: 'current_score', order: 'descending' }">
+      <el-table :data="filteredUsers" stripe style="width:100%" class="user-table" v-loading="loading">
       <el-table-column type="index" label="#" width="55" />
       <el-table-column prop="name" :label="t('users.colPlayer')" min-width="180">
         <template #default="{ row }">
@@ -33,16 +32,29 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="current_score" :label="t('users.colScore')" width="110" sortable>
+      <el-table-column :label="showTotalPaid ? t('users.colSettled') : t('users.colScore')" width="110" :sortable="!showTotalPaid" :prop="showTotalPaid ? undefined : 'current_score'">
         <template #default="{ row }">
-          <span class="score-pill" :class="row.current_score > 0 ? 'score-pill-positive' : row.current_score < 0 ? 'score-pill-negative' : 'score-pill-zero'">
-            {{ row.current_score > 0 ? '+' : '' }}{{ row.current_score }}
-          </span>
+          <template v-if="showTotalPaid">
+            <span class="settled-badge">{{ row.total_debt_points ?? 0 }} pts</span>
+          </template>
+          <template v-else>
+            <span class="score-pill" :class="row.current_score > 0 ? 'score-pill-positive' : row.current_score < 0 ? 'score-pill-negative' : 'score-pill-zero'">
+              {{ row.current_score > 0 ? '+' : '' }}{{ row.current_score }}
+            </span>
+          </template>
         </template>
       </el-table-column>
-      <el-table-column :label="t('users.colValue')" width="160">
+      <el-table-column :label="showTotalPaid ? t('users.colTotalPaid') : t('users.colValue')" width="170">
         <template #default="{ row }">
-          <span class="vnd-value">{{ formatVND(pointsToVND(row.current_score, conversionRate)) }}</span>
+          <template v-if="showTotalPaid && row.total_paid != null">
+            <div class="total-paid-cell">
+              <span class="vnd-value vnd-value--paid">{{ formatVND(row.total_paid) }}</span>
+              <span v-if="row.total_debt_points > 0" class="payment-count-badge">{{ row.total_debt_points }} pts</span>
+            </div>
+          </template>
+          <template v-else>
+            <span class="vnd-value">{{ formatVND(pointsToVND(row.current_score, conversionRate)) }}</span>
+          </template>
         </template>
       </el-table-column>
       <el-table-column :label="t('users.colJoined')" width="130">
@@ -50,10 +62,10 @@
           <span class="date-value">{{ formatDate(row.created_at) }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('common.actions')" min-width="260" align="right">
+      <el-table-column v-if="showActions" :label="t('common.actions')" min-width="260" align="right">
         <template #default="{ row }">
           <div class="actions-cell">
-            <el-tooltip v-if="row.current_score < 0 && row.current_score <= debtThreshold" :content="t('users.triggerSettlementTooltip')" placement="top">
+            <el-tooltip v-if="!showTotalPaid && row.current_score < 0 && row.current_score <= debtThreshold" :content="t('users.triggerSettlementTooltip')" placement="top">
               <el-button size="small" type="warning" plain @click="emit('triggerSettlement', row)" :icon="Warning">
                 {{ t('users.settleDebt') }}
               </el-button>
@@ -78,8 +90,8 @@ import { formatVND, pointsToVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 
-interface Props { users: User[]; loading?: boolean; conversionRate?: number; debtThreshold?: number }
-const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6 })
+interface Props { users: User[]; loading?: boolean; conversionRate?: number; debtThreshold?: number; showTotalPaid?: boolean; showFilterBar?: boolean; showActions?: boolean }
+const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6, showTotalPaid: false, showFilterBar: true, showActions: true })
 const emit = defineEmits<{ edit: [user: User]; delete: [user: User]; triggerSettlement: [user: User] }>()
 
 const searchQuery = ref(''); const scoreFilter = ref('')
@@ -107,7 +119,39 @@ const filteredUsers = computed(() => {
 .player-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
 
 .vnd-value { font-size: 12px; color: var(--text-muted); }
+.vnd-value--paid { color: var(--color-success); font-weight: 600; }
 .date-value { font-size: 12px; color: var(--text-muted); }
+
+.settled-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-warning);
+}
+
+.total-paid-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.payment-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-success);
+  white-space: nowrap;
+}
 
 .user-table-wrap {
   width: 100%;

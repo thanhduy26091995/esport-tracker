@@ -9,6 +9,11 @@ export interface User {
   handicap_rate: number
 }
 
+export interface UserWithPaymentTotal extends User {
+  total_paid: number
+  total_debt_points: number
+}
+
 export interface CreateUserRequest {
   name: string
   tier?: string
