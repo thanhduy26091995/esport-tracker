@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { DebtSettlement, SettlementStats } from '@/types/settlement'
+import type { DebtSettlement, SettlementStats, WinnerInput } from '@/types/settlement'
 import { settlementService } from '@/services/settlementService'
 import { getErrorMessage, translate } from '@/utils/i18n'
 
@@ -69,13 +69,13 @@ export const useSettlementStore = defineStore('settlement', () => {
     }
   }
 
-  async function triggerSettlement(debtorId: string, winnerIds?: string[]) {
+  async function triggerSettlement(debtorId: string, winners?: WinnerInput[]) {
     loading.value = true
     error.value = null
     try {
       const settlement = await settlementService.trigger({
         debtor_id: debtorId,
-        winner_ids: winnerIds,
+        winners,
       })
       settlements.value.unshift(settlement)
       stats.value.total++

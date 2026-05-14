@@ -23,9 +23,14 @@ export interface SettlementWinner {
   winner: User
 }
 
+export interface WinnerInput {
+  id: string
+  points_to_deduct: number
+}
+
 export interface TriggerSettlementRequest {
   debtor_id: string
-  winner_ids?: string[]
+  winners?: WinnerInput[]
 }
 
 export interface SettlementStats {

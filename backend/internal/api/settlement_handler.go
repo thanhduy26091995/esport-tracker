@@ -87,8 +87,11 @@ func (h *SettlementHandler) GetByDebtorID(c *gin.Context) {
 // TriggerSettlement manually triggers settlement for a user
 func (h *SettlementHandler) TriggerSettlement(c *gin.Context) {
 	var req struct {
-		DebtorID  uuid.UUID   `json:"debtor_id" binding:"required"`
-		WinnerIDs []uuid.UUID `json:"winner_ids"`
+		DebtorID uuid.UUID `json:"debtor_id" binding:"required"`
+		Winners  []struct {
+			ID             uuid.UUID `json:"id"`
+			PointsToDeduct int       `json:"points_to_deduct"`
+		} `json:"winners"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -99,7 +102,15 @@ func (h *SettlementHandler) TriggerSettlement(c *gin.Context) {
 		return
 	}
 
-	settlement, err := h.settlementService.TriggerSettlement(req.DebtorID, req.WinnerIDs)
+	var winnerAllocations []service.WinnerAllocation
+	for _, w := range req.Winners {
+		winnerAllocations = append(winnerAllocations, service.WinnerAllocation{
+			ID:             w.ID,
+			PointsToDeduct: w.PointsToDeduct,
+		})
+	}
+
+	settlement, err := h.settlementService.TriggerSettlement(req.DebtorID, winnerAllocations)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		code := "INTERNAL_ERROR"
@@ -120,6 +131,12 @@ func (h *SettlementHandler) TriggerSettlement(c *gin.Context) {
 		case "winners must have positive scores":
 			statusCode = http.StatusBadRequest
 			code = "INVALID_WINNER"
+		case "points to deduct exceeds winner score":
+			statusCode = http.StatusBadRequest
+			code = "INVALID_POINTS"
+		case "total allocated points exceeds debt":
+			statusCode = http.StatusBadRequest
+			code = "INVALID_POINTS"
 		}
 
 		c.JSON(statusCode, gin.H{

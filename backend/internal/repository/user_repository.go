@@ -85,7 +85,14 @@ func (r *UserRepository) UpdateScore(id uuid.UUID, scoreChange int) error {
 func (r *UserRepository) GetPaymentRanking() ([]*model.UserWithPaymentTotal, error) {
 	var results []*model.UserWithPaymentTotal
 	err := r.db.Raw(`
-		SELECT u.*, COALESCE(SUM(s.money_amount), 0) AS total_paid, COALESCE(SUM(s.original_debt_points), 0) AS total_debt_points
+		SELECT u.*,
+		       COALESCE(SUM(s.money_amount), 0) AS total_paid,
+		       COALESCE((
+		           SELECT SUM(sw.points_deducted)
+		           FROM settlement_winners sw
+		           JOIN debt_settlements ds ON sw.settlement_id = ds.id
+		           WHERE ds.debtor_id = u.id
+		       ), 0) AS total_debt_points
 		FROM users u
 		LEFT JOIN debt_settlements s ON u.id = s.debtor_id
 		WHERE u.is_active = true

@@ -102,6 +102,7 @@ import UserForm from '@/components/user/UserForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import SettlementTriggerDialog from '@/components/settlement/SettlementTriggerDialog.vue'
 import type { User } from '@/types/user'
+import type { WinnerInput } from '@/types/settlement'
 import { sortByStrategy, type PlayerSortStrategy } from '@/utils/sort'
 
 const userStore = useUserStore()
@@ -195,11 +196,11 @@ const handleTriggerSettlement = (user: User) => {
   showSettlementDialog.value = true
 }
 
-const handleSettlementConfirm = async (winnerIds: string[]) => {
+const handleSettlementConfirm = async (winners: WinnerInput[]) => {
   if (!settlementDebtor.value) return
-  
+
   try {
-    await settlementStore.triggerSettlement(settlementDebtor.value.id, winnerIds)
+    await settlementStore.triggerSettlement(settlementDebtor.value.id, winners)
     await userStore.fetchUsers() // Refresh user data
     ElMessage.success(t('users.settlementSuccess', { name: settlementDebtor.value.name }))
     showSettlementDialog.value = false

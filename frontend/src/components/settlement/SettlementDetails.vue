@@ -75,7 +75,8 @@
           <li>{{ t('settlements.processStep3', { percent: fundSplitPercent, amount: formatVND(settlement.fund_amount) }) }}</li>
           <li>{{ t('settlements.processStep4', { percent: 100 - fundSplitPercent, amount: formatVND(settlement.winner_distribution), count: settlement.winners?.length ?? 0 }) }}</li>
           <li>{{ t('settlements.processStep5') }}</li>
-          <li>{{ t('settlements.processStep6', { name: settlement.debtor.name }) }}</li>
+          <li v-if="debtorScoreAfter === 0">{{ t('settlements.processStep6', { name: settlement.debtor.name }) }}</li>
+          <li v-else>{{ t('settlements.processStep6Partial', { name: settlement.debtor.name, score: debtorScoreAfter }) }}</li>
         </ol>
       </div>
     </div>
@@ -87,6 +88,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Warning, InfoFilled } from '@element-plus/icons-vue'
 import type { DebtSettlement } from '@/types/settlement'
@@ -99,9 +101,17 @@ interface Props {
   fundSplitPercent?: number
 }
 
-withDefaults(defineProps<Props>(), { fundSplitPercent: 50 })
+const props = withDefaults(defineProps<Props>(), { fundSplitPercent: 50 })
 defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const { t } = useI18n()
+
+// debt_amount is the original negative score (e.g. -9)
+// adding back total deducted points gives the remaining score
+const debtorScoreAfter = computed(() => {
+  if (!props.settlement) return 0
+  const totalDeducted = (props.settlement.winners ?? []).reduce((sum, w) => sum + w.points_deducted, 0)
+  return props.settlement.debt_amount + totalDeducted
+})
 </script>
 
 <style scoped>

@@ -11,6 +11,11 @@ import (
 	"gorm.io/gorm"
 )
 
+type WinnerAllocation struct {
+	ID             uuid.UUID
+	PointsToDeduct int
+}
+
 type SettlementService struct {
 	settlementRepo *repository.SettlementRepository
 	userRepo       *repository.UserRepository
@@ -58,13 +63,13 @@ func (s *SettlementService) CheckAndTriggerSettlement(userID uuid.UUID) error {
 	}
 
 	// Trigger settlement
-	_, err = s.TriggerSettlement(userID, nil)
+	_, err = s.TriggerSettlement(userID, nil) // nil = auto mode (match history)
 	return err
 }
 
-// TriggerSettlement executes the settlement process for a debtor
-// If winnerIDs is provided, use manual winner selection instead of match history
-func (s *SettlementService) TriggerSettlement(debtorID uuid.UUID, winnerIDs []uuid.UUID) (*model.DebtSettlement, error) {
+// TriggerSettlement executes the settlement process for a debtor.
+// If winners is non-empty, uses the provided per-winner point allocations instead of match history.
+func (s *SettlementService) TriggerSettlement(debtorID uuid.UUID, winners []WinnerAllocation) (*model.DebtSettlement, error) {
 	// Begin transaction
 	tx := s.db.Begin()
 	defer func() {
@@ -99,106 +104,111 @@ func (s *SettlementService) TriggerSettlement(debtorID uuid.UUID, winnerIDs []uu
 		return nil, err
 	}
 
-	// Calculate total money amount (debt is negative, so negate it)
 	debtPoints := -debtor.CurrentScore
-	totalMoneyAmount := debtPoints * pointToVND
 
-	// Calculate fund and winner portions
-	fundAmount := (totalMoneyAmount * fundSplitPercent) / 100
-	winnerAmount := totalMoneyAmount - fundAmount
-
-	var winnerMap map[uuid.UUID]int // userID -> points
 	var matchIDs []uuid.UUID
+	var settledPoints int // actual points collected from winners
 
-	// Determine winners: manual selection or match history
-	if len(winnerIDs) > 0 {
-		// Manual winner selection
-		winnerMap = make(map[uuid.UUID]int)
-		
-		// Validate all winners exist and have positive scores
-		for _, winnerID := range winnerIDs {
-			if winnerID == debtorID {
+	if len(winners) > 0 {
+		// Manual mode: validate winners and sum allocated points
+		for _, w := range winners {
+			if w.ID == debtorID {
 				tx.Rollback()
 				return nil, errors.New("debtor cannot be a winner")
 			}
-			
-			winner, err := s.userRepo.GetByID(winnerID)
+
+			winner, err := s.userRepo.GetByID(w.ID)
 			if err != nil {
 				tx.Rollback()
 				return nil, errors.New("invalid winner ID")
 			}
-			
+
 			if winner.CurrentScore <= 0 {
 				tx.Rollback()
 				return nil, errors.New("winners must have positive scores")
 			}
-			
-			// Equal weight for manual winners
-			winnerMap[winnerID] = 1
+
+			if w.PointsToDeduct > winner.CurrentScore {
+				tx.Rollback()
+				return nil, errors.New("points to deduct exceeds winner score")
+			}
+
+			if w.PointsToDeduct > debtPoints-settledPoints {
+				tx.Rollback()
+				return nil, errors.New("total allocated points exceeds debt")
+			}
+
+			settledPoints += w.PointsToDeduct
+		}
+
+		if settledPoints == 0 {
+			tx.Rollback()
+			return nil, errors.New("no winners found for settlement")
 		}
 	} else {
-		// Get debtor's match history to find winners
+		// Auto mode: derive winners from match history
 		matches, err := s.matchRepo.GetByUserID(debtorID, 0)
 		if err != nil {
 			tx.Rollback()
 			return nil, err
 		}
 
-		// Find all users who won against this debtor
-		winnerMap = make(map[uuid.UUID]int) // userID -> points won against debtor
+		winnerMap := make(map[uuid.UUID]int)
 
 		for _, match := range matches {
 			if match.IsLocked {
-				continue // Skip already locked matches
+				continue
 			}
 
 			matchIDs = append(matchIDs, match.ID)
 
 			var debtorTeam int
-			var winnerTeam int
-
-			// Find debtor's team and winner team
 			for _, p := range match.Participants {
 				if p.UserID == debtorID {
 					debtorTeam = p.TeamNumber
 				}
 			}
 
-			winnerTeam = match.WinnerTeam
-
-			// If debtor lost this match, add winners
+			winnerTeam := match.WinnerTeam
 			if debtorTeam != 0 && debtorTeam != winnerTeam {
 				for _, p := range match.Participants {
 					if p.TeamNumber == winnerTeam && p.UserID != debtorID {
-						winnerMap[p.UserID] = winnerMap[p.UserID] + 1
+						winnerMap[p.UserID]++
 					}
 				}
 			}
 		}
+
+		totalWinningPoints := 0
+		for _, pts := range winnerMap {
+			totalWinningPoints += pts
+		}
+		if totalWinningPoints == 0 {
+			tx.Rollback()
+			return nil, errors.New("no winners found for settlement")
+		}
+
+		for _, pts := range winnerMap {
+			settledPoints += (debtPoints * pts) / totalWinningPoints
+		}
 	}
 
-	// Calculate total winning points
-	totalWinningPoints := 0
-	for _, points := range winnerMap {
-		totalWinningPoints += points
-	}
-
-	if totalWinningPoints == 0 {
-		tx.Rollback()
-		return nil, errors.New("no winners found for settlement")
-	}
+	// All money calculations are based on settled points, not full debt
+	actualMoneyAmount := settledPoints * pointToVND
+	fundAmount := (actualMoneyAmount * fundSplitPercent) / 100
+	winnerAmount := actualMoneyAmount - fundAmount
 
 	// Create settlement record
 	settlement := &model.DebtSettlement{
-		DebtorID:            debtorID,
-		DebtAmount:          debtor.CurrentScore, // Negative value (e.g., -7)
-		MoneyAmount:         totalMoneyAmount,
-		ToFund:              float64(fundAmount),         // Legacy column
-		ToWinners:           float64(winnerAmount),       // Legacy column
-		FundAmount:          fundAmount,
-		WinnerDistribution:  winnerAmount,
-		SettlementDate:      time.Now(),
-		OriginalDebtPoints:  debtPoints,
+		DebtorID:           debtorID,
+		DebtAmount:         debtor.CurrentScore,
+		MoneyAmount:        actualMoneyAmount,
+		ToFund:             float64(fundAmount),
+		ToWinners:          float64(winnerAmount),
+		FundAmount:         fundAmount,
+		WinnerDistribution: winnerAmount,
+		SettlementDate:     time.Now(),
+		OriginalDebtPoints: debtPoints,
 	}
 
 	if err := tx.Create(settlement).Error; err != nil {
@@ -206,42 +216,93 @@ func (s *SettlementService) TriggerSettlement(debtorID uuid.UUID, winnerIDs []uu
 		return nil, err
 	}
 
-	// Distribute to winners and create winner records
-	totalPointsDeducted := 0
-	for winnerID, points := range winnerMap {
-		winnerShare := (winnerAmount * points) / totalWinningPoints
-		// Winners lose points proportional to TOTAL debt, not just their share
-		pointsToDeduct := (debtPoints * points) / totalWinningPoints
+	// Distribute to winners
+	if len(winners) > 0 {
+		for _, w := range winners {
+			winnerShare := (winnerAmount * w.PointsToDeduct) / settledPoints
 
-		// Create settlement winner record
-		settlementWinner := &model.SettlementWinner{
-			SettlementID: settlement.ID,
-			WinnerID:     winnerID,
-			MoneyAmount:  winnerShare,
-			PointsDeducted: pointsToDeduct,
+			settlementWinner := &model.SettlementWinner{
+				SettlementID:   settlement.ID,
+				WinnerID:       w.ID,
+				MoneyAmount:    winnerShare,
+				PointsDeducted: w.PointsToDeduct,
+			}
+			if err := tx.Create(settlementWinner).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+
+			if err := tx.Model(&model.User{}).
+				Where("id = ?", w.ID).
+				Update("current_score", gorm.Expr("current_score - ?", w.PointsToDeduct)).
+				Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+		}
+	} else {
+		winnerMap := make(map[uuid.UUID]int)
+		totalWinningPoints := 0
+		matches, _ := s.matchRepo.GetByUserID(debtorID, 0)
+		for _, match := range matches {
+			if match.IsLocked {
+				continue
+			}
+			var debtorTeam int
+			for _, p := range match.Participants {
+				if p.UserID == debtorID {
+					debtorTeam = p.TeamNumber
+				}
+			}
+			winnerTeam := match.WinnerTeam
+			if debtorTeam != 0 && debtorTeam != winnerTeam {
+				for _, p := range match.Participants {
+					if p.TeamNumber == winnerTeam && p.UserID != debtorID {
+						winnerMap[p.UserID]++
+					}
+				}
+			}
+		}
+		for _, pts := range winnerMap {
+			totalWinningPoints += pts
 		}
 
-		if err := tx.Create(settlementWinner).Error; err != nil {
-			tx.Rollback()
-			return nil, err
+		for winnerID, pts := range winnerMap {
+			pointsToDeduct := (debtPoints * pts) / totalWinningPoints
+			winnerShare := (winnerAmount * pts) / totalWinningPoints
+
+			settlementWinner := &model.SettlementWinner{
+				SettlementID:   settlement.ID,
+				WinnerID:       winnerID,
+				MoneyAmount:    winnerShare,
+				PointsDeducted: pointsToDeduct,
+			}
+			if err := tx.Create(settlementWinner).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+
+			if err := tx.Model(&model.User{}).
+				Where("id = ?", winnerID).
+				Update("current_score", gorm.Expr("current_score - ?", pointsToDeduct)).
+				Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
 		}
 
-		// Deduct points from winner
-		if err := tx.Model(&model.User{}).
-			Where("id = ?", winnerID).
-			Update("current_score", gorm.Expr("current_score - ?", pointsToDeduct)).
-			Error; err != nil {
-			tx.Rollback()
-			return nil, err
+		for _, matchID := range matchIDs {
+			if err := s.matchRepo.Lock(matchID); err != nil {
+				tx.Rollback()
+				return nil, err
+			}
 		}
-
-		totalPointsDeducted += pointsToDeduct
 	}
 
-	// Clear debtor's debt (add back the debt points to make score 0)
+	// Debtor recovers only the settled points (partial settlement leaves remaining debt)
 	if err := tx.Model(&model.User{}).
 		Where("id = ?", debtorID).
-		Update("current_score", gorm.Expr("current_score + ?", debtPoints)).
+		Update("current_score", gorm.Expr("current_score + ?", settledPoints)).
 		Error; err != nil {
 		tx.Rollback()
 		return nil, err
@@ -249,20 +310,10 @@ func (s *SettlementService) TriggerSettlement(debtorID uuid.UUID, winnerIDs []uu
 
 	// Deposit fund amount
 	if fundAmount > 0 {
-		description := fmt.Sprintf("Settlement: %d%% fund share from %s's debt (%d VND)", fundSplitPercent, debtor.Name, totalMoneyAmount)
+		description := fmt.Sprintf("Settlement: %d%% fund share from %s's debt (%d VND)", fundSplitPercent, debtor.Name, actualMoneyAmount)
 		if err := s.fundService.CreateSettlementDeposit(fundAmount, description); err != nil {
 			tx.Rollback()
 			return nil, err
-		}
-	}
-
-	// Lock all related matches (only for automatic mode)
-	if len(winnerIDs) == 0 {
-		for _, matchID := range matchIDs {
-			if err := s.matchRepo.Lock(matchID); err != nil {
-				tx.Rollback()
-				return nil, err
-			}
 		}
 	}
 
