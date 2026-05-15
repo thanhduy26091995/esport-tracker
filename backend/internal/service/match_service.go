@@ -16,15 +16,17 @@ type MatchService struct {
 	userRepo          *repository.UserRepository
 	settlementService *SettlementService
 	configService     *ConfigService
+	tierService       *TierService
 	db                *gorm.DB
 }
 
-func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository.UserRepository, settlementService *SettlementService, configService *ConfigService, db *gorm.DB) *MatchService {
+func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository.UserRepository, settlementService *SettlementService, configService *ConfigService, tierService *TierService, db *gorm.DB) *MatchService {
 	return &MatchService{
 		matchRepo:         matchRepo,
 		userRepo:          userRepo,
 		settlementService: settlementService,
 		configService:     configService,
+		tierService:       tierService,
 		db:                db,
 	}
 }
@@ -209,6 +211,9 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 		}
 	}
 
+	// Recalculate tier for all participants post-commit (non-fatal).
+	_ = s.tierService.RecalculateForUsers(allPlayers)
+
 	return createdMatch, nil
 }
 
@@ -275,7 +280,17 @@ func (s *MatchService) DeleteMatch(id uuid.UUID) error {
 	}
 
 	// Commit transaction
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Recalculate tier for all participants post-commit (non-fatal).
+	participantIDs := make([]uuid.UUID, len(match.Participants))
+	for i, p := range match.Participants {
+		participantIDs[i] = p.UserID
+	}
+	_ = s.tierService.RecalculateForUsers(participantIDs)
+	return nil
 }
 
 // GetMatchStats returns statistics about matches

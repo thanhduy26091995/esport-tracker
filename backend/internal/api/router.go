@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"os"
 	"strings"
 
@@ -41,8 +42,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	configService := service.NewConfigService(configRepo)
 	fundService := service.NewFundService(fundRepo)
 	settlementService := service.NewSettlementService(settlementRepo, userRepo, matchRepo, fundService, configService, db)
-	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, db)
+	tierService := service.NewTierService(userRepo)
+	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, tierService, db)
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
+
+	// Backfill tiers from existing match history on startup.
+	if err := tierService.RecalculateAllTiers(); err != nil {
+		log.Printf("⚠️  Failed to backfill tiers on startup: %v", err)
+	}
 
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)

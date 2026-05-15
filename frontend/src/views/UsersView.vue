@@ -101,7 +101,7 @@ import UserTable from '@/components/user/UserTable.vue'
 import UserForm from '@/components/user/UserForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import SettlementTriggerDialog from '@/components/settlement/SettlementTriggerDialog.vue'
-import type { User } from '@/types/user'
+import type { UserWithStats } from '@/types/user'
 import type { WinnerInput } from '@/types/settlement'
 import { sortByStrategy, type PlayerSortStrategy } from '@/utils/sort'
 
@@ -109,9 +109,9 @@ const userStore = useUserStore()
 const configStore = useConfigStore()
 const settlementStore = useSettlementStore()
 const showDialog = ref(false)
-const selectedUser = ref<User | null>(null)
+const selectedUser = ref<UserWithStats | null>(null)
 const showSettlementDialog = ref(false)
-const settlementDebtor = ref<User | null>(null)
+const settlementDebtor = ref<UserWithStats | null>(null)
 
 const USERS_SORT_KEY = 'users-player-sort'
 
@@ -126,8 +126,8 @@ function onSortChange(s: PlayerSortStrategy) {
   try { localStorage.setItem(USERS_SORT_KEY, s) } catch {}
 }
 
-const sortedUsers = computed<User[]>(() => {
-  if (sortStrategy.value === 'debt-first') return userStore.paymentRankingUsers
+const sortedUsers = computed<UserWithStats[]>(() => {
+  if (sortStrategy.value === 'debt-first') return userStore.paymentRankingUsers as unknown as UserWithStats[]
   return sortByStrategy(userStore.users, sortStrategy.value)
 })
 
@@ -139,11 +139,11 @@ const sortOptions = computed(() => [
 
 const topScore = computed(() => {
   if (userStore.users.length === 0) return 0
-  return Math.max(...userStore.users.map((u: User) => u.current_score))
+  return Math.max(...userStore.users.map(u => u.current_score))
 })
 
 const playersInDebt = computed(() =>
-  userStore.users.filter((u: User) => u.current_score < 0).length
+  userStore.users.filter(u => u.current_score < 0).length
 )
 
 onMounted(async () => {
@@ -155,7 +155,7 @@ const handleAdd = () => {
   showDialog.value = true
 }
 
-const handleEdit = (user: User) => {
+const handleEdit = (user: UserWithStats) => {
   selectedUser.value = user
   showDialog.value = true
 }
@@ -176,7 +176,7 @@ const handleCancel = () => {
   showDialog.value = false
 }
 
-const handleDeleteConfirm = (user: User) => {
+const handleDeleteConfirm = (user: UserWithStats) => {
   ElMessageBox.confirm(
     t('users.deleteConfirm', { name: user.name }),
     t('users.deleteTitle'),
@@ -191,7 +191,7 @@ const handleDeleteConfirm = (user: User) => {
     .catch(() => {})
 }
 
-const handleTriggerSettlement = (user: User) => {
+const handleTriggerSettlement = (user: UserWithStats) => {
   settlementDebtor.value = user
   showSettlementDialog.value = true
 }

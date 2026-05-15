@@ -14,19 +14,36 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// GetAll returns all active users ordered by current_score DESC (leaderboard)
-func (r *UserRepository) GetAll() ([]*model.User, error) {
-	var users []*model.User
-	err := r.db.Where("is_active = ?", true).
-		Order("current_score DESC, name ASC").
+const winRateSelect = `u.*,
+	COUNT(mp.id) FILTER (WHERE mp.point_change != 0)            AS total_matches,
+	COUNT(mp.id) FILTER (WHERE mp.point_change > 0)             AS won_matches,
+	CASE WHEN COUNT(mp.id) FILTER (WHERE mp.point_change != 0) = 0 THEN 0
+	     ELSE COUNT(mp.id) FILTER (WHERE mp.point_change > 0)::float
+	          / COUNT(mp.id) FILTER (WHERE mp.point_change != 0)
+	END AS win_rate`
+
+// GetAll returns all active users with computed win rate, ordered by current_score DESC.
+func (r *UserRepository) GetAll() ([]*model.UserWithStats, error) {
+	var users []*model.UserWithStats
+	err := r.db.Table("users u").
+		Select(winRateSelect).
+		Joins("LEFT JOIN match_participants mp ON mp.user_id = u.id").
+		Where("u.is_active = ?", true).
+		Group("u.id").
+		Order("u.current_score DESC, u.name ASC").
 		Find(&users).Error
 	return users, err
 }
 
-// GetByID returns a user by ID
-func (r *UserRepository) GetByID(id uuid.UUID) (*model.User, error) {
-	var user model.User
-	err := r.db.Where("id = ? AND is_active = ?", id, true).First(&user).Error
+// GetByID returns a single active user with computed win rate.
+func (r *UserRepository) GetByID(id uuid.UUID) (*model.UserWithStats, error) {
+	var user model.UserWithStats
+	err := r.db.Table("users u").
+		Select(winRateSelect).
+		Joins("LEFT JOIN match_participants mp ON mp.user_id = u.id").
+		Where("u.id = ? AND u.is_active = ?", id, true).
+		Group("u.id").
+		First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -60,18 +77,57 @@ func (r *UserRepository) SoftDelete(id uuid.UUID) error {
 		Update("is_active", false).Error
 }
 
-// GetLeaderboard returns users with their ranking
-func (r *UserRepository) GetLeaderboard(limit int) ([]*model.User, error) {
-	var users []*model.User
-	query := r.db.Where("is_active = ?", true).
-		Order("current_score DESC, name ASC")
-	
+// GetLeaderboard returns active users with computed win rate, optionally limited.
+func (r *UserRepository) GetLeaderboard(limit int) ([]*model.UserWithStats, error) {
+	var users []*model.UserWithStats
+	query := r.db.Table("users u").
+		Select(winRateSelect).
+		Joins("LEFT JOIN match_participants mp ON mp.user_id = u.id").
+		Where("u.is_active = ?", true).
+		Group("u.id").
+		Order("u.current_score DESC, u.name ASC")
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	err := query.Find(&users).Error
 	return users, err
+}
+
+// GetWinRatesBatch returns win rate stats for a specific set of user IDs in one query.
+func (r *UserRepository) GetWinRatesBatch(ids []uuid.UUID) (map[uuid.UUID]model.UserWithStats, error) {
+	var rows []model.UserWithStats
+	err := r.db.Table("users u").
+		Select(winRateSelect).
+		Joins("LEFT JOIN match_participants mp ON mp.user_id = u.id").
+		Where("u.id IN ?", ids).
+		Group("u.id").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[uuid.UUID]model.UserWithStats, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row
+	}
+	return result, nil
+}
+
+// UpdateTier persists a computed tier value for a user.
+func (r *UserRepository) UpdateTier(id uuid.UUID, tier string) error {
+	return r.db.Model(&model.User{}).
+		Where("id = ?", id).
+		Update("tier", tier).Error
+}
+
+// GetAllIDs returns IDs of all active users (used for startup backfill).
+func (r *UserRepository) GetAllIDs() ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := r.db.Model(&model.User{}).
+		Where("is_active = ?", true).
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 // UpdateScore updates a user's current score

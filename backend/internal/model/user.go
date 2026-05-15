@@ -21,6 +21,13 @@ func (User) TableName() string {
 	return "users"
 }
 
+type UserWithStats struct {
+	User
+	WinRate      float64 `gorm:"column:win_rate" json:"win_rate"`
+	TotalMatches int     `gorm:"column:total_matches" json:"total_matches"`
+	WonMatches   int     `gorm:"column:won_matches" json:"won_matches"`
+}
+
 type UserWithPaymentTotal struct {
 	User
 	TotalPaid       int `json:"total_paid"`

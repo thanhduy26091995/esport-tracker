@@ -12,7 +12,8 @@
       "Bash(go build:*)",
       "Bash(curl -s https://fifa.sitenow.cloud/api/v1/users/payment-ranking)",
       "Bash(pg_isready -h localhost -p 5432)",
-      "Bash(npx vue-tsc *)"
+      "Bash(npx vue-tsc *)",
+      "Bash(go test *)"
     ]
   }
 }

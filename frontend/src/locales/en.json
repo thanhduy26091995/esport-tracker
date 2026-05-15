@@ -96,6 +96,7 @@
     "tryDifferentSearch": "Try a different search term",
     "addFirstPlayer": "Add your first player to get started.",
     "colPlayer": "Player",
+    "colWinRate": "Win Rate",
     "colScore": "Score",
     "colValue": "Value (VND)",
     "colTotalPaid": "Total Paid",
@@ -424,5 +425,10 @@
     "tournamentDeleted": "Tournament deleted",
     "tournamentCompleted": "Tournament completed!",
     "resultRecorded": "Result recorded!"
+  },
+  "tier": {
+    "pro": "Pro",
+    "normal": "Normal",
+    "noob": "Noob"
   }
 }

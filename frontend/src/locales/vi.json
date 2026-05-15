@@ -96,6 +96,7 @@
     "tryDifferentSearch": "Thử từ khóa khác",
     "addFirstPlayer": "Thêm người chơi đầu tiên để bắt đầu.",
     "colPlayer": "Người chơi",
+    "colWinRate": "Tỷ lệ thắng",
     "colScore": "Điểm",
     "colValue": "Giá trị (VND)",
     "colTotalPaid": "Tổng Đã Trả",
@@ -424,5 +425,10 @@
     "tournamentDeleted": "Đã xóa giải đấu",
     "tournamentCompleted": "Giải đấu đã hoàn thành!",
     "resultRecorded": "Đã ghi nhận kết quả!"
+  },
+  "tier": {
+    "pro": "Pro",
+    "normal": "Bình thường",
+    "noob": "Tệ"
   }
 }
