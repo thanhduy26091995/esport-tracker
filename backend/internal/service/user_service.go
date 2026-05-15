@@ -12,16 +12,39 @@ import (
 )
 
 type UserService struct {
-	repo *repository.UserRepository
+	repo      *repository.UserRepository
+	configSvc *ConfigService
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
-	return &UserService{repo: repo}
+func NewUserService(repo *repository.UserRepository, configSvc *ConfigService) *UserService {
+	return &UserService{repo: repo, configSvc: configSvc}
 }
 
-// GetAll returns all active users with computed win rate stats.
+func (s *UserService) minMatchesForTier() int {
+	if s.configSvc != nil {
+		if v, err := s.configSvc.GetMinMatchesForTier(); err == nil {
+			return v
+		}
+	}
+	return defaultMinMatches
+}
+
+// GetAll returns all active users with tier and win rate computed against the live config threshold.
 func (s *UserService) GetAll() ([]*model.UserWithStats, error) {
-	return s.repo.GetAll()
+	users, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	minMatches := s.minMatchesForTier()
+	for _, u := range users {
+		if u.TotalMatches < minMatches {
+			u.WinRate = 0
+			u.Tier = TierNormal
+		} else {
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches)
+		}
+	}
+	return users, nil
 }
 
 // GetByID returns a user with computed win rate stats.
@@ -149,12 +172,39 @@ func (s *UserService) DeleteUser(id uuid.UUID) error {
 	return nil
 }
 
-// GetLeaderboard returns the leaderboard with computed win rate stats, optionally limited.
+// GetLeaderboard returns the leaderboard with tier and win rate computed against the live config threshold.
 func (s *UserService) GetLeaderboard(limit int) ([]*model.UserWithStats, error) {
-	return s.repo.GetLeaderboard(limit)
+	users, err := s.repo.GetLeaderboard(limit)
+	if err != nil {
+		return nil, err
+	}
+	minMatches := s.minMatchesForTier()
+	for _, u := range users {
+		if u.TotalMatches < minMatches {
+			u.WinRate = 0
+			u.Tier = TierNormal
+		} else {
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches)
+		}
+	}
+	return users, nil
 }
 
-// GetPaymentRanking returns active users sorted by total historical settlement money paid DESC
+// GetPaymentRanking returns active users sorted by total historical settlement money paid DESC,
+// with tier and win rate computed against the live config threshold.
 func (s *UserService) GetPaymentRanking() ([]*model.UserWithPaymentTotal, error) {
-	return s.repo.GetPaymentRanking()
+	users, err := s.repo.GetPaymentRanking()
+	if err != nil {
+		return nil, err
+	}
+	minMatches := s.minMatchesForTier()
+	for _, u := range users {
+		if u.TotalMatches < minMatches {
+			u.WinRate = 0
+			u.Tier = TierNormal
+		} else {
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches)
+		}
+	}
+	return users, nil
 }

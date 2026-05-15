@@ -58,6 +58,7 @@ func seedConfig(db *gorm.DB) {
 		{Key: "point_to_vnd", Value: "22000", Description: "Conversion rate: 1 point = X VND"},
 		{Key: "fund_split_percent", Value: "50", Description: "Percentage of debt that goes to fund (rest to winners)"},
 		{Key: "auto_settlement", Value: "false", Description: "Automatically trigger settlement when debt threshold is reached (true/false)"},
+		{Key: "min_matches_for_tier", Value: "5", Description: "Minimum matches a player must play before tier evaluation applies"},
 	}
 
 	for _, cfg := range configs {

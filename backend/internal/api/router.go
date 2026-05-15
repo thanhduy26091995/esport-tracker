@@ -38,11 +38,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tournamentRepo := repository.NewTournamentRepository(db)
 
 	// Initialize services
-	userService := service.NewUserService(userRepo)
 	configService := service.NewConfigService(configRepo)
+	userService := service.NewUserService(userRepo, configService)
 	fundService := service.NewFundService(fundRepo)
 	settlementService := service.NewSettlementService(settlementRepo, userRepo, matchRepo, fundService, configService, db)
-	tierService := service.NewTierService(userRepo)
+	tierService := service.NewTierService(userRepo, configService)
 	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, tierService, db)
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 
@@ -54,7 +54,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)
 	matchHandler := NewMatchHandler(matchService)
-	configHandler := NewConfigHandler(configService)
+	configHandler := NewConfigHandler(configService, tierService)
 	fundHandler := NewFundHandler(fundService)
 	settlementHandler := NewSettlementHandler(settlementService)
 	tournamentHandler := NewTournamentHandler(tournamentService)

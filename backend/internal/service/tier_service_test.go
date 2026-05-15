@@ -13,49 +13,49 @@ import (
 // ─── EvaluateTier ─────────────────────────────────────────────────────────────
 
 func TestEvaluateTier_ProAboveThreshold(t *testing.T) {
-	assert.Equal(t, TierPro, EvaluateTier(0.65, 20))
+	assert.Equal(t, TierPro, EvaluateTier(0.65, 20, 10))
 }
 
 func TestEvaluateTier_ProExactlyAtThreshold(t *testing.T) {
-	assert.Equal(t, TierPro, EvaluateTier(0.60, 10), "60%% at exactly 10 matches = pro")
+	assert.Equal(t, TierPro, EvaluateTier(0.60, 10, 10), "60%% at exactly 10 matches = pro")
 }
 
 func TestEvaluateTier_NormalJustBelowProThreshold(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.59, 10))
+	assert.Equal(t, TierNormal, EvaluateTier(0.59, 10, 10))
 }
 
 func TestEvaluateTier_NormalExactlyAtLowerThreshold(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.40, 10), "40%% at 10 matches = normal")
+	assert.Equal(t, TierNormal, EvaluateTier(0.40, 10, 10), "40%% at 10 matches = normal")
 }
 
 func TestEvaluateTier_NoobJustBelowNormalThreshold(t *testing.T) {
-	assert.Equal(t, TierNoob, EvaluateTier(0.39, 10))
+	assert.Equal(t, TierNoob, EvaluateTier(0.39, 10, 10))
 }
 
 func TestEvaluateTier_NoobZeroWinRate(t *testing.T) {
-	assert.Equal(t, TierNoob, EvaluateTier(0.00, 10))
+	assert.Equal(t, TierNoob, EvaluateTier(0.00, 10, 10))
 }
 
 func TestEvaluateTier_ProPerfectWinRate(t *testing.T) {
-	assert.Equal(t, TierPro, EvaluateTier(1.00, 10))
+	assert.Equal(t, TierPro, EvaluateTier(1.00, 10, 10))
 }
 
 func TestEvaluateTier_InsufficientMatches_NineGames(t *testing.T) {
 	// 80%% win rate but only 9 matches → still default normal (insufficient sample)
-	assert.Equal(t, TierNormal, EvaluateTier(0.80, 9))
+	assert.Equal(t, TierNormal, EvaluateTier(0.80, 9, 10))
 }
 
 func TestEvaluateTier_InsufficientMatches_ZeroGames(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.00, 0))
+	assert.Equal(t, TierNormal, EvaluateTier(0.00, 0, 10))
 }
 
 func TestEvaluateTier_InsufficientMatches_ZeroWinRateNineGames(t *testing.T) {
 	// Would be noob if enough games, but 9 < 10 → normal
-	assert.Equal(t, TierNormal, EvaluateTier(0.00, 9))
+	assert.Equal(t, TierNormal, EvaluateTier(0.00, 9, 10))
 }
 
 func TestEvaluateTier_NormalMidRange(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.50, 20))
+	assert.Equal(t, TierNormal, EvaluateTier(0.50, 20, 10))
 }
 
 // ─── TierService.RecalculateForUsers ─────────────────────────────────────────
@@ -119,7 +119,7 @@ func (f *fakeUserStatsRepo) setUser(id uuid.UUID, winRate float64, totalMatches 
 
 func TestRecalculateForUsers_EmptyList(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 
 	err := svc.RecalculateForUsers([]uuid.UUID{})
 
@@ -129,7 +129,7 @@ func TestRecalculateForUsers_EmptyList(t *testing.T) {
 
 func TestRecalculateForUsers_SetsTierPro(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 	id := uuid.New()
 	repo.setUser(id, 0.65, 20)
 
@@ -139,7 +139,7 @@ func TestRecalculateForUsers_SetsTierPro(t *testing.T) {
 
 func TestRecalculateForUsers_SetsTierNormal(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 	id := uuid.New()
 	repo.setUser(id, 0.50, 15)
 
@@ -149,7 +149,7 @@ func TestRecalculateForUsers_SetsTierNormal(t *testing.T) {
 
 func TestRecalculateForUsers_SetsTierNoob(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 	id := uuid.New()
 	repo.setUser(id, 0.30, 10)
 
@@ -159,7 +159,7 @@ func TestRecalculateForUsers_SetsTierNoob(t *testing.T) {
 
 func TestRecalculateForUsers_InsufficientMatchesStaysNormal(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 	id := uuid.New()
 	repo.setUser(id, 0.90, 5) // 90% win rate, but only 5 matches
 
@@ -169,7 +169,7 @@ func TestRecalculateForUsers_InsufficientMatchesStaysNormal(t *testing.T) {
 
 func TestRecalculateForUsers_MultipleUsers(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 
 	proID := uuid.New()
 	normalID := uuid.New()
@@ -193,7 +193,7 @@ func TestRecalculateForUsers_MultipleUsers(t *testing.T) {
 func TestRecalculateForUsers_BatchFetchError_ReturnsError(t *testing.T) {
 	repo := newFakeRepo()
 	repo.batchErr = errors.New("db connection lost")
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 
 	err := svc.RecalculateForUsers([]uuid.UUID{uuid.New()})
 
@@ -206,7 +206,7 @@ func TestRecalculateForUsers_UpdateTierError_ContinuesOtherUsers(t *testing.T) {
 	// We verify the service doesn't return an error for individual tier update failures.
 	repo := newFakeRepo()
 	repo.updateErr = errors.New("write conflict")
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 
 	id1 := uuid.New()
 	id2 := uuid.New()
@@ -221,7 +221,7 @@ func TestRecalculateForUsers_UpdateTierError_ContinuesOtherUsers(t *testing.T) {
 func TestRecalculateForUsers_UserNotInBatchResult_Skipped(t *testing.T) {
 	// If a user ID is not in the batch result (e.g. deleted mid-flight), skip it.
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 	id := uuid.New()
 	// intentionally do NOT add id to repo.winRates
 
@@ -233,7 +233,7 @@ func TestRecalculateForUsers_UserNotInBatchResult_Skipped(t *testing.T) {
 
 func TestRecalculateAllTiers_DelegatesToRecalculateForUsers(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 
 	id1, id2 := uuid.New(), uuid.New()
 	repo.allIDs = []uuid.UUID{id1, id2}
@@ -249,7 +249,7 @@ func TestRecalculateAllTiers_DelegatesToRecalculateForUsers(t *testing.T) {
 func TestRecalculateAllTiers_EmptyDatabase(t *testing.T) {
 	repo := newFakeRepo()
 	repo.allIDs = []uuid.UUID{} // no users
-	svc := NewTierService(repo)
+	svc := NewTierService(repo, nil)
 
 	err := svc.RecalculateAllTiers()
 

@@ -37,6 +37,7 @@
             :tier="row.tier || 'normal'"
             :win-rate="row.win_rate ?? 0"
             :total-matches="row.total_matches ?? 0"
+            :min-matches-for-rank="minMatchesForTier"
           />
         </template>
       </el-table-column>
@@ -98,8 +99,8 @@ import { formatVND, pointsToVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 
-interface Props { users: UserWithStats[]; loading?: boolean; conversionRate?: number; debtThreshold?: number; showTotalPaid?: boolean; showFilterBar?: boolean; showActions?: boolean }
-const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6, showTotalPaid: false, showFilterBar: true, showActions: true })
+interface Props { users: UserWithStats[]; loading?: boolean; conversionRate?: number; debtThreshold?: number; showTotalPaid?: boolean; showFilterBar?: boolean; showActions?: boolean; minMatchesForTier?: number }
+const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6, showTotalPaid: false, showFilterBar: true, showActions: true, minMatchesForTier: 5 })
 const emit = defineEmits<{ edit: [user: UserWithStats]; delete: [user: UserWithStats]; triggerSettlement: [user: UserWithStats] }>()
 
 const searchQuery = ref(''); const scoreFilter = ref('')

@@ -13,7 +13,16 @@
       "Bash(curl -s https://fifa.sitenow.cloud/api/v1/users/payment-ranking)",
       "Bash(pg_isready -h localhost -p 5432)",
       "Bash(npx vue-tsc *)",
-      "Bash(go test *)"
+      "Bash(go test *)",
+      "Bash(docker volume *)",
+      "Bash(docker exec *)",
+      "Bash(go run *)",
+      "PowerShell(Get-Process -Id 6916, 22876)",
+      "PowerShell(Get-WmiObject Win32_Process -Filter \"ProcessId=6916 OR ProcessId=22876\")",
+      "Bash(tasklist /FI \"PID eq 6916\")",
+      "Bash(tasklist /FI \"PID eq 22876\")",
+      "Bash(tasklist)",
+      "PowerShell($pid8080 = \\(Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; if \\($pid8080\\) { Stop-Process -Id $pid8080 -Force; \"Killed PID $pid8080\" } else { \"Nothing on port 8080\" })"
     ]
   }
 }

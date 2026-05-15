@@ -370,6 +370,12 @@
     "currentPointValue": "Point Value",
     "currentFundSplit": "Fund Split",
     "currentPointsPerWin": "Points Per Win",
+    "minMatchesForTier": "Min Matches for Tier",
+    "matchesBadge": "Matches",
+    "minMatchesForTierPlaceholder": "e.g. 5",
+    "minMatchesForTierHint": "Number of matches a player must complete before their tier is evaluated. Players below this threshold show '—' instead of a win rate badge.",
+    "minMatchesForTierPreview": "Players need {value} matches before tier evaluation",
+    "currentMinMatchesForTier": "Min Matches for Tier",
     "importantNotice": "Important Notice",
     "importantNoticeText": "Changes apply to all future matches and settlements. Existing records will not be recalculated."
   },

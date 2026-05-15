@@ -57,6 +57,7 @@
             :conversion-rate="configStore.pointToVnd"
             :debt-threshold="configStore.debtThreshold"
             :show-total-paid="sortStrategy === 'debt-first'"
+            :min-matches-for-tier="configStore.minMatchesForTier"
             @edit="handleEdit"
             @delete="handleDeleteConfirm"
             @trigger-settlement="handleTriggerSettlement"

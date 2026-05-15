@@ -35,6 +35,11 @@ export const useConfigStore = defineStore('config', () => {
     return config ? parseInt(config.value) : 1
   })
 
+  const minMatchesForTier = computed(() => {
+    const config = configs.value.find((c) => c.key === 'min_matches_for_tier')
+    return config ? parseInt(config.value) : 5
+  })
+
   // Actions
   async function fetchConfigs() {
     loading.value = true
@@ -75,6 +80,7 @@ export const useConfigStore = defineStore('config', () => {
     fundSplitPercent,
     autoSettlement,
     pointsPerWin,
+    minMatchesForTier,
     fetchConfigs,
     updateAllConfigs,
   }

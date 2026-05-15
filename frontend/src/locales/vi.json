@@ -370,6 +370,12 @@
     "currentPointValue": "Giá trị điểm",
     "currentFundSplit": "Tỷ lệ quỹ",
     "currentPointsPerWin": "Điểm mỗi trận thắng",
+    "minMatchesForTier": "Số trận tối thiểu để xếp hạng",
+    "matchesBadge": "Trận",
+    "minMatchesForTierPlaceholder": "vd: 5",
+    "minMatchesForTierHint": "Số trận người chơi cần hoàn thành trước khi được xếp hạng. Người chơi chưa đủ số trận sẽ hiển thị '—' thay vì huy hiệu tỷ lệ thắng.",
+    "minMatchesForTierPreview": "Người chơi cần {value} trận trước khi được xếp hạng",
+    "currentMinMatchesForTier": "Số trận tối thiểu",
     "importantNotice": "Lưu ý quan trọng",
     "importantNoticeText": "Các thay đổi chỉ áp dụng cho trận đấu và thanh toán trong tương lai. Dữ liệu cũ sẽ không được tính lại."
   },

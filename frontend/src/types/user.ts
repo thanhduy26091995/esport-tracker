@@ -18,6 +18,9 @@ export interface UserWithStats extends User {
 export interface UserWithPaymentTotal extends User {
   total_paid: number
   total_debt_points: number
+  win_rate: number
+  total_matches: number
+  won_matches: number
 }
 
 export interface CreateUserRequest {

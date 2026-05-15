@@ -69,6 +69,14 @@ func (s *ConfigService) UpdateConfig(key, value string) error {
 		if value != "true" && value != "false" {
 			return errors.New("auto_settlement must be true or false")
 		}
+	case "min_matches_for_tier":
+		val, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.New("min_matches_for_tier must be an integer")
+		}
+		if val < 1 {
+			return errors.New("min_matches_for_tier must be at least 1")
+		}
 	default:
 		return errors.New("invalid config key")
 	}
@@ -134,6 +142,19 @@ func (s *ConfigService) GetPointsPerWin() (int, error) {
 	val, err := strconv.Atoi(config.Value)
 	if err != nil {
 		return 1, err
+	}
+	return val, nil
+}
+
+// GetMinMatchesForTier returns the minimum matches required before tier evaluation (default: 5)
+func (s *ConfigService) GetMinMatchesForTier() (int, error) {
+	config, err := s.configRepo.GetByKey("min_matches_for_tier")
+	if err != nil {
+		return 5, err
+	}
+	val, err := strconv.Atoi(config.Value)
+	if err != nil {
+		return 5, err
 	}
 	return val, nil
 }

@@ -20,24 +20,25 @@ const (
 	TierNormal = "normal"
 	TierNoob   = "noob"
 
-	minMatchesForTier = 10
-	proThreshold      = 0.60
-	normalThreshold   = 0.40
+	proThreshold     = 0.60
+	normalThreshold  = 0.40
+	defaultMinMatches = 5
 )
 
 type TierService struct {
-	userRepo UserStatsRepo
+	userRepo  UserStatsRepo
+	configSvc *ConfigService
 }
 
-func NewTierService(userRepo UserStatsRepo) *TierService {
-	return &TierService{userRepo: userRepo}
+func NewTierService(userRepo UserStatsRepo, configSvc *ConfigService) *TierService {
+	return &TierService{userRepo: userRepo, configSvc: configSvc}
 }
 
 // EvaluateTier returns the tier string for a given win rate and match count.
-// Players with fewer than minMatchesForTier matches remain at the default "normal" tier.
+// Players with fewer than minMatches matches remain at the default "normal" tier.
 // Draws (point_change=0) are excluded from both numerator and denominator before calling this.
-func EvaluateTier(winRate float64, totalMatches int) string {
-	if totalMatches < minMatchesForTier {
+func EvaluateTier(winRate float64, totalMatches int, minMatches int) string {
+	if totalMatches < minMatches {
 		return TierNormal
 	}
 	switch {
@@ -58,6 +59,13 @@ func (s *TierService) RecalculateForUsers(ids []uuid.UUID) error {
 		return nil
 	}
 
+	minMatches := defaultMinMatches
+	if s.configSvc != nil {
+		if v, err := s.configSvc.GetMinMatchesForTier(); err == nil {
+			minMatches = v
+		}
+	}
+
 	stats, err := s.userRepo.GetWinRatesBatch(ids)
 	if err != nil {
 		log.Printf("tier: failed to fetch win rates for batch %v: %v", ids, err)
@@ -69,7 +77,7 @@ func (s *TierService) RecalculateForUsers(ids []uuid.UUID) error {
 		if !ok {
 			continue
 		}
-		tier := EvaluateTier(row.WinRate, row.TotalMatches)
+		tier := EvaluateTier(row.WinRate, row.TotalMatches, minMatches)
 		if updateErr := s.userRepo.UpdateTier(id, tier); updateErr != nil {
 			log.Printf("tier: failed to update tier for user %s: %v", id, updateErr)
 		}

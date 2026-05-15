@@ -153,6 +153,36 @@
             </div>
           </div>
 
+          <!-- Min Matches for Tier -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">{{ t('config.minMatchesForTier') }}</span>
+              <span class="cfg-badge cfg-badge--info">{{ t('config.matchesBadge') }}</span>
+            </div>
+            <div class="card-body">
+              <el-input
+                v-model.number="formData.min_matches_for_tier"
+                type="number"
+                :placeholder="t('config.minMatchesForTierPlaceholder')"
+                :min="1"
+                size="large"
+                class="w-full"
+              >
+                <template #prefix>
+                  <el-icon><Trophy /></el-icon>
+                </template>
+                <template #suffix>{{ t('config.matchesBadge').toLowerCase() }}</template>
+              </el-input>
+              <p class="cfg-hint">{{ t('config.minMatchesForTierHint') }}</p>
+              <p v-if="formData.min_matches_for_tier < 1" class="cfg-error">
+                {{ t('config.valueGreaterThanZero') }}
+              </p>
+              <div v-else class="cfg-preview">
+                <span class="cfg-preview-label">{{ t('config.minMatchesForTierPreview', { value: formData.min_matches_for_tier }) }}</span>
+              </div>
+            </div>
+          </div>
+
           <!-- Fund Split -->
           <div class="card">
             <div class="card-header">
@@ -239,6 +269,10 @@
                 <span class="cfg-summary-label">{{ t('config.currentPointsPerWin') }}</span>
                 <span class="cfg-summary-val">{{ configStore.pointsPerWin }} {{ t('common.pointsUnit') }}</span>
               </div>
+              <div class="cfg-summary-item">
+                <span class="cfg-summary-label">{{ t('config.currentMinMatchesForTier') }}</span>
+                <span class="cfg-summary-val">{{ configStore.minMatchesForTier }} {{ t('config.matchesBadge').toLowerCase() }}</span>
+              </div>
             </div>
           </div>
 
@@ -282,7 +316,8 @@ const formData = ref({
   point_to_vnd: 0,
   fund_split_percent: 0,
   auto_settlement: false,
-  points_per_win: 1
+  points_per_win: 1,
+  min_matches_for_tier: 5,
 })
 
 const marks = { 0: '0', 25: '25', 50: '50', 75: '75', 100: '100' }
@@ -293,7 +328,7 @@ onMounted(async () => {
 })
 
 watch(
-  () => [configStore.debtThreshold, configStore.pointToVnd, configStore.fundSplitPercent, configStore.autoSettlement, configStore.pointsPerWin],
+  () => [configStore.debtThreshold, configStore.pointToVnd, configStore.fundSplitPercent, configStore.autoSettlement, configStore.pointsPerWin, configStore.minMatchesForTier],
   () => resetFormData(),
   { deep: true }
 )
@@ -304,7 +339,8 @@ const resetFormData = () => {
     point_to_vnd: configStore.pointToVnd,
     fund_split_percent: configStore.fundSplitPercent,
     auto_settlement: configStore.autoSettlement,
-    points_per_win: configStore.pointsPerWin
+    points_per_win: configStore.pointsPerWin,
+    min_matches_for_tier: configStore.minMatchesForTier,
   }
 }
 
@@ -313,7 +349,8 @@ const isFormValid = computed(() =>
   formData.value.point_to_vnd > 0 &&
   formData.value.fund_split_percent >= 0 &&
   formData.value.fund_split_percent <= 100 &&
-  formData.value.points_per_win > 0
+  formData.value.points_per_win > 0 &&
+  formData.value.min_matches_for_tier >= 1
 )
 
 const hasChanges = computed(() =>
@@ -321,7 +358,8 @@ const hasChanges = computed(() =>
   formData.value.point_to_vnd !== configStore.pointToVnd ||
   formData.value.fund_split_percent !== configStore.fundSplitPercent ||
   formData.value.auto_settlement !== configStore.autoSettlement ||
-  formData.value.points_per_win !== configStore.pointsPerWin
+  formData.value.points_per_win !== configStore.pointsPerWin ||
+  formData.value.min_matches_for_tier !== configStore.minMatchesForTier
 )
 
 const handleReset = () => {
@@ -338,6 +376,7 @@ const handleSubmit = async () => {
       fund_split_percent: formData.value.fund_split_percent.toString(),
       auto_settlement: formData.value.auto_settlement.toString(),
       points_per_win: formData.value.points_per_win.toString(),
+      min_matches_for_tier: formData.value.min_matches_for_tier.toString(),
     })
     ElMessage.success(t('toast.configSaved'))
   } catch {}

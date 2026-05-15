@@ -142,15 +142,22 @@ func (r *UserRepository) GetPaymentRanking() ([]*model.UserWithPaymentTotal, err
 	var results []*model.UserWithPaymentTotal
 	err := r.db.Raw(`
 		SELECT u.*,
-		       COALESCE(SUM(s.money_amount), 0) AS total_paid,
+		       COALESCE(SUM(DISTINCT s.money_amount), 0) AS total_paid,
 		       COALESCE((
 		           SELECT SUM(sw.points_deducted)
 		           FROM settlement_winners sw
 		           JOIN debt_settlements ds ON sw.settlement_id = ds.id
 		           WHERE ds.debtor_id = u.id
-		       ), 0) AS total_debt_points
+		       ), 0) AS total_debt_points,
+		       COUNT(mp.id) FILTER (WHERE mp.point_change != 0)           AS total_matches,
+		       COUNT(mp.id) FILTER (WHERE mp.point_change > 0)            AS won_matches,
+		       CASE WHEN COUNT(mp.id) FILTER (WHERE mp.point_change != 0) = 0 THEN 0
+		            ELSE COUNT(mp.id) FILTER (WHERE mp.point_change > 0)::float
+		                 / COUNT(mp.id) FILTER (WHERE mp.point_change != 0)
+		       END AS win_rate
 		FROM users u
 		LEFT JOIN debt_settlements s ON u.id = s.debtor_id
+		LEFT JOIN match_participants mp ON mp.user_id = u.id
 		WHERE u.is_active = true
 		GROUP BY u.id
 		ORDER BY total_paid DESC, u.name ASC

@@ -1,6 +1,6 @@
 <template>
   <div class="win-rate-cell">
-    <!-- Win rate mode (UserTable): show chip + % or — when < 10 matches -->
+    <!-- Win rate mode (UserTable): show chip + % or — when below min matches threshold -->
     <template v-if="showWinRate">
       <template v-if="isRanked">
         <el-tag :type="tagType" size="small" effect="light" class="tier-badge">
@@ -25,16 +25,18 @@ const props = withDefaults(defineProps<{
   tier: string
   winRate?: number
   totalMatches?: number
+  minMatchesForRank?: number
 }>(), {
   winRate: 0,
   totalMatches: undefined,
+  minMatchesForRank: 5,
 })
 
 const { t } = useI18n()
 
 // showWinRate is true only when totalMatches is explicitly provided (win rate mode).
 const showWinRate = computed(() => props.totalMatches !== undefined)
-const isRanked = computed(() => showWinRate.value && props.totalMatches! >= 10)
+const isRanked = computed(() => showWinRate.value && props.totalMatches! >= props.minMatchesForRank)
 
 const tierLabel = computed(() => t(`tier.${props.tier}`, props.tier))
 
