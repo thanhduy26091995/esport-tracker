@@ -10,7 +10,7 @@ set -euo pipefail
 # ═══════════════════════════════════════════════
 # CONFIG
 # ═══════════════════════════════════════════════
-APP_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_PORT=8080
 GO_VERSION="1.22.5"
 NODE_VERSION="20"

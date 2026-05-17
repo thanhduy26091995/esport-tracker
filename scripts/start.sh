@@ -4,6 +4,8 @@
 
 set -e
 
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
 echo "🚀 FC25 Esport Score Tracker - Setup"
 echo "===================================="
 
@@ -26,10 +28,10 @@ fi
 # Start backend
 echo ""
 echo "🔧 Starting backend server..."
-cd backend
+cd "$APP_DIR/backend"
 go run cmd/server/main.go &
 BACKEND_PID=$!
-cd ..
+cd "$APP_DIR"
 
 # Wait for backend to start
 echo "⏳ Waiting for backend to be ready..."
@@ -38,10 +40,10 @@ sleep 3
 # Start frontend
 echo ""
 echo "🎨 Starting frontend server..."
-cd frontend
+cd "$APP_DIR/frontend"
 npm run dev &
 FRONTEND_PID=$!
-cd ..
+cd "$APP_DIR"
 
 echo ""
 echo "✅ All services started!"
