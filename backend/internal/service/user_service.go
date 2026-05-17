@@ -12,20 +12,57 @@ import (
 )
 
 type UserService struct {
-	repo *repository.UserRepository
+	repo      *repository.UserRepository
+	configSvc *ConfigService
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
-	return &UserService{repo: repo}
+func NewUserService(repo *repository.UserRepository, configSvc *ConfigService) *UserService {
+	return &UserService{repo: repo, configSvc: configSvc}
 }
 
-// GetAll returns all active users (leaderboard)
-func (s *UserService) GetAll() ([]*model.User, error) {
-	return s.repo.GetAll()
+func (s *UserService) minMatchesForTier() int {
+	if s.configSvc != nil {
+		if v, err := s.configSvc.GetMinMatchesForTier(); err == nil {
+			return v
+		}
+	}
+	return defaultMinMatches
 }
 
-// GetByID returns a user by ID
-func (s *UserService) GetByID(id uuid.UUID) (*model.User, error) {
+func (s *UserService) winRateThresholds() (pro float64, normal float64) {
+	pro, normal = defaultProThreshold, defaultNormalThreshold
+	if s.configSvc != nil {
+		if v, err := s.configSvc.GetProWinRateThreshold(); err == nil {
+			pro = v
+		}
+		if v, err := s.configSvc.GetNormalWinRateThreshold(); err == nil {
+			normal = v
+		}
+	}
+	return
+}
+
+// GetAll returns all active users with tier and win rate computed against the live config threshold.
+func (s *UserService) GetAll() ([]*model.UserWithStats, error) {
+	users, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	minMatches := s.minMatchesForTier()
+	proThres, normalThres := s.winRateThresholds()
+	for _, u := range users {
+		if u.TotalMatches < minMatches {
+			u.WinRate = 0
+			u.Tier = TierNormal
+		} else {
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+		}
+	}
+	return users, nil
+}
+
+// GetByID returns a user with computed win rate stats.
+func (s *UserService) GetByID(id uuid.UUID) (*model.UserWithStats, error) {
 	user, err := s.repo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -63,8 +100,8 @@ func (s *UserService) CreateUser(name string, tier string, handicapRate float64)
 	if tier == "" {
 		tier = "normal"
 	}
-	if tier != "pro" && tier != "normal" && tier != "noop" {
-		return nil, fmt.Errorf("tier must be one of: pro, normal, noop")
+	if tier != "pro" && tier != "normal" && tier != "noob" {
+		return nil, fmt.Errorf("tier must be one of: pro, normal, noob")
 	}
 	if handicapRate < 0 || handicapRate > 5 {
 		return nil, fmt.Errorf("handicap_rate must be between 0 and 5")
@@ -87,8 +124,8 @@ func (s *UserService) CreateUser(name string, tier string, handicapRate float64)
 }
 
 // UpdateUser updates a user's name, tier, and handicap_rate with validation
-func (s *UserService) UpdateUser(id uuid.UUID, name string, tier string, handicapRate float64) (*model.User, error) {
-	// Get existing user
+func (s *UserService) UpdateUser(id uuid.UUID, name string, tier string, handicapRate float64) (*model.UserWithStats, error) {
+	// Get existing user (includes win rate stats)
 	user, err := s.GetByID(id)
 	if err != nil {
 		return nil, err
@@ -118,15 +155,15 @@ func (s *UserService) UpdateUser(id uuid.UUID, name string, tier string, handica
 
 	// Validate and update tier if provided
 	if tier != "" {
-		if tier != "pro" && tier != "normal" && tier != "noop" {
-			return nil, fmt.Errorf("tier must be one of: pro, normal, noop")
+		if tier != "pro" && tier != "normal" && tier != "noob" {
+			return nil, fmt.Errorf("tier must be one of: pro, normal, noob")
 		}
 		user.Tier = tier
 	}
 
 	user.HandicapRate = handicapRate
 
-	if err := s.repo.Update(user); err != nil {
+	if err := s.repo.Update(&user.User); err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
 
@@ -149,12 +186,41 @@ func (s *UserService) DeleteUser(id uuid.UUID) error {
 	return nil
 }
 
-// GetLeaderboard returns the leaderboard with optional limit
-func (s *UserService) GetLeaderboard(limit int) ([]*model.User, error) {
-	return s.repo.GetLeaderboard(limit)
+// GetLeaderboard returns the leaderboard with tier and win rate computed against the live config threshold.
+func (s *UserService) GetLeaderboard(limit int) ([]*model.UserWithStats, error) {
+	users, err := s.repo.GetLeaderboard(limit)
+	if err != nil {
+		return nil, err
+	}
+	minMatches := s.minMatchesForTier()
+	proThres, normalThres := s.winRateThresholds()
+	for _, u := range users {
+		if u.TotalMatches < minMatches {
+			u.WinRate = 0
+			u.Tier = TierNormal
+		} else {
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+		}
+	}
+	return users, nil
 }
 
-// GetPaymentRanking returns active users sorted by total historical settlement money paid DESC
+// GetPaymentRanking returns active users sorted by total historical settlement money paid DESC,
+// with tier and win rate computed against the live config threshold.
 func (s *UserService) GetPaymentRanking() ([]*model.UserWithPaymentTotal, error) {
-	return s.repo.GetPaymentRanking()
+	users, err := s.repo.GetPaymentRanking()
+	if err != nil {
+		return nil, err
+	}
+	minMatches := s.minMatchesForTier()
+	proThres, normalThres := s.winRateThresholds()
+	for _, u := range users {
+		if u.TotalMatches < minMatches {
+			u.WinRate = 0
+			u.Tier = TierNormal
+		} else {
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+		}
+	}
+	return users, nil
 }

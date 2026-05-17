@@ -73,7 +73,7 @@ func (s *TournamentService) CreateTournament(req *CreateTournamentRequest) (*mod
 	}
 
 	// Fetch all players
-	users := make([]*model.User, 0, len(req.PlayerIDs))
+	users := make([]*model.UserWithStats, 0, len(req.PlayerIDs))
 	for _, id := range req.PlayerIDs {
 		u, err := s.userRepo.GetByID(id)
 		if err != nil {
@@ -92,14 +92,20 @@ func (s *TournamentService) CreateTournament(req *CreateTournamentRequest) (*mod
 		}
 	}
 
+	// Extract base User pointers for the schedule generators.
+	baseUsers := make([]*model.User, len(users))
+	for i, u := range users {
+		baseUsers[i] = &u.User
+	}
+
 	// Generate schedule based on match type
 	var tournamentMatches []model.TournamentMatch
 	var err error
 
 	if req.MatchType == "1v1" {
-		tournamentMatches, err = s.generate1v1Schedule(users)
+		tournamentMatches, err = s.generate1v1Schedule(baseUsers)
 	} else {
-		tournamentMatches, err = s.generate2v2Schedule(users)
+		tournamentMatches, err = s.generate2v2Schedule(baseUsers)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate schedule: %w", err)

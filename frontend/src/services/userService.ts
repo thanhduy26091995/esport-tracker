@@ -1,24 +1,24 @@
 import { api } from './api'
-import type { User, UserWithPaymentTotal, CreateUserRequest, UpdateUserRequest } from '@/types/user'
+import type { UserWithStats, UserWithPaymentTotal, CreateUserRequest, UpdateUserRequest } from '@/types/user'
 
 export const userService = {
-  async getAll(): Promise<User[]> {
-    const response = await api.get<User[]>('/users')
+  async getAll(): Promise<UserWithStats[]> {
+    const response = await api.get<UserWithStats[]>('/users')
     return response.data
   },
 
-  async getById(id: string): Promise<User> {
-    const response = await api.get<User>(`/users/${id}`)
+  async getById(id: string): Promise<UserWithStats> {
+    const response = await api.get<UserWithStats>(`/users/${id}`)
     return response.data
   },
 
-  async create(data: CreateUserRequest): Promise<User> {
-    const response = await api.post<User>('/users', data)
+  async create(data: CreateUserRequest): Promise<UserWithStats> {
+    const response = await api.post<UserWithStats>('/users', data)
     return response.data
   },
 
-  async update(id: string, data: UpdateUserRequest): Promise<User> {
-    const response = await api.put<User>(`/users/${id}`, data)
+  async update(id: string, data: UpdateUserRequest): Promise<UserWithStats> {
+    const response = await api.put<UserWithStats>(`/users/${id}`, data)
     return response.data
   },
 
@@ -26,8 +26,8 @@ export const userService = {
     await api.delete(`/users/${id}`)
   },
 
-  async getLeaderboard(limit?: number): Promise<User[]> {
-    const response = await api.get<User[]>('/users/leaderboard', {
+  async getLeaderboard(limit?: number): Promise<UserWithStats[]> {
+    const response = await api.get<UserWithStats[]>('/users/leaderboard', {
       params: { limit },
     })
     return response.data

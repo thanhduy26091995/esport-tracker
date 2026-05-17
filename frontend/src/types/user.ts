@@ -9,9 +9,18 @@ export interface User {
   handicap_rate: number
 }
 
+export interface UserWithStats extends User {
+  win_rate: number       // 0.0–1.0 (draws excluded from calculation)
+  total_matches: number  // non-draw matches played
+  won_matches: number
+}
+
 export interface UserWithPaymentTotal extends User {
   total_paid: number
   total_debt_points: number
+  win_rate: number
+  total_matches: number
+  won_matches: number
 }
 
 export interface CreateUserRequest {

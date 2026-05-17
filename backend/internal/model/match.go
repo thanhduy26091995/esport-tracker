@@ -25,7 +25,7 @@ func (Match) TableName() string {
 type MatchParticipant struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	MatchID     uuid.UUID `gorm:"type:uuid;not null" json:"match_id"`
-	UserID      uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
 	TeamNumber  int       `gorm:"not null" json:"team_number"`  // 1 or 2
 	PointChange int       `gorm:"not null" json:"point_change"` // +1 or -1
 	User        User      `gorm:"foreignKey:UserID" json:"user,omitempty"`

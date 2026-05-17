@@ -27,9 +27,18 @@
           <div class="player-cell">
             <div class="player-avatar">{{ row.name.charAt(0).toUpperCase() }}</div>
             <span class="player-name">{{ row.name }}</span>
-            <PlayerTierBadge :tier="row.tier || 'normal'" />
             <el-tag v-if="!row.is_active" type="info" size="small">{{ t('users.inactive') }}</el-tag>
           </div>
+        </template>
+      </el-table-column>
+      <el-table-column :label="t('users.colWinRate')" width="130">
+        <template #default="{ row }">
+          <PlayerTierBadge
+            :tier="row.tier || 'normal'"
+            :win-rate="row.win_rate ?? 0"
+            :total-matches="row.total_matches ?? 0"
+            :min-matches-for-rank="minMatchesForTier"
+          />
         </template>
       </el-table-column>
       <el-table-column :label="showTotalPaid ? t('users.colSettled') : t('users.colScore')" width="110" :sortable="!showTotalPaid" :prop="showTotalPaid ? undefined : 'current_score'">
@@ -85,14 +94,14 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import { Edit, Delete, Search, Warning } from '@element-plus/icons-vue'
-import type { User } from '@/types/user'
+import type { UserWithStats } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 
-interface Props { users: User[]; loading?: boolean; conversionRate?: number; debtThreshold?: number; showTotalPaid?: boolean; showFilterBar?: boolean; showActions?: boolean }
-const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6, showTotalPaid: false, showFilterBar: true, showActions: true })
-const emit = defineEmits<{ edit: [user: User]; delete: [user: User]; triggerSettlement: [user: User] }>()
+interface Props { users: UserWithStats[]; loading?: boolean; conversionRate?: number; debtThreshold?: number; showTotalPaid?: boolean; showFilterBar?: boolean; showActions?: boolean; minMatchesForTier?: number }
+const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6, showTotalPaid: false, showFilterBar: true, showActions: true, minMatchesForTier: 5 })
+const emit = defineEmits<{ edit: [user: UserWithStats]; delete: [user: UserWithStats]; triggerSettlement: [user: UserWithStats] }>()
 
 const searchQuery = ref(''); const scoreFilter = ref('')
 

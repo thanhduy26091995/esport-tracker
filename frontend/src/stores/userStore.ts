@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { User, UserWithPaymentTotal } from '@/types/user'
+import type { UserWithStats, UserWithPaymentTotal } from '@/types/user'
 import { userService } from '@/services/userService'
 import { ElMessage } from 'element-plus'
 import { getErrorMessage, translate } from '@/utils/i18n'
 
 export const useUserStore = defineStore('user', () => {
-  const users = ref<User[]>([])
+  const users = ref<UserWithStats[]>([])
   const paymentRankingUsers = ref<UserWithPaymentTotal[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)

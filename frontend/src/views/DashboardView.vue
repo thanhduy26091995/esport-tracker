@@ -47,6 +47,7 @@
               :loading="userStore.loading"
               :conversion-rate="configStore.pointToVnd"
               :debt-threshold="configStore.debtThreshold"
+              :min-matches-for-tier="configStore.minMatchesForTier"
               :show-filter-bar="false"
               :show-actions="false"
             />

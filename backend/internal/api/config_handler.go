@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/duyb/esport-score-tracker/internal/service"
@@ -9,10 +10,11 @@ import (
 
 type ConfigHandler struct {
 	configService *service.ConfigService
+	tierService   *service.TierService
 }
 
-func NewConfigHandler(configService *service.ConfigService) *ConfigHandler {
-	return &ConfigHandler{configService: configService}
+func NewConfigHandler(configService *service.ConfigService, tierService *service.TierService) *ConfigHandler {
+	return &ConfigHandler{configService: configService, tierService: tierService}
 }
 
 // GetAll returns all configuration entries
@@ -68,6 +70,15 @@ func (h *ConfigHandler) UpdateAll(c *gin.Context) {
 		return
 	}
 
+	_, affectsMinMatches := req["min_matches_for_tier"]
+	_, affectsProThres := req["pro_win_rate_threshold"]
+	_, affectsNormalThres := req["normal_win_rate_threshold"]
+	if affectsMinMatches || affectsProThres || affectsNormalThres {
+		if err := h.tierService.RecalculateAllTiers(); err != nil {
+			log.Printf("config: failed to recalculate tiers after tier config change: %v", err)
+		}
+	}
+
 	c.JSON(http.StatusOK, configs)
 }
 
@@ -102,6 +113,12 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 			"message": err.Error(),
 		})
 		return
+	}
+
+	if key == "min_matches_for_tier" || key == "pro_win_rate_threshold" || key == "normal_win_rate_threshold" {
+		if err := h.tierService.RecalculateAllTiers(); err != nil {
+			log.Printf("config: failed to recalculate tiers after tier config change: %v", err)
+		}
 	}
 
 	// Return updated config

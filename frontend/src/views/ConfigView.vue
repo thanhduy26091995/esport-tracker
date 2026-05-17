@@ -153,6 +153,106 @@
             </div>
           </div>
 
+          <!-- Min Matches for Tier -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">{{ t('config.minMatchesForTier') }}</span>
+              <span class="cfg-badge cfg-badge--info">{{ t('config.matchesBadge') }}</span>
+            </div>
+            <div class="card-body">
+              <el-input
+                v-model.number="formData.min_matches_for_tier"
+                type="number"
+                :placeholder="t('config.minMatchesForTierPlaceholder')"
+                :min="1"
+                size="large"
+                class="w-full"
+              >
+                <template #prefix>
+                  <el-icon><Trophy /></el-icon>
+                </template>
+                <template #suffix>{{ t('config.matchesBadge').toLowerCase() }}</template>
+              </el-input>
+              <p class="cfg-hint">{{ t('config.minMatchesForTierHint') }}</p>
+              <p v-if="formData.min_matches_for_tier < 1" class="cfg-error">
+                {{ t('config.valueGreaterThanZero') }}
+              </p>
+              <div v-else class="cfg-preview">
+                <span class="cfg-preview-label">{{ t('config.minMatchesForTierPreview', { value: formData.min_matches_for_tier }) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pro Win Rate Threshold -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">{{ t('config.proWinRateThreshold') }}</span>
+              <span class="cfg-badge cfg-badge--info">{{ t('config.winRateBadge') }}</span>
+            </div>
+            <div class="card-body">
+              <el-input
+                v-model.number="formData.pro_win_rate_threshold"
+                type="number"
+                :placeholder="t('config.proWinRateThresholdPlaceholder')"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                size="large"
+                class="w-full"
+              >
+                <template #prefix>
+                  <el-icon><Trophy /></el-icon>
+                </template>
+                <template #suffix>{{ t('config.winRateBadge').toLowerCase() }}</template>
+              </el-input>
+              <p class="cfg-hint">{{ t('config.proWinRateThresholdHint') }}</p>
+              <p v-if="formData.pro_win_rate_threshold < 0 || formData.pro_win_rate_threshold > 1" class="cfg-error">
+                {{ t('config.valueBetweenZeroOne') }}
+              </p>
+              <p v-else-if="formData.pro_win_rate_threshold <= formData.normal_win_rate_threshold" class="cfg-error">
+                {{ t('config.proMustExceedNormal') }}
+              </p>
+              <div v-else class="cfg-preview">
+                <span class="cfg-preview-label">{{ t('config.proWinRateThresholdPreview', { value: Math.round(formData.pro_win_rate_threshold * 100) }) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Normal Win Rate Threshold -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">{{ t('config.normalWinRateThreshold') }}</span>
+              <span class="cfg-badge cfg-badge--info">{{ t('config.winRateBadge') }}</span>
+            </div>
+            <div class="card-body">
+              <el-input
+                v-model.number="formData.normal_win_rate_threshold"
+                type="number"
+                :placeholder="t('config.normalWinRateThresholdPlaceholder')"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                size="large"
+                class="w-full"
+              >
+                <template #prefix>
+                  <el-icon><Trophy /></el-icon>
+                </template>
+                <template #suffix>{{ t('config.winRateBadge').toLowerCase() }}</template>
+              </el-input>
+              <p class="cfg-hint">{{ t('config.normalWinRateThresholdHint') }}</p>
+              <p v-if="formData.normal_win_rate_threshold < 0 || formData.normal_win_rate_threshold > 1" class="cfg-error">
+                {{ t('config.valueBetweenZeroOne') }}
+              </p>
+              <p v-else-if="formData.normal_win_rate_threshold >= formData.pro_win_rate_threshold" class="cfg-error">
+                {{ t('config.proMustExceedNormal') }}
+              </p>
+              <div v-else class="cfg-preview">
+                <span class="cfg-preview-label">{{ t('config.normalWinRateThresholdPreview', { normalValue: Math.round(formData.normal_win_rate_threshold * 100), proValue: Math.round(formData.pro_win_rate_threshold * 100) }) }}</span>
+              </div>
+            </div>
+          </div>
+
           <!-- Fund Split -->
           <div class="card">
             <div class="card-header">
@@ -239,6 +339,18 @@
                 <span class="cfg-summary-label">{{ t('config.currentPointsPerWin') }}</span>
                 <span class="cfg-summary-val">{{ configStore.pointsPerWin }} {{ t('common.pointsUnit') }}</span>
               </div>
+              <div class="cfg-summary-item">
+                <span class="cfg-summary-label">{{ t('config.currentMinMatchesForTier') }}</span>
+                <span class="cfg-summary-val">{{ configStore.minMatchesForTier }} {{ t('config.matchesBadge').toLowerCase() }}</span>
+              </div>
+              <div class="cfg-summary-item">
+                <span class="cfg-summary-label">{{ t('config.currentProWinRateThreshold') }}</span>
+                <span class="cfg-summary-val cfg-summary-val--green">≥ {{ Math.round(configStore.proWinRateThreshold * 100) }}%</span>
+              </div>
+              <div class="cfg-summary-item">
+                <span class="cfg-summary-label">{{ t('config.currentNormalWinRateThreshold') }}</span>
+                <span class="cfg-summary-val">≥ {{ Math.round(configStore.normalWinRateThreshold * 100) }}%</span>
+              </div>
             </div>
           </div>
 
@@ -282,7 +394,10 @@ const formData = ref({
   point_to_vnd: 0,
   fund_split_percent: 0,
   auto_settlement: false,
-  points_per_win: 1
+  points_per_win: 1,
+  min_matches_for_tier: 5,
+  pro_win_rate_threshold: 0.60,
+  normal_win_rate_threshold: 0.40,
 })
 
 const marks = { 0: '0', 25: '25', 50: '50', 75: '75', 100: '100' }
@@ -293,7 +408,7 @@ onMounted(async () => {
 })
 
 watch(
-  () => [configStore.debtThreshold, configStore.pointToVnd, configStore.fundSplitPercent, configStore.autoSettlement, configStore.pointsPerWin],
+  () => [configStore.debtThreshold, configStore.pointToVnd, configStore.fundSplitPercent, configStore.autoSettlement, configStore.pointsPerWin, configStore.minMatchesForTier, configStore.proWinRateThreshold, configStore.normalWinRateThreshold],
   () => resetFormData(),
   { deep: true }
 )
@@ -304,7 +419,10 @@ const resetFormData = () => {
     point_to_vnd: configStore.pointToVnd,
     fund_split_percent: configStore.fundSplitPercent,
     auto_settlement: configStore.autoSettlement,
-    points_per_win: configStore.pointsPerWin
+    points_per_win: configStore.pointsPerWin,
+    min_matches_for_tier: configStore.minMatchesForTier,
+    pro_win_rate_threshold: configStore.proWinRateThreshold,
+    normal_win_rate_threshold: configStore.normalWinRateThreshold,
   }
 }
 
@@ -313,7 +431,13 @@ const isFormValid = computed(() =>
   formData.value.point_to_vnd > 0 &&
   formData.value.fund_split_percent >= 0 &&
   formData.value.fund_split_percent <= 100 &&
-  formData.value.points_per_win > 0
+  formData.value.points_per_win > 0 &&
+  formData.value.min_matches_for_tier >= 1 &&
+  formData.value.pro_win_rate_threshold > 0 &&
+  formData.value.pro_win_rate_threshold <= 1 &&
+  formData.value.normal_win_rate_threshold >= 0 &&
+  formData.value.normal_win_rate_threshold < 1 &&
+  formData.value.pro_win_rate_threshold > formData.value.normal_win_rate_threshold
 )
 
 const hasChanges = computed(() =>
@@ -321,7 +445,10 @@ const hasChanges = computed(() =>
   formData.value.point_to_vnd !== configStore.pointToVnd ||
   formData.value.fund_split_percent !== configStore.fundSplitPercent ||
   formData.value.auto_settlement !== configStore.autoSettlement ||
-  formData.value.points_per_win !== configStore.pointsPerWin
+  formData.value.points_per_win !== configStore.pointsPerWin ||
+  formData.value.min_matches_for_tier !== configStore.minMatchesForTier ||
+  formData.value.pro_win_rate_threshold !== configStore.proWinRateThreshold ||
+  formData.value.normal_win_rate_threshold !== configStore.normalWinRateThreshold
 )
 
 const handleReset = () => {
@@ -338,6 +465,9 @@ const handleSubmit = async () => {
       fund_split_percent: formData.value.fund_split_percent.toString(),
       auto_settlement: formData.value.auto_settlement.toString(),
       points_per_win: formData.value.points_per_win.toString(),
+      min_matches_for_tier: formData.value.min_matches_for_tier.toString(),
+      pro_win_rate_threshold: formData.value.pro_win_rate_threshold.toString(),
+      normal_win_rate_threshold: formData.value.normal_win_rate_threshold.toString(),
     })
     ElMessage.success(t('toast.configSaved'))
   } catch {}
