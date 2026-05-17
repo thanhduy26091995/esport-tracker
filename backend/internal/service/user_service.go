@@ -29,6 +29,19 @@ func (s *UserService) minMatchesForTier() int {
 	return defaultMinMatches
 }
 
+func (s *UserService) winRateThresholds() (pro float64, normal float64) {
+	pro, normal = defaultProThreshold, defaultNormalThreshold
+	if s.configSvc != nil {
+		if v, err := s.configSvc.GetProWinRateThreshold(); err == nil {
+			pro = v
+		}
+		if v, err := s.configSvc.GetNormalWinRateThreshold(); err == nil {
+			normal = v
+		}
+	}
+	return
+}
+
 // GetAll returns all active users with tier and win rate computed against the live config threshold.
 func (s *UserService) GetAll() ([]*model.UserWithStats, error) {
 	users, err := s.repo.GetAll()
@@ -36,12 +49,13 @@ func (s *UserService) GetAll() ([]*model.UserWithStats, error) {
 		return nil, err
 	}
 	minMatches := s.minMatchesForTier()
+	proThres, normalThres := s.winRateThresholds()
 	for _, u := range users {
 		if u.TotalMatches < minMatches {
 			u.WinRate = 0
 			u.Tier = TierNormal
 		} else {
-			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches)
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
 		}
 	}
 	return users, nil
@@ -179,12 +193,13 @@ func (s *UserService) GetLeaderboard(limit int) ([]*model.UserWithStats, error) 
 		return nil, err
 	}
 	minMatches := s.minMatchesForTier()
+	proThres, normalThres := s.winRateThresholds()
 	for _, u := range users {
 		if u.TotalMatches < minMatches {
 			u.WinRate = 0
 			u.Tier = TierNormal
 		} else {
-			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches)
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
 		}
 	}
 	return users, nil
@@ -198,12 +213,13 @@ func (s *UserService) GetPaymentRanking() ([]*model.UserWithPaymentTotal, error)
 		return nil, err
 	}
 	minMatches := s.minMatchesForTier()
+	proThres, normalThres := s.winRateThresholds()
 	for _, u := range users {
 		if u.TotalMatches < minMatches {
 			u.WinRate = 0
 			u.Tier = TierNormal
 		} else {
-			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches)
+			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
 		}
 	}
 	return users, nil

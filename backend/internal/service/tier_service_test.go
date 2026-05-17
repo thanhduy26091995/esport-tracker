@@ -13,49 +13,49 @@ import (
 // ─── EvaluateTier ─────────────────────────────────────────────────────────────
 
 func TestEvaluateTier_ProAboveThreshold(t *testing.T) {
-	assert.Equal(t, TierPro, EvaluateTier(0.65, 20, 10))
+	assert.Equal(t, TierPro, EvaluateTier(0.65, 20, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_ProExactlyAtThreshold(t *testing.T) {
-	assert.Equal(t, TierPro, EvaluateTier(0.60, 10, 10), "60%% at exactly 10 matches = pro")
+	assert.Equal(t, TierPro, EvaluateTier(0.60, 10, 10, 0.60, 0.40), "60%% at exactly 10 matches = pro")
 }
 
 func TestEvaluateTier_NormalJustBelowProThreshold(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.59, 10, 10))
+	assert.Equal(t, TierNormal, EvaluateTier(0.59, 10, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_NormalExactlyAtLowerThreshold(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.40, 10, 10), "40%% at 10 matches = normal")
+	assert.Equal(t, TierNormal, EvaluateTier(0.40, 10, 10, 0.60, 0.40), "40%% at 10 matches = normal")
 }
 
 func TestEvaluateTier_NoobJustBelowNormalThreshold(t *testing.T) {
-	assert.Equal(t, TierNoob, EvaluateTier(0.39, 10, 10))
+	assert.Equal(t, TierNoob, EvaluateTier(0.39, 10, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_NoobZeroWinRate(t *testing.T) {
-	assert.Equal(t, TierNoob, EvaluateTier(0.00, 10, 10))
+	assert.Equal(t, TierNoob, EvaluateTier(0.00, 10, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_ProPerfectWinRate(t *testing.T) {
-	assert.Equal(t, TierPro, EvaluateTier(1.00, 10, 10))
+	assert.Equal(t, TierPro, EvaluateTier(1.00, 10, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_InsufficientMatches_NineGames(t *testing.T) {
 	// 80%% win rate but only 9 matches → still default normal (insufficient sample)
-	assert.Equal(t, TierNormal, EvaluateTier(0.80, 9, 10))
+	assert.Equal(t, TierNormal, EvaluateTier(0.80, 9, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_InsufficientMatches_ZeroGames(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.00, 0, 10))
+	assert.Equal(t, TierNormal, EvaluateTier(0.00, 0, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_InsufficientMatches_ZeroWinRateNineGames(t *testing.T) {
 	// Would be noob if enough games, but 9 < 10 → normal
-	assert.Equal(t, TierNormal, EvaluateTier(0.00, 9, 10))
+	assert.Equal(t, TierNormal, EvaluateTier(0.00, 9, 10, 0.60, 0.40))
 }
 
 func TestEvaluateTier_NormalMidRange(t *testing.T) {
-	assert.Equal(t, TierNormal, EvaluateTier(0.50, 20, 10))
+	assert.Equal(t, TierNormal, EvaluateTier(0.50, 20, 10, 0.60, 0.40))
 }
 
 // ─── TierService.RecalculateForUsers ─────────────────────────────────────────
@@ -161,7 +161,7 @@ func TestRecalculateForUsers_InsufficientMatchesStaysNormal(t *testing.T) {
 	repo := newFakeRepo()
 	svc := NewTierService(repo, nil)
 	id := uuid.New()
-	repo.setUser(id, 0.90, 5) // 90% win rate, but only 5 matches
+	repo.setUser(id, 0.90, 4) // 90% win rate, but only 4 matches (below defaultMinMatches=5)
 
 	require.NoError(t, svc.RecalculateForUsers([]uuid.UUID{id}))
 	assert.Equal(t, TierNormal, repo.updatedTiers[id])

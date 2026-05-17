@@ -70,9 +70,12 @@ func (h *ConfigHandler) UpdateAll(c *gin.Context) {
 		return
 	}
 
-	if _, ok := req["min_matches_for_tier"]; ok {
+	_, affectsMinMatches := req["min_matches_for_tier"]
+	_, affectsProThres := req["pro_win_rate_threshold"]
+	_, affectsNormalThres := req["normal_win_rate_threshold"]
+	if affectsMinMatches || affectsProThres || affectsNormalThres {
 		if err := h.tierService.RecalculateAllTiers(); err != nil {
-			log.Printf("config: failed to recalculate tiers after min_matches_for_tier change: %v", err)
+			log.Printf("config: failed to recalculate tiers after tier config change: %v", err)
 		}
 	}
 
@@ -112,9 +115,9 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if key == "min_matches_for_tier" {
+	if key == "min_matches_for_tier" || key == "pro_win_rate_threshold" || key == "normal_win_rate_threshold" {
 		if err := h.tierService.RecalculateAllTiers(); err != nil {
-			log.Printf("config: failed to recalculate tiers after min_matches_for_tier change: %v", err)
+			log.Printf("config: failed to recalculate tiers after tier config change: %v", err)
 		}
 	}
 

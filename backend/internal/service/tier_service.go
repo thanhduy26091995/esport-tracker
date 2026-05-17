@@ -20,9 +20,9 @@ const (
 	TierNormal = "normal"
 	TierNoob   = "noob"
 
-	proThreshold     = 0.60
-	normalThreshold  = 0.40
-	defaultMinMatches = 5
+	defaultMinMatches        = 5
+	defaultProThreshold      = 0.60
+	defaultNormalThreshold   = 0.40
 )
 
 type TierService struct {
@@ -37,14 +37,14 @@ func NewTierService(userRepo UserStatsRepo, configSvc *ConfigService) *TierServi
 // EvaluateTier returns the tier string for a given win rate and match count.
 // Players with fewer than minMatches matches remain at the default "normal" tier.
 // Draws (point_change=0) are excluded from both numerator and denominator before calling this.
-func EvaluateTier(winRate float64, totalMatches int, minMatches int) string {
+func EvaluateTier(winRate float64, totalMatches int, minMatches int, proThres float64, normalThres float64) string {
 	if totalMatches < minMatches {
 		return TierNormal
 	}
 	switch {
-	case winRate >= proThreshold:
+	case winRate >= proThres:
 		return TierPro
-	case winRate >= normalThreshold:
+	case winRate >= normalThres:
 		return TierNormal
 	default:
 		return TierNoob
@@ -60,9 +60,17 @@ func (s *TierService) RecalculateForUsers(ids []uuid.UUID) error {
 	}
 
 	minMatches := defaultMinMatches
+	proThres := defaultProThreshold
+	normalThres := defaultNormalThreshold
 	if s.configSvc != nil {
 		if v, err := s.configSvc.GetMinMatchesForTier(); err == nil {
 			minMatches = v
+		}
+		if v, err := s.configSvc.GetProWinRateThreshold(); err == nil {
+			proThres = v
+		}
+		if v, err := s.configSvc.GetNormalWinRateThreshold(); err == nil {
+			normalThres = v
 		}
 	}
 
@@ -77,7 +85,7 @@ func (s *TierService) RecalculateForUsers(ids []uuid.UUID) error {
 		if !ok {
 			continue
 		}
-		tier := EvaluateTier(row.WinRate, row.TotalMatches, minMatches)
+		tier := EvaluateTier(row.WinRate, row.TotalMatches, minMatches, proThres, normalThres)
 		if updateErr := s.userRepo.UpdateTier(id, tier); updateErr != nil {
 			log.Printf("tier: failed to update tier for user %s: %v", id, updateErr)
 		}

@@ -59,6 +59,8 @@ func seedConfig(db *gorm.DB) {
 		{Key: "fund_split_percent", Value: "50", Description: "Percentage of debt that goes to fund (rest to winners)"},
 		{Key: "auto_settlement", Value: "false", Description: "Automatically trigger settlement when debt threshold is reached (true/false)"},
 		{Key: "min_matches_for_tier", Value: "5", Description: "Minimum matches a player must play before tier evaluation applies"},
+		{Key: "pro_win_rate_threshold", Value: "0.60", Description: "Win rate threshold (0-1) required to reach the Pro tier"},
+		{Key: "normal_win_rate_threshold", Value: "0.40", Description: "Win rate threshold (0-1) required to reach the Normal tier (below this = Noob)"},
 	}
 
 	for _, cfg := range configs {

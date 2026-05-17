@@ -40,6 +40,16 @@ export const useConfigStore = defineStore('config', () => {
     return config ? parseInt(config.value) : 5
   })
 
+  const proWinRateThreshold = computed(() => {
+    const config = configs.value.find((c) => c.key === 'pro_win_rate_threshold')
+    return config ? parseFloat(config.value) : 0.60
+  })
+
+  const normalWinRateThreshold = computed(() => {
+    const config = configs.value.find((c) => c.key === 'normal_win_rate_threshold')
+    return config ? parseFloat(config.value) : 0.40
+  })
+
   // Actions
   async function fetchConfigs() {
     loading.value = true
@@ -81,6 +91,8 @@ export const useConfigStore = defineStore('config', () => {
     autoSettlement,
     pointsPerWin,
     minMatchesForTier,
+    proWinRateThreshold,
+    normalWinRateThreshold,
     fetchConfigs,
     updateAllConfigs,
   }

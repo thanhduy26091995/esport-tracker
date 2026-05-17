@@ -77,6 +77,22 @@ func (s *ConfigService) UpdateConfig(key, value string) error {
 		if val < 1 {
 			return errors.New("min_matches_for_tier must be at least 1")
 		}
+	case "pro_win_rate_threshold":
+		val, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return errors.New("pro_win_rate_threshold must be a number")
+		}
+		if val < 0 || val > 1 {
+			return errors.New("pro_win_rate_threshold must be between 0 and 1")
+		}
+	case "normal_win_rate_threshold":
+		val, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return errors.New("normal_win_rate_threshold must be a number")
+		}
+		if val < 0 || val > 1 {
+			return errors.New("normal_win_rate_threshold must be between 0 and 1")
+		}
 	default:
 		return errors.New("invalid config key")
 	}
@@ -155,6 +171,32 @@ func (s *ConfigService) GetMinMatchesForTier() (int, error) {
 	val, err := strconv.Atoi(config.Value)
 	if err != nil {
 		return 5, err
+	}
+	return val, nil
+}
+
+// GetProWinRateThreshold returns the win rate required for Pro tier (default: 0.60)
+func (s *ConfigService) GetProWinRateThreshold() (float64, error) {
+	config, err := s.configRepo.GetByKey("pro_win_rate_threshold")
+	if err != nil {
+		return 0.60, err
+	}
+	val, err := strconv.ParseFloat(config.Value, 64)
+	if err != nil {
+		return 0.60, err
+	}
+	return val, nil
+}
+
+// GetNormalWinRateThreshold returns the minimum win rate for Normal tier (default: 0.40)
+func (s *ConfigService) GetNormalWinRateThreshold() (float64, error) {
+	config, err := s.configRepo.GetByKey("normal_win_rate_threshold")
+	if err != nil {
+		return 0.40, err
+	}
+	val, err := strconv.ParseFloat(config.Value, 64)
+	if err != nil {
+		return 0.40, err
 	}
 	return val, nil
 }
