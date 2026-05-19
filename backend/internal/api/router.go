@@ -110,8 +110,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		{
 			settlements.GET("", settlementHandler.GetAll)    // GET /api/v1/settlements
 			settlements.POST("/trigger", settlementHandler.TriggerSettlement) // POST /api/v1/settlements/trigger
-			settlements.GET("/stats", settlementHandler.GetStats) // GET /api/v1/settlements/stats
-			settlements.GET("/:id", settlementHandler.GetByID)    // GET /api/v1/settlements/:id
+			settlements.GET("/stats", settlementHandler.GetStats)                   // GET /api/v1/settlements/stats
+			settlements.GET("/fund-contributors", settlementHandler.GetFundContributors) // GET /api/v1/settlements/fund-contributors
+			settlements.GET("/:id", settlementHandler.GetByID)                    // GET /api/v1/settlements/:id
 		}
 
 		// User settlement history

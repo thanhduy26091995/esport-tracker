@@ -37,3 +37,11 @@ export interface SettlementStats {
   total: number
   today: number
 }
+
+export interface FundContributor {
+  rank: number
+  user_id: string
+  user_name: string
+  settlement_count: number
+  total_fund_amount: number
+}

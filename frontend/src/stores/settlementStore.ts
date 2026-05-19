@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { DebtSettlement, SettlementStats, WinnerInput } from '@/types/settlement'
+import type { DebtSettlement, SettlementStats, WinnerInput, FundContributor } from '@/types/settlement'
 import { settlementService } from '@/services/settlementService'
 import { getErrorMessage, translate } from '@/utils/i18n'
 
 export const useSettlementStore = defineStore('settlement', () => {
   const settlements = ref<DebtSettlement[]>([])
   const stats = ref<SettlementStats>({ total: 0, today: 0 })
+  const fundContributors = ref<FundContributor[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -39,6 +40,14 @@ export const useSettlementStore = defineStore('settlement', () => {
       stats.value = await settlementService.getStats()
     } catch (err: any) {
       console.error('Failed to fetch settlement stats:', err)
+    }
+  }
+
+  async function fetchFundContributors() {
+    try {
+      fundContributors.value = await settlementService.getFundContributors()
+    } catch (err: any) {
+      console.error('Failed to fetch fund contributors:', err)
     }
   }
 
@@ -97,12 +106,14 @@ export const useSettlementStore = defineStore('settlement', () => {
   return {
     settlements,
     stats,
+    fundContributors,
     loading,
     error,
     todaySettlements,
     recentSettlements,
     fetchSettlements,
     fetchStats,
+    fetchFundContributors,
     fetchSettlementById,
     fetchSettlementsByDebtor,
     triggerSettlement,

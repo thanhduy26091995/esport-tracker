@@ -64,7 +64,13 @@
     "recentFundActivity": "Hoạt động quỹ gần đây",
     "noTransactions": "Chưa có giao dịch",
     "deposit": "Nạp tiền",
-    "withdrawal": "Rút tiền"
+    "withdrawal": "Rút tiền",
+    "fundContributors": "Người cống hiến quỹ",
+    "noContributors": "Chưa có cống hiến",
+    "colRank": "#",
+    "colName": "Người chơi",
+    "colPointsContributed": "Điểm",
+    "colMoneyContributed": "Số tiền"
   },
   "leaderboard": {
     "noPlayers": "Chưa có người chơi",

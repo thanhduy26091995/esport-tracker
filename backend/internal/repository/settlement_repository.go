@@ -74,6 +74,23 @@ func (r *SettlementRepository) CountTotal() (int64, error) {
 	return count, err
 }
 
+// GetFundContributors returns per-user fund contribution totals, ordered by total_fund_amount desc
+func (r *SettlementRepository) GetFundContributors() ([]*model.FundContributor, error) {
+	var rows []*model.FundContributor
+	err := r.db.Raw(`
+		SELECT
+			u.id          AS user_id,
+			u.name        AS user_name,
+			COUNT(ds.id)  AS settlement_count,
+			SUM(ds.fund_amount) AS total_fund_amount
+		FROM debt_settlements ds
+		JOIN users u ON u.id = ds.debtor_id
+		GROUP BY u.id, u.name
+		ORDER BY total_fund_amount DESC
+	`).Scan(&rows).Error
+	return rows, err
+}
+
 // CountToday returns the number of settlements today
 func (r *SettlementRepository) CountToday() (int64, error) {
 	var count int64

@@ -38,3 +38,11 @@ type SettlementWinner struct {
 func (SettlementWinner) TableName() string {
 	return "settlement_winners"
 }
+
+type FundContributor struct {
+	Rank            int       `json:"rank"`
+	UserID          uuid.UUID `json:"user_id"`
+	UserName        string    `json:"user_name"`
+	SettlementCount int       `json:"settlement_count"`
+	TotalFundAmount int       `json:"total_fund_amount"`
+}

@@ -133,6 +133,20 @@
           </div>
         </div>
 
+        <!-- Fund Contributors -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">{{ t('dashboard.fundContributors') }}</span>
+          </div>
+          <div class="card-body">
+            <FundContributors
+              :contributors="settlementStore.fundContributors"
+              :loading="settlementStore.loading"
+              :point-to-vnd="configStore.pointToVnd"
+            />
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -163,6 +177,7 @@ import StatCard from '@/components/shared/StatCard.vue'
 import UserTable from '@/components/user/UserTable.vue'
 import RecentMatches from '@/components/match/RecentMatches.vue'
 import MatchForm from '@/components/match/MatchForm.vue'
+import FundContributors from '@/components/settlement/FundContributors.vue'
 import { formatVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import type { CreateMatchRequest } from '@/types/match'
@@ -181,13 +196,17 @@ onMounted(async () => {
   await Promise.all([
     userStore.fetchUsers(),
     matchStore.fetchMatches(),
-    settlementStore.fetchSettlements(), fundStore.fetchStats(),
-    fundStore.fetchTransactions(), configStore.fetchConfigs()
+    settlementStore.fetchSettlements(),
+    settlementStore.fetchFundContributors(),
+    fundStore.fetchStats(),
+    fundStore.fetchTransactions(),
+    configStore.fetchConfigs()
   ])
 })
 
 const recentSettlements = computed(() => settlementStore.settlements.slice(0, 5))
 const recentTransactions = computed(() => fundStore.transactions.slice(0, 5))
+
 
 const getTodayMatchesCount = () => {
   const today = new Date(); today.setHours(0, 0, 0, 0)

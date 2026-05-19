@@ -64,7 +64,13 @@
     "recentFundActivity": "Recent Fund Activity",
     "noTransactions": "No transactions yet",
     "deposit": "Deposit",
-    "withdrawal": "Withdrawal"
+    "withdrawal": "Withdrawal",
+    "fundContributors": "Fund Contributors",
+    "noContributors": "No contributions yet",
+    "colRank": "#",
+    "colName": "Player",
+    "colPointsContributed": "Points",
+    "colMoneyContributed": "Amount"
   },
   "leaderboard": {
     "noPlayers": "No players yet",

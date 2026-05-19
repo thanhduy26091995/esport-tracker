@@ -3,6 +3,7 @@ import type {
   DebtSettlement,
   TriggerSettlementRequest,
   SettlementStats,
+  FundContributor,
 } from '@/types/settlement'
 import type { PaginationParams } from '@/types/api'
 
@@ -31,6 +32,11 @@ export const settlementService = {
 
   async getStats(): Promise<SettlementStats> {
     const response = await api.get<SettlementStats>('/settlements/stats')
+    return response.data
+  },
+
+  async getFundContributors(): Promise<FundContributor[]> {
+    const response = await api.get<FundContributor[]>('/settlements/fund-contributors')
     return response.data
   },
 }

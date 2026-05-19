@@ -358,3 +358,15 @@ func (s *SettlementService) GetSettlementStats() (map[string]interface{}, error)
 		"today_settlements": today,
 	}, nil
 }
+
+// GetFundContributors returns ranked fund contribution totals per user
+func (s *SettlementService) GetFundContributors() ([]*model.FundContributor, error) {
+	rows, err := s.settlementRepo.GetFundContributors()
+	if err != nil {
+		return nil, err
+	}
+	for i, r := range rows {
+		r.Rank = i + 1
+	}
+	return rows, nil
+}
