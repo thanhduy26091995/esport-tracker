@@ -133,7 +133,7 @@
           </div>
         </div>
 
-        <!-- Fund Contributors -->
+        <!-- Fund Contributors (debtors) -->
         <div class="card">
           <div class="card-header">
             <span class="card-title">{{ t('dashboard.fundContributors') }}</span>
@@ -143,6 +143,19 @@
               :contributors="settlementStore.fundContributors"
               :loading="settlementStore.loading"
               :point-to-vnd="configStore.pointToVnd"
+            />
+          </div>
+        </div>
+
+        <!-- Winner Contributors (winners who had points deducted) -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">{{ t('dashboard.winnerContributors') }}</span>
+          </div>
+          <div class="card-body">
+            <WinnerContributors
+              :contributors="settlementStore.winnerContributors"
+              :loading="settlementStore.loading"
             />
           </div>
         </div>
@@ -178,6 +191,7 @@ import UserTable from '@/components/user/UserTable.vue'
 import RecentMatches from '@/components/match/RecentMatches.vue'
 import MatchForm from '@/components/match/MatchForm.vue'
 import FundContributors from '@/components/settlement/FundContributors.vue'
+import WinnerContributors from '@/components/settlement/WinnerContributors.vue'
 import { formatVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import type { CreateMatchRequest } from '@/types/match'
@@ -198,6 +212,7 @@ onMounted(async () => {
     matchStore.fetchMatches(),
     settlementStore.fetchSettlements(),
     settlementStore.fetchFundContributors(),
+    settlementStore.fetchWinnerContributors(),
     fundStore.fetchStats(),
     fundStore.fetchTransactions(),
     configStore.fetchConfigs()

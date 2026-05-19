@@ -91,6 +91,27 @@ func (r *SettlementRepository) GetFundContributors() ([]*model.FundContributor, 
 	return rows, err
 }
 
+// GetWinnerContributors aggregates each winner's fund contributions across all settlements.
+// A winner's fund share per settlement = points_deducted * fund_amount / original_debt_points.
+func (r *SettlementRepository) GetWinnerContributors() ([]*model.WinnerContributor, error) {
+	var rows []*model.WinnerContributor
+	err := r.db.Raw(`
+		SELECT
+			u.id                                                                                     AS user_id,
+			u.name                                                                                   AS user_name,
+			COUNT(DISTINCT sw.settlement_id)                                                         AS settlement_count,
+			SUM(sw.points_deducted)                                                                  AS total_points_deducted,
+			ROUND(SUM(sw.points_deducted::numeric * ds.fund_amount / NULLIF(ds.money_amount, 0)))::int    AS total_points_contributed,
+			ROUND(SUM(sw.points_deducted::numeric * ds.fund_amount / NULLIF(ds.original_debt_points, 0)))::int AS total_fund_amount
+		FROM settlement_winners sw
+		JOIN users            u  ON u.id  = sw.winner_id
+		JOIN debt_settlements ds ON ds.id = sw.settlement_id
+		GROUP BY u.id, u.name
+		ORDER BY total_fund_amount DESC
+	`).Scan(&rows).Error
+	return rows, err
+}
+
 // CountToday returns the number of settlements today
 func (r *SettlementRepository) CountToday() (int64, error) {
 	var count int64

@@ -46,3 +46,15 @@ type FundContributor struct {
 	SettlementCount int       `json:"settlement_count"`
 	TotalFundAmount int       `json:"total_fund_amount"`
 }
+
+// WinnerContributor aggregates per-winner fund contributions across settlements.
+// fund_contribution = points_deducted * fund_amount / original_debt_points
+type WinnerContributor struct {
+	Rank                   int       `json:"rank"`
+	UserID                 uuid.UUID `json:"user_id"`
+	UserName               string    `json:"user_name"`
+	SettlementCount        int       `json:"settlement_count"`
+	TotalPointsDeducted    int       `json:"total_points_deducted"`
+	TotalPointsContributed int       `json:"total_points_contributed"`
+	TotalFundAmount        int       `json:"total_fund_amount"`
+}

@@ -45,3 +45,13 @@ export interface FundContributor {
   settlement_count: number
   total_fund_amount: number
 }
+
+export interface WinnerContributor {
+  rank: number
+  user_id: string
+  user_name: string
+  settlement_count: number
+  total_points_deducted: number
+  total_points_contributed: number
+  total_fund_amount: number
+}

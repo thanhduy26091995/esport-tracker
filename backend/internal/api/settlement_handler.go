@@ -162,6 +162,19 @@ func (h *SettlementHandler) GetFundContributors(c *gin.Context) {
 	c.JSON(http.StatusOK, contributors)
 }
 
+// GetWinnerContributors returns ranked fund contributions from winners
+func (h *SettlementHandler) GetWinnerContributors(c *gin.Context) {
+	contributors, err := h.settlementService.GetWinnerContributors()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    "INTERNAL_ERROR",
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, contributors)
+}
+
 // GetStats returns settlement statistics
 func (h *SettlementHandler) GetStats(c *gin.Context) {
 	stats, err := h.settlementService.GetSettlementStats()

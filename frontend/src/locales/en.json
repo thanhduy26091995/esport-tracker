@@ -67,6 +67,8 @@
     "withdrawal": "Withdrawal",
     "fundContributors": "Fund Contributors",
     "noContributors": "No contributions yet",
+    "winnerContributors": "Point Contributors",
+    "noWinnerContributors": "No point contributions yet",
     "colRank": "#",
     "colName": "Player",
     "colPointsContributed": "Points",

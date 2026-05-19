@@ -4,6 +4,7 @@ import type {
   TriggerSettlementRequest,
   SettlementStats,
   FundContributor,
+  WinnerContributor,
 } from '@/types/settlement'
 import type { PaginationParams } from '@/types/api'
 
@@ -37,6 +38,11 @@ export const settlementService = {
 
   async getFundContributors(): Promise<FundContributor[]> {
     const response = await api.get<FundContributor[]>('/settlements/fund-contributors')
+    return response.data
+  },
+
+  async getWinnerContributors(): Promise<WinnerContributor[]> {
+    const response = await api.get<WinnerContributor[]>('/settlements/winner-contributors')
     return response.data
   },
 }

@@ -67,6 +67,8 @@
     "withdrawal": "Rút tiền",
     "fundContributors": "Người cống hiến quỹ",
     "noContributors": "Chưa có cống hiến",
+    "winnerContributors": "Người cống điểm vào quỹ",
+    "noWinnerContributors": "Chưa có cống điểm",
     "colRank": "#",
     "colName": "Người chơi",
     "colPointsContributed": "Điểm",

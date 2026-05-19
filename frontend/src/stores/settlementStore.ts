@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { DebtSettlement, SettlementStats, WinnerInput, FundContributor } from '@/types/settlement'
+import type { DebtSettlement, SettlementStats, WinnerInput, FundContributor, WinnerContributor } from '@/types/settlement'
 import { settlementService } from '@/services/settlementService'
 import { getErrorMessage, translate } from '@/utils/i18n'
 
@@ -9,6 +9,7 @@ export const useSettlementStore = defineStore('settlement', () => {
   const settlements = ref<DebtSettlement[]>([])
   const stats = ref<SettlementStats>({ total: 0, today: 0 })
   const fundContributors = ref<FundContributor[]>([])
+  const winnerContributors = ref<WinnerContributor[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -48,6 +49,14 @@ export const useSettlementStore = defineStore('settlement', () => {
       fundContributors.value = await settlementService.getFundContributors()
     } catch (err: any) {
       console.error('Failed to fetch fund contributors:', err)
+    }
+  }
+
+  async function fetchWinnerContributors() {
+    try {
+      winnerContributors.value = await settlementService.getWinnerContributors()
+    } catch (err: any) {
+      console.error('Failed to fetch winner contributors:', err)
     }
   }
 
@@ -107,6 +116,7 @@ export const useSettlementStore = defineStore('settlement', () => {
     settlements,
     stats,
     fundContributors,
+    winnerContributors,
     loading,
     error,
     todaySettlements,
@@ -114,6 +124,7 @@ export const useSettlementStore = defineStore('settlement', () => {
     fetchSettlements,
     fetchStats,
     fetchFundContributors,
+    fetchWinnerContributors,
     fetchSettlementById,
     fetchSettlementsByDebtor,
     triggerSettlement,

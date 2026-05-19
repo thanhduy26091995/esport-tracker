@@ -370,3 +370,15 @@ func (s *SettlementService) GetFundContributors() ([]*model.FundContributor, err
 	}
 	return rows, nil
 }
+
+// GetWinnerContributors returns ranked fund contributions from winners whose points were deducted
+func (s *SettlementService) GetWinnerContributors() ([]*model.WinnerContributor, error) {
+	rows, err := s.settlementRepo.GetWinnerContributors()
+	if err != nil {
+		return nil, err
+	}
+	for i, r := range rows {
+		r.Rank = i + 1
+	}
+	return rows, nil
+}
