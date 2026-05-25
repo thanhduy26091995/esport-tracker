@@ -64,7 +64,8 @@ description: Test scope, critical paths, and settlement edge cases
 
 | Scenario | Expected |
 |---|---|
-| Stake > wallet balance | 422, wallet unchanged |
+| Wallet balance = 0 | 201, wallet goes negative, bet inserted |
+| Wallet balance already negative | 201, wallet more negative, bet inserted |
 | Match already locked (past `bets_locked_at`) | 422, no bet created |
 | Duplicate handicap same side same match | 409, wallet unchanged |
 | Duplicate exact scoreline same match | 409, wallet unchanged |
@@ -80,7 +81,7 @@ description: Test scope, critical paths, and settlement edge cases
 - `CreateScoreOdds` + `GetScoreOdds`: insert 1–0 @ 5.00; query (1,0) → returns 5.00; query (2,0) → not found
 - `UpdateScoreOdds`: change 1–0 from 5.00 → 6.50; re-query → 6.50
 - `DeleteScoreOdds`: delete 1–0; query (1,0) → not found
-- `GetOrCreateWallet`: call twice for same user → same record, balance unchanged
+- `CreateWallet`: called during Register → wallet row exists immediately after registration; balance = 0
 - `UpdateWalletBalance`: delta = +50, then -30 → final balance = initial + 20
 - `CreateBet` + `ListBets`: insert bet, query by user → bet appears with correct match join
 - `ListBetsForMatch`: user places handicap + 3 exact score bets on match A, 1 bet on match B → `ListBetsForMatch(A)` returns 4
@@ -147,6 +148,17 @@ Assert:
   - wallet.balance = initial - 250 + 600 + 190 = initial + 540
 ```
 
+### PlaceBet — negative balance allowed
+
+```
+Setup: wallet balance = 0
+Action: PlaceBet(handicap home, stake=200)
+Assert: wallet.balance = -200, bet inserted, result = nil
+
+Action: PlaceBet(exact_score 1:0, stake=100)
+Assert: wallet.balance = -300, second bet inserted
+```
+
 ### SettleMatch — idempotency
 
 ```
@@ -162,6 +174,75 @@ Assert: running SettleMatch a third time with same score → wallets unchanged
 Setup: match 1–0; handicap home -1.0; stake 100
 Action: SettleMatch → adjusted home = 1 - 1 = 0, away = 0 → push
 Assert: bet.result = "push", bet.payout = 100, wallet.balance = initial (unchanged net)
+```
+
+---
+
+## Integration Tests — Settlement
+
+### CreateSettlement — basic snapshot
+
+```
+Setup:
+  userA wallet.balance = +540
+  userB wallet.balance = -200
+  userC wallet.balance = 0
+
+Action: CreateSettlement(pointRate=1000, name="Tất toán cuối giải")
+
+Assert wc_settlement_details:
+  userA: final_balance=540,  amount=540000, direction='pay',     status='pending'
+  userB: final_balance=-200, amount=200000, direction='collect', status='pending'
+  userC: final_balance=0,    amount=0,      direction='even',    status='pending'
+
+Assert wc_wallets after:
+  userA.balance = 0
+  userB.balance = 0
+  userC.balance = 0
+```
+
+### CreateSettlement — atomicity
+
+```
+If any step fails mid-transaction:
+  Assert wc_settlements has no new row
+  Assert wc_wallet balances unchanged
+```
+
+### CreateSettlement — then new bets accumulate from 0
+
+```
+After settlement (all balances = 0):
+  Action: PlaceBet(userA, stake=100) → wallet = -100
+  Action: SettleMatch → userA wins → wallet = -100 + payout
+Assert: new activity tracked independently from previous settlement
+```
+
+### PreviewSettlement — no side effects
+
+```
+Action: PreviewSettlement(pointRate=1000) twice
+Assert: no rows inserted into wc_settlements or wc_settlement_details
+Assert: wallet balances unchanged
+```
+
+### UpdateSettlementDetailStatus — mark done
+
+```
+Setup: settlement with userA status='pending'
+Action: PUT /admin/settlements/:id/details/:userA { status:'done', done_note:'Đã thu 540k' }
+Assert: status='done', completed_at set, done_note saved
+Assert: final_balance and amount unchanged
+```
+
+### Settlement history preserved
+
+```
+Setup: 2 settlement events created at different times
+Action: GET /admin/settlements
+Assert: both events listed, ordered by created_at DESC
+Action: GET /admin/settlements/:id for each
+Assert: per-user details intact even after subsequent wallet activity
 ```
 
 ---
@@ -195,8 +276,11 @@ go tool cover -func=wc.out | grep wc_service
 - `evaluateHandicapBet`: 100% — all branches including push
 - `evaluateExactScoreBet`: 100% — win and lose paths
 - `PlaceBet` exact score path: scoreline-not-found rejection must be covered
+- `PlaceBet` negative balance path: zero and negative balance must be covered
 - `SettleMatch` idempotency path: must be covered
-- PlaceBet validation paths (locked, insufficient, duplicate): all must be covered
+- PlaceBet validation paths (locked, duplicate): all must be covered
+- `CreateSettlement`: snapshot correctness, wallet reset, atomicity must be covered
+- `PreviewSettlement`: no DB writes verified
 
 ---
 

@@ -48,13 +48,14 @@ CREATE TABLE user_credentials (
 - `user_id` references the existing `users` table (read-only — no write to `users`)
 - A user registers by picking their name from the active users list and setting a password
 - Only one credential row per user (`UNIQUE user_id`)
-- `is_admin = true` is set directly in the DB for admin users (no self-service admin promotion)
+- `is_admin = true` for the first admin is seeded via a migration script; after that, admins can promote others via `PUT /admin/users/:id/role`
 
 **Auth flow:**
 ```
 Register: POST /api/v1/wc/auth/register
   body: { "user_id": "<uuid>", "password": "..." }
   → bcrypt hash password → INSERT user_credentials
+  → INSERT wc_wallets (user_id, balance=0)   ← wallet created here, not on first bet
   → return JWT { user_id, is_admin, exp }
 
 Login: POST /api/v1/wc/auth/login
@@ -135,11 +136,14 @@ CREATE TABLE wc_score_odds (
 User only sees and bets on scorelines admin has added. Free-form score input is **not allowed** — user picks from admin's list.
 
 ### `wc_wallets`
+
+Starts at 0 for every user. No lower bound — balance goes negative when the user's losses exceed wins. No balance check on bet placement.
+
 ```sql
 CREATE TABLE wc_wallets (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    UUID NOT NULL UNIQUE REFERENCES users(id),
-  balance    INT NOT NULL DEFAULT 0 CHECK (balance >= 0),
+  balance    INT NOT NULL DEFAULT 0,   -- can be negative; no CHECK constraint
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -176,6 +180,48 @@ CREATE TABLE wc_bets (
   UNIQUE (user_id, match_id, predicted_home_score, predicted_away_score)             -- exact score dedup
 );
 ```
+
+### `wc_settlements`
+
+One row per tournament settlement event. Admin creates this to snapshot wallet state, calculate who owes/is owed money, and reset all wallets to 0.
+
+```sql
+CREATE TABLE wc_settlements (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(100) NOT NULL,    -- e.g. "World Cup 2026 - Tất toán cuối giải"
+  point_rate  NUMERIC(10,2) NOT NULL,   -- VND per point (e.g. 1000 = 1 point → 1,000 VND)
+  settled_by  UUID NOT NULL REFERENCES users(id),
+  note        VARCHAR(255),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### `wc_settlement_details`
+
+One row per user per settlement event. Snapshot of balance at settlement time; never modified after insert except `status` and `completed_at`.
+
+```sql
+CREATE TABLE wc_settlement_details (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  settlement_id  UUID NOT NULL REFERENCES wc_settlements(id) ON DELETE CASCADE,
+  user_id        UUID NOT NULL REFERENCES users(id),
+  final_balance  INT NOT NULL,           -- wallet balance at settlement time (= net P&L, can be negative)
+  amount         NUMERIC(12,2) NOT NULL, -- abs(final_balance) * point_rate
+  direction      VARCHAR(10) NOT NULL,   -- 'pay' (admin pays user) | 'collect' (admin collects from user) | 'even'
+  status         VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | done
+  completed_at   TIMESTAMPTZ,
+  done_note      VARCHAR(255),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (settlement_id, user_id)
+);
+```
+
+**Direction logic:**
+- `final_balance > 0` → user won overall → `direction = 'pay'` (admin pays user)
+- `final_balance < 0` → user lost overall → `direction = 'collect'` (admin collects from user)
+- `final_balance = 0` → `direction = 'even'`
+
+**After settlement:** all `wc_wallets.balance` reset to `0`.
 
 ### `wc_wallet_logs`
 
@@ -263,10 +309,14 @@ CREATE INDEX ON wc_wallet_logs (user_id);
 | `PUT` | `/admin/score-odds/:id` | Update odds for an existing scoreline |
 | `DELETE` | `/admin/score-odds/:id` | Remove a scoreline option |
 | `POST` | `/admin/matches/:id/settle` | Evaluate all bets, credit/debit wallets, mark settled_at |
-| `POST` | `/admin/wallets/init` | Create wc_wallet with default 1000 pts for all registered users (admin can override amount) |
 | `PUT` | `/admin/wallets/:user_id` | Top-up or deduct balance — body: `{ "delta": 500, "note": "..." }`; logs to `wc_wallet_logs` |
 | `GET` | `/admin/wallets/:user_id/logs` | Full top-up/deduction history for a user |
 | `PUT` | `/admin/users/:user_id/role` | Promote or demote a registered user (`{ "is_admin": true/false }`) |
+| `GET` | `/admin/settlements/preview` | Preview current settlement state — per-user balance, direction, amount at a given `point_rate` (query param); does **not** commit anything |
+| `POST` | `/admin/settlements` | Create settlement: snapshot all wallets → insert `wc_settlements` + `wc_settlement_details` → reset all `wc_wallets.balance = 0`; body: `{ "name": "...", "point_rate": 1000, "note": "..." }` |
+| `GET` | `/admin/settlements` | List all past settlement events (summary) |
+| `GET` | `/admin/settlements/:id` | Full detail of one settlement: event info + per-user breakdown |
+| `PUT` | `/admin/settlements/:id/details/:user_id` | Mark one user as done — body: `{ "status": "done", "done_note": "..." }` |
 
 #### Key request/response shapes
 
@@ -300,7 +350,7 @@ Service validates `(2, 1)` exists in `wc_score_odds` for this match; rejects wit
 }
 ```
 
-All bets: `201` on success, `422` with reason (match locked, insufficient balance, duplicate type, scoreline not found).
+All bets: `201` on success, `422` with reason (match locked, duplicate type, scoreline not found). No balance check — users may bet freely regardless of wallet balance.
 
 **GET `/leaderboard`** response:
 ```json
@@ -309,9 +359,9 @@ All bets: `201` on success, `422` with reason (match locked, insufficient balanc
     "rank": 1,
     "user_id": "...",
     "name": "Dennis",
-    "net_profit": 540,
-    "total_bets": 12,
-    "wins": 7
+    "net_profit": 740,
+    "total_bets": 18,
+    "wins": 11
   },
   {
     "rank": 2,
@@ -323,7 +373,11 @@ All bets: `201` on success, `422` with reason (match locked, insufficient balanc
   }
 ]
 ```
-`net_profit` = `SUM(payout - stake)` across all settled bets for that user. Negative means net loss. Users with no settled bets appear at the bottom with `net_profit = 0`.
+`net_profit` = `SUM(COALESCE(payout, 0) - stake)` from **all settled `wc_bets`** for that user across the entire tournament — never reset, not affected by admin top-ups/deductions or tất toán giải. Negative means net betting loss. Users with no settled bets appear at the bottom with `net_profit = 0`.
+
+**Leaderboard vs wallet balance — two separate concepts:**
+- **Leaderboard** (`wc_bets`): pure betting P&L for the full tournament; survives wallet resets; shows who predicts best.
+- **Settlement** (`wc_wallets.balance`): current wallet balance used for tất toán giải; includes admin adjustments; resets to 0 after each tất toán.
 
 **POST `/admin/matches/:id/settle`**
 - No body; idempotent (re-settle a match re-evaluates all bets and corrects wallets).
@@ -373,6 +427,8 @@ src/
     WcBetForm.vue            -- modal: two tabs (Handicap | Tỉ số); Handicap = pick home/away button (one per side); Tỉ số = grid of score cards with odds — multiple cards selectable, each gets its own stake input + payout preview; submit all selected bets in sequence
     WcBetHistoryList.vue     -- table of past bets with result badges
     WcLeaderboard.vue        -- rank table: avatar, name, net_profit (+/-), wins, total_bets settled
+    WcSettlementPreview.vue  -- admin: table of all users with current balance, direction badge (Thu/Chi/Hoà), money amount; point_rate input with live recalculation
+    WcSettlementHistory.vue  -- admin: list of past settlement events; click → detail view with per-user status and mark-done action
   services/
     wcService.ts             -- all API calls (attaches Authorization header from wcAuthStore)
     wcAuthService.ts         -- register/login API calls
@@ -397,13 +453,14 @@ src/
 | Password hashing | bcrypt (cost 12) | Industry standard; Go `golang.org/x/crypto/bcrypt` |
 | Token type | JWT (HS256), 7-day expiry | Simple, stateless; can be upgraded to refresh-token pair later |
 | Admin promotion | `PUT /admin/users/:id/role` endpoint | Admin can promote/demote via UI; first admin seeded in DB once at setup |
-| Password reset | Reset to `{name}_@123` via `/auth/reset-password` | Simple for internal tool; no email needed; user changes password after login |
+| Password reset | Reset to `{name}_@123` via `/auth/reset-password` (no old password required) | Internal tool only — no auth needed for reset is intentional; anyone knowing a user_id can reset that user's password, which is acceptable in a closed team context |
 | Bet visibility | All bets on a match are always visible to everyone | Transparent and fun — team can see each other's picks in real time |
 | Wallet top-up log | `wc_wallet_logs` table | Audit trail: who topped up whom, by how much, with optional note |
 | Default wallet | 1000 pts via `/admin/wallets/init` | Admin can override; can be re-run to top up new users mid-tournament |
 | Match data source | football-data.org free tier | No cost, reliable, simple REST API, WC coverage |
 | Sync trigger | Admin on-demand | Avoids cron job complexity; admin syncs before checking bets |
 | Wallet isolation | Separate `wc_wallets` table | BXH (current_score) untouched; tournament can be reset independently |
+| Leaderboard source | `SUM(payout-stake)` from `wc_bets` | Survives tất toán giải resets; not polluted by admin top-ups; reflects full-tournament betting performance |
 | Handicap precision | Half-integers only (0.5, 1.0, 1.5 …) | No push ambiguity with 0.25/0.75 splits |
 | Exact score odds | Separate `wc_score_odds` table, one row per scoreline | Admin defines which scores are bettable and at what multiplier; realistic betting card UX |
 | Score selection UX | User picks from admin's card list, not free text | Prevents bets on unlisted scores; mirrors real sportsbook experience |
@@ -411,7 +468,10 @@ src/
 | Multiple bets per match allowed | No global unique on (user_id, match_id, bet_type) | User can bet handicap + multiple different exact scorelines on the same match |
 | Handicap dedup | UNIQUE (user_id, match_id, bet_type, bet_choice) | Can't bet the same side (home/away) twice on the same match |
 | Exact score dedup | UNIQUE (user_id, match_id, predicted_home_score, predicted_away_score) | Can't bet the same scoreline twice; can bet any number of distinct scorelines |
-| Wallet CHECK balance >= 0 | DB constraint | Belt-and-suspenders; service also validates before deducting |
+| Wallet starts at 0, no lower bound | No `CHECK (balance >= 0)` | Balance IS the net P&L — simplifies settlement to just reading the balance; no initial_balance concept needed |
+| No balance check on bet placement | Users bet freely even at 0 or negative | Internal fun tool on credit — no real money changes hands until admin does tất toán |
+| Settlement resets wallets to 0 | After snapshot, all balances → 0 | Clean slate for next settlement period; history preserved in wc_settlement_details |
+| Settlement direction logic | `balance > 0` → pay; `< 0` → collect | Balance equals net P&L since initial is always 0 |
 | Bet locking | `bets_locked_at = match_date` set at sync time | Bets auto-reject once wall clock passes `bets_locked_at` |
 
 ---

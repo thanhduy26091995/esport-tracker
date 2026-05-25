@@ -123,17 +123,54 @@ func evaluateHandicapBet(bet WcBet, homeScore, awayScore int) (string, int) {
 
 ### Wallet transaction safety
 
-Always wrap wallet deduction + bet creation in a single DB transaction. Each `PlaceBet` call handles one bet; for multiple exact score bets the client calls the endpoint once per scoreline:
+Always wrap wallet deduction + bet creation in a single DB transaction. No balance check — negative balance is allowed.
 
 ```go
 tx := db.Begin()
-// SELECT wc_wallets WHERE user_id = ? FOR UPDATE
-// if balance < stake → rollback → return insufficient funds
+// SELECT wc_wallets WHERE user_id = ? FOR UPDATE  (wallet always exists — created at registration)
 // duplicate check: handicap → unique on (user_id, match_id, bet_type, bet_choice)
 //                  exact_score → unique on (user_id, match_id, predicted_home_score, predicted_away_score)
-// UPDATE wc_wallets SET balance = balance - stake WHERE user_id = ?
+// UPDATE wc_wallets SET balance = balance - stake WHERE user_id = ?  (no lower bound)
 // INSERT INTO wc_bets ...
 tx.Commit()
+```
+
+### Settlement transaction
+
+All steps run in a single transaction — no partial state possible:
+
+```go
+tx := db.Begin()
+// 1. Load all wallets with user name: SELECT wc_wallets JOIN users
+// 2. INSERT INTO wc_settlements (name, point_rate, settled_by, note)
+// 3. For each wallet:
+//      direction = "pay" if balance > 0, "collect" if balance < 0, "even" if = 0
+//      amount = abs(balance) * point_rate
+//      INSERT INTO wc_settlement_details (settlement_id, user_id, final_balance, amount, direction)
+// 4. UPDATE wc_wallets SET balance = 0, updated_at = NOW()
+tx.Commit()
+```
+
+Re-running settlement on an already-reset wallet (all balances = 0) will produce a valid but empty settlement — admin should avoid this, but it is harmless.
+
+### Settlement preview (no DB write)
+
+```go
+func PreviewSettlement(pointRate float64) []SettlementRow {
+    wallets := repo.ListAllWallets()
+    rows := make([]SettlementRow, len(wallets))
+    for i, w := range wallets {
+        direction := directionFor(w.Balance)
+        rows[i] = SettlementRow{
+            UserID:       w.UserID,
+            Name:         w.Name,
+            FinalBalance: w.Balance,
+            Amount:       math.Abs(float64(w.Balance)) * pointRate,
+            Direction:    direction,
+        }
+    }
+    return rows
+}
 ```
 
 ### Exact score evaluation (Go pseudo-code)
@@ -169,6 +206,14 @@ All frontend text must use fun/game language. Backend field names (`bet`, `stake
 | Settle match | Tất toán điểm |
 | Top-up wallet | Cộng điểm |
 | Net profit | Điểm thưởng tích lũy |
+| Settlement preview | Xem trước tất toán |
+| Create settlement | Tạo tất toán |
+| Settlement history | Lịch sử tất toán |
+| Direction: pay | Admin chi (user thắng) |
+| Direction: collect | Admin thu (user thua) |
+| Direction: even | Hoà vốn |
+| Mark done | Đánh dấu đã xong |
+| point_rate | Tỉ lệ quy đổi (điểm/VND) |
 
 ### Frontend form — live preview
 
@@ -178,10 +223,11 @@ While user types stake amount, show:
 
 ### Admin workflow
 
-1. **Before tournament**: Admin clicks "Đồng bộ lịch thi đấu" → fixtures imported; admin clicks "Khởi tạo ví điểm" → all users get 1000 WC points
+1. **Before tournament**: Admin clicks "Đồng bộ lịch thi đấu" → fixtures imported. All wallets start at 0 automatically — no init step needed.
 2. **Before each match**: Admin opens match → enters hệ số chấp + hệ số nhân → saves (predictions now open for users)
 3. **During tournament** (optional): Admin syncs to update scores
-4. **After match**: Admin confirms final score → clicks "Tất toán điểm" → system evaluates all predictions and credits points
+4. **After match**: Admin confirms final score → clicks "Tất toán trận" → system evaluates all predictions and credits/debits points (balance can go negative for losers)
+5. **End of tournament (or any time)**: Admin opens "Tất toán giải" tab → sets tỉ lệ quy đổi → previews who owes/is owed → confirms → system snapshots, saves history, resets all wallets to 0 → admin manually collects/pays each person and marks them done
 
 ---
 
@@ -199,10 +245,10 @@ While user types stake amount, show:
 | Error | HTTP | Message |
 |---|---|---|
 | Match already locked | 422 | "Trận đấu đã bắt đầu, không thể tham gia dự đoán" |
-| Insufficient balance | 422 | "Điểm tham gia không đủ" |
 | Duplicate bet | 409 | "Bạn đã dự đoán loại này cho trận này rồi" |
 | Match not settled yet | 422 | "Trận đấu chưa có kết quả" |
 | Football API error | 503 | "Không thể đồng bộ dữ liệu, thử lại sau" |
+| Settlement with no registered users | 422 | "Chưa có người dùng nào để tất toán" |
 
 ---
 

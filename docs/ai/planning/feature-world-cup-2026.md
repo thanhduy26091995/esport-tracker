@@ -18,10 +18,11 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
 
 ### Phase 1: Database & Models
 
-- [ ] 1.1 Write migration `XXXX_create_wc_tables.sql` — create `user_credentials`, `wc_matches`, `wc_score_odds`, `wc_wallets`, `wc_wallet_logs`, `wc_bets` with indexes and constraints
-- [ ] 1.2 Create `internal/model/wc_match.go` — `WcMatch`, `WcScoreOdds`, `WcWallet`, `WcBet` structs + status/stage/bet-type constants
+- [ ] 1.1 Write migration `XXXX_create_wc_tables.sql` — create `user_credentials`, `wc_matches`, `wc_score_odds`, `wc_wallets`, `wc_wallet_logs`, `wc_bets`, `wc_settlements`, `wc_settlement_details` with indexes and constraints; `wc_wallets.balance` has no `CHECK (balance >= 0)`
+- [ ] 1.2 Create `internal/model/wc_match.go` — `WcMatch`, `WcScoreOdds`, `WcWallet`, `WcBet`, `WcSettlement`, `WcSettlementDetail` structs + status/stage/bet-type/direction constants
 - [ ] 1.3 Create `internal/model/wc_auth.go` — `UserCredentials` struct
-- [ ] 1.4 Run migration against local dev DB, verify schema
+- [ ] 1.4 Write seed migration `XXXX_seed_wc_admin.sql` — insert one `user_credentials` row with `is_admin = true` for the designated first admin (references existing `users.id`)
+- [ ] 1.5 Run migrations against local dev DB, verify schema
 
 ### Phase 2: Backend — Repository
 
@@ -34,16 +35,23 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
   - `UpdateScoreOdds(id, odds float64)` — change odds for an existing scoreline
   - `DeleteScoreOdds(id)` — remove a scoreline option
   - `GetScoreOdds(matchID, homeScore, awayScore int)` — lookup for bet validation
-  - `GetOrCreateWallet(userID)` — idempotent wallet fetch/create
-  - `UpdateWalletBalance(tx, userID, delta)` — within transaction
+  - `CreateWallet(tx, userID)` — called inside Register transaction; creates wallet with balance=0
+  - `GetWallet(userID)` — fetch wallet (guaranteed to exist for any registered user)
+  - `UpdateWalletBalance(tx, userID, delta)` — within transaction; no lower bound check
   - `LogWalletChange(tx, userID, adminID, delta, balanceBefore, balanceAfter, note)` — insert into `wc_wallet_logs`; always called alongside `UpdateWalletBalance` for admin top-ups
   - `GetWalletLogs(userID)` — full top-up/deduction history for a user
+  - `ListAllWallets()` — all wallets with user name joined (for settlement preview)
+  - `ResetAllWallets(tx)` — set all `wc_wallets.balance = 0` within settlement transaction
+  - `CreateSettlement(tx, settlement, details)` — insert `wc_settlements` + batch insert `wc_settlement_details` within same transaction as `ResetAllWallets`
+  - `ListSettlements()` — all settlement events ordered by `created_at DESC`
+  - `GetSettlement(id)` — single settlement with full `wc_settlement_details` slice
+  - `UpdateSettlementDetailStatus(id, userID, status, doneNote)` — mark one user done
   - `ListBetsForMatchPublic(matchID)` — all bets on a match joined with user name (no sensitive data); always accessible
   - `CreateBet(tx, bet)` — within transaction; unique check per type: handicap on (user_id, match_id, bet_type, bet_choice), exact_score on (user_id, match_id, predicted_home_score, predicted_away_score)
   - `ListBets(userID)` — bet history with match join
   - `ListBetsForMatch(matchID)` — all bets on one match (for settlement)
   - `UpdateBetResult(tx, betID, result, payout)` — within transaction
-  - `GetLeaderboard()` — all registered users with `SUM(COALESCE(payout,0) - stake)` from settled bets as `net_profit`, sorted DESC; admin top-ups do not affect ranking
+  - `GetLeaderboard()` — all registered users with `SUM(COALESCE(payout,0) - stake)` from all settled `wc_bets` as `net_profit`, sorted DESC; covers entire tournament regardless of tất toán giải resets; admin top-ups/deductions do not affect ranking
 
 ### Phase 3: Backend — Auth (Register / Login / Middleware)
 
@@ -72,9 +80,11 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
 
 - [ ] 5.1 Create `internal/service/wc_service.go`:
   - `SyncMatches()` — call client, upsert into DB, set `bets_locked_at = match_date` for each
-  - `PlaceBet(userID, req)` — validate: match not locked, wallet sufficient, no duplicate; deduct wallet + insert bet in one transaction
+  - `PlaceBet(userID, req)` — validate: match not locked, no duplicate; deduct wallet + insert bet in one transaction; **no balance check** (negative balance allowed)
   - `SettleMatch(matchID)` — load match score, load all unsettled bets, evaluate each → update bet result + wallet in one transaction; mark `settled_at`; idempotent (re-settle reverses then re-applies)
   - `GetLeaderboard()` — delegate to repo
+  - `PreviewSettlement(pointRate)` — read all wallets, compute direction + amount for each user; returns slice without writing to DB
+  - `CreateSettlement(adminID, name, pointRate, note)` — snapshot wallets → insert settlement + details → reset all balances to 0; single transaction
 
 - [ ] 5.2 Settlement logic helpers (in `wc_service.go`):
   - `evaluateHandicapBet(bet, homeScore, awayScore) (result, payout)` — adjusted score, push detection
@@ -82,11 +92,11 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
 
 ### Phase 6: Backend — Handler & Routes
 
-- [ ] 6.1 Create `internal/api/wc_handler.go` — handlers for all WC endpoints
+- [ ] 6.1 Create `internal/api/wc_handler.go` — handlers for all WC endpoints including settlement preview, create, list, detail, and mark-done
 - [ ] 6.2 Register `/api/v1/wc/*` routes in `router.go`:
   - Public group (no middleware): `/auth/register`, `/auth/login`, `/auth/reset-password`, `/users`, `GET /matches*`, `GET /leaderboard`
   - JWT group (`WcJWTMiddleware`): `GET /wallet`, `POST /bets`, `GET /bets`
-  - Admin group (`WcJWTMiddleware` + `WcAdminMiddleware`): all `/admin/*` routes
+  - Admin group (`WcJWTMiddleware` + `WcAdminMiddleware`): all `/admin/*` routes including `/admin/settlements*`
 - [ ] 6.3 Smoke test all endpoints via curl (register, login, sync, view matches, place bet, settle, leaderboard)
 
 ### Phase 7: Frontend — Types, Service, Store
@@ -120,6 +130,11 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
 - [ ] 10.3 Create `src/components/wc/WcLeaderboard.vue` — rank table: rank, name, net_profit (+/- points), wins/total_bets; sorted by net_profit DESC
 - [ ] 10.4 Create `src/views/WcBettingView.vue` — wallet balance header + current user name, tabbed: Open Bets | Bet History | Leaderboard; match list showing only bettable matches; show admin panel section only when `wcAuthStore.isAdmin = true`
 - [ ] 10.5 Admin panel — user management section: table of all registered users with name, is_admin badge, promote/demote toggle; wallet balance + top-up form (delta + optional note) + link to top-up log per user
+- [ ] 10.7 Create `src/components/wc/WcSettlementPreview.vue` — admin settlement panel:
+  - `point_rate` input with live recalculation of all amounts
+  - Table: Tên | Balance | Hướng (Thu/Chi/Hoà badge) | Số tiền
+  - "Tạo tất toán" button → opens confirm dialog with settlement name + note inputs → calls `POST /admin/settlements`
+- [ ] 10.8 Create `src/components/wc/WcSettlementHistory.vue` — list of past settlements; click → expand detail table with per-user status + "Đánh dấu đã xong" button per row
 - [ ] 10.6 Add `/world-cup/bet` route
 
 ### Phase 11: Testing & Polish
@@ -128,9 +143,11 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
 - [ ] 11.2 Admin gate: non-admin JWT on `/admin/settle` → 403; admin JWT → 200
 - [ ] 11.3 Unit tests for settlement helpers: `evaluateHandicapBet` (push, half-ball, all outcomes) and `evaluateExactScoreBet` (correct score, off-by-one, 0-0 match)
 - [ ] 11.4 Integration test: PlaceBet → wallet deducted; SettleMatch → winner wallet credited, loser unchanged
+- [ ] 11.4b PlaceBet with balance = 0 → accepted; PlaceBet with negative balance → accepted
 - [ ] 11.5 Verify bet locking: attempt bet on locked match → 422 response
 - [ ] 11.6 Verify duplicate bet rejection: same scoreline twice → 409; same handicap side twice → 409; handicap + different exact scoreline on same match → both accepted
 - [ ] 11.7 Verify re-settle idempotency: settle twice with same score → wallets unchanged on 2nd call
+- [ ] 11.8 Settlement tests: CreateSettlement snapshots correct balances; all wallets reset to 0 after; history queryable; mark-done updates status without changing amounts
 
 ---
 
