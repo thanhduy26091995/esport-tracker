@@ -1,4 +1,11 @@
 {
+  "env": {
+    "OTEL_LOG_USER_PROMPTS": "0",
+    "TRACE_TO_LANGSMITH": "false",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+    "OTEL_TRACES_EXPORTER": "none",
+    "OTEL_LOGS_EXPORTER": "none"
+  },
   "permissions": {
     "allow": [
       "Bash(npm run:*)",
@@ -22,7 +29,21 @@
       "Bash(tasklist /FI \"PID eq 6916\")",
       "Bash(tasklist /FI \"PID eq 22876\")",
       "Bash(tasklist)",
-      "PowerShell($pid8080 = \\(Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; if \\($pid8080\\) { Stop-Process -Id $pid8080 -Force; \"Killed PID $pid8080\" } else { \"Nothing on port 8080\" })"
+      "PowerShell($pid8080 = \\(Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; if \\($pid8080\\) { Stop-Process -Id $pid8080 -Force; \"Killed PID $pid8080\" } else { \"Nothing on port 8080\" })",
+      "Read(//Users/duyb/.claude/**)",
+      "Bash(npx ai-devkit@latest memory search --query \"highlight metrics dashboard player\")",
+      "Bash(xargs cat)",
+      "Bash(npx ai-devkit@latest memory search --query \"highlight feature design architecture\")",
+      "Bash(npx ai-devkit@latest memory search --query \"backend patterns Go service repository\")",
+      "Bash(npx ai-devkit@latest memory search --query \"highlight implementation plan patterns\")",
+      "Bash(npx ai-devkit@latest memory search --query \"Go service repository handler patterns\")",
+      "Bash(curl *)",
+      "Bash(pkill -f esport-score-tracker)",
+      "Bash(./esport-score-tracker)",
+      "Bash(python3 -m json.tool)",
+      "Bash(npx ai-devkit@latest memory search --query \"highlight testing strategy patterns\")",
+      "Bash(npx ai-devkit@latest memory search --query \"Go unit test patterns repository\")",
+      "Bash(go tool *)"
     ]
   }
 }

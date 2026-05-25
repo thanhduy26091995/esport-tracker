@@ -36,8 +36,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	fundRepo := repository.NewFundRepository(db)
 	settlementRepo := repository.NewSettlementRepository(db)
 	tournamentRepo := repository.NewTournamentRepository(db)
+	highlightRepo := repository.NewHighlightRepository(db)
 
 	// Initialize services
+	highlightService := service.NewHighlightService(highlightRepo, userRepo)
 	configService := service.NewConfigService(configRepo)
 	userService := service.NewUserService(userRepo, configService)
 	fundService := service.NewFundService(fundRepo)
@@ -52,6 +54,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	}
 
 	// Initialize handlers
+	highlightHandler := NewHighlightHandler(highlightService)
 	userHandler := NewUserHandler(userService)
 	matchHandler := NewMatchHandler(matchService)
 	configHandler := NewConfigHandler(configService, tierService)
@@ -116,6 +119,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 		// User settlement history
 		v1.GET("/users/:id/settlements", settlementHandler.GetByDebtorID) // GET /api/v1/users/:id/settlements
+
+		// Highlights route
+		v1.GET("/highlights", highlightHandler.GetHighlights)
 
 		// Tournament routes
 		tournaments := v1.Group("/tournaments")

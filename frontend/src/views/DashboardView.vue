@@ -134,6 +134,10 @@
         </div>
 
       </div>
+
+      <!-- Highlight Feed -->
+      <HighlightFeedPanel class="hfp-panel" />
+
     </div>
 
     <MatchForm
@@ -154,6 +158,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import { Trophy, User, Plus, Minus, Warning, Wallet, TrendCharts, Document, Loading } from '@element-plus/icons-vue'
+import { useHighlightStore } from '@/stores/highlightStore'
 import { useUserStore } from '@/stores/userStore'
 import { useMatchStore } from '@/stores/matchStore'
 import { useSettlementStore } from '@/stores/settlementStore'
@@ -163,11 +168,13 @@ import StatCard from '@/components/shared/StatCard.vue'
 import UserTable from '@/components/user/UserTable.vue'
 import RecentMatches from '@/components/match/RecentMatches.vue'
 import MatchForm from '@/components/match/MatchForm.vue'
+import HighlightFeedPanel from '@/components/HighlightFeedPanel.vue'
 import { formatVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import type { CreateMatchRequest } from '@/types/match'
 import { sortByStrategy } from '@/utils/sort'
 
+const highlightStore = useHighlightStore()
 const userStore = useUserStore()
 const matchStore = useMatchStore()
 const settlementStore = useSettlementStore()
@@ -182,7 +189,8 @@ onMounted(async () => {
     userStore.fetchUsers(),
     matchStore.fetchMatches(),
     settlementStore.fetchSettlements(), fundStore.fetchStats(),
-    fundStore.fetchTransactions(), configStore.fetchConfigs()
+    fundStore.fetchTransactions(), configStore.fetchConfigs(),
+    highlightStore.fetchHighlights()
   ])
 })
 
@@ -218,6 +226,10 @@ const handleRefreshUsers = async () => {
 }
 @media (min-width: 1024px) {
   .stats-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.hfp-panel {
+  margin-top: 20px;
 }
 
 .content-grid {
