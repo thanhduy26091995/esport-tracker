@@ -93,9 +93,16 @@ function rankClass(rank: number) {
 .fc-row:hover { background: var(--surface-page); }
 
 .fc-col-rank { display: flex; align-items: center; }
-.fc-col-name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-col-name { font-size: 13px; font-weight: 600; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fc-col-points { font-size: 12px; font-weight: 700; text-align: right; }
 .fc-col-money  { font-size: 12px; font-weight: 700; text-align: right; }
+
+@media (max-width: 480px) {
+  .fc-header, .fc-row {
+    grid-template-columns: 36px 1fr 100px;
+  }
+  .fc-col-points { display: none; }
+}
 
 .fc-rank-badge {
   display: inline-flex; align-items: center; justify-content: center;

@@ -54,7 +54,7 @@
         </el-table-column>
 
         <!-- Value / Total Paid -->
-        <el-table-column v-if="showValue" :label="showTotalPaid ? t('users.colTotalPaid') : t('users.colValue')" width="150" align="right">
+        <el-table-column v-if="showValue" :label="showTotalPaid ? t('users.colTotalPaid') : t('users.colValue')" width="150" align="right" class-name="lb-value-col" label-class-name="lb-value-col">
           <template #default="{ row }">
             <div class="vnd-cell">
               <span class="vnd-value" :class="{ 'vnd-value--paid': showTotalPaid }">{{ getRightValue(row) }}</span>
@@ -261,6 +261,12 @@ function getTotalDebtPoints(user: User): number {
 .lb-table {
   --el-table-border-color: var(--border-subtle);
   --el-table-row-hover-bg-color: var(--surface-page);
+}
+
+@media (max-width: 480px) {
+  :deep(.lb-value-col) {
+    display: none;
+  }
 }
 
 .lb-threshold {

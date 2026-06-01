@@ -21,8 +21,8 @@
 
     <div v-else class="user-table-wrap">
       <el-table :data="filteredUsers" stripe style="width:100%" class="user-table" v-loading="loading">
-      <el-table-column type="index" label="#" width="55" />
-      <el-table-column prop="name" :label="t('users.colPlayer')" min-width="180">
+      <el-table-column v-if="!isMobile" type="index" label="#" width="55" />
+      <el-table-column prop="name" :label="t('users.colPlayer')" min-width="140">
         <template #default="{ row }">
           <div class="player-cell">
             <div class="player-avatar">{{ row.name.charAt(0).toUpperCase() }}</div>
@@ -53,7 +53,7 @@
           </template>
         </template>
       </el-table-column>
-      <el-table-column :label="showTotalPaid ? t('users.colTotalPaid') : t('users.colValue')" width="170">
+      <el-table-column v-if="!isMobile" :label="showTotalPaid ? t('users.colTotalPaid') : t('users.colValue')" width="170">
         <template #default="{ row }">
           <template v-if="showTotalPaid && row.total_paid != null">
             <div class="total-paid-cell">
@@ -66,7 +66,7 @@
           </template>
         </template>
       </el-table-column>
-      <el-table-column :label="t('users.colJoined')" width="130">
+      <el-table-column v-if="!isMobile" :label="t('users.colJoined')" width="130">
         <template #default="{ row }">
           <span class="date-value">{{ formatDate(row.created_at) }}</span>
         </template>
@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import { Edit, Delete, Search, Warning } from '@element-plus/icons-vue'
@@ -102,6 +102,12 @@ import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 interface Props { users: UserWithStats[]; loading?: boolean; conversionRate?: number; debtThreshold?: number; showTotalPaid?: boolean; showFilterBar?: boolean; showActions?: boolean; minMatchesForTier?: number }
 const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6, showTotalPaid: false, showFilterBar: true, showActions: true, minMatchesForTier: 5 })
 const emit = defineEmits<{ edit: [user: UserWithStats]; delete: [user: UserWithStats]; triggerSettlement: [user: UserWithStats] }>()
+
+const windowWidth = ref(window.innerWidth)
+const isMobile = computed(() => windowWidth.value <= 640)
+const onResize = () => { windowWidth.value = window.innerWidth }
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
 
 const searchQuery = ref(''); const scoreFilter = ref('')
 
@@ -189,7 +195,7 @@ const filteredUsers = computed(() => {
   }
 
   .user-table {
-    min-width: 680px;
+    min-width: unset;
   }
 }
 </style>
