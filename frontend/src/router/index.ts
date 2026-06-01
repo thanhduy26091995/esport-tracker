@@ -9,6 +9,27 @@ const router = createRouter({
       component: () => import('../views/DashboardView.vue')
     },
     {
+      path: '/world-cup',
+      name: 'wc-schedule',
+      component: () => import('../views/WcScheduleView.vue')
+    },
+    {
+      path: '/world-cup/login',
+      name: 'wc-login',
+      component: () => import('../views/WcLoginView.vue')
+    },
+    {
+      path: '/world-cup/register',
+      name: 'wc-register',
+      component: () => import('../views/WcRegisterView.vue')
+    },
+    {
+      path: '/world-cup/bet',
+      name: 'wc-bet',
+      component: () => import('../views/WcBettingView.vue'),
+      meta: { requiresWcAuth: true }
+    },
+    {
       path: '/users',
       name: 'users',
       component: () => import('../views/UsersView.vue')
@@ -49,6 +70,13 @@ const router = createRouter({
       component: () => import('../views/TournamentDetailView.vue')
     }
   ]
+})
+
+router.beforeEach((to) => {
+  if (to.meta.requiresWcAuth) {
+    const token = localStorage.getItem('wc_token')
+    if (!token) return { name: 'wc-login' }
+  }
 })
 
 export default router

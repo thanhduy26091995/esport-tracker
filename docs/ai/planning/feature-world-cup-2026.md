@@ -18,15 +18,15 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
 
 ### Phase 1: Database & Models
 
-- [ ] 1.1 Write migration `XXXX_create_wc_tables.sql` — create `user_credentials`, `wc_matches`, `wc_score_odds`, `wc_wallets`, `wc_wallet_logs`, `wc_bets`, `wc_settlements`, `wc_settlement_details` with indexes and constraints; `wc_wallets.balance` has no `CHECK (balance >= 0)`
-- [ ] 1.2 Create `internal/model/wc_match.go` — `WcMatch`, `WcScoreOdds`, `WcWallet`, `WcBet`, `WcSettlement`, `WcSettlementDetail` structs + status/stage/bet-type/direction constants
-- [ ] 1.3 Create `internal/model/wc_auth.go` — `UserCredentials` struct
-- [ ] 1.4 Write seed migration `XXXX_seed_wc_admin.sql` — insert one `user_credentials` row with `is_admin = true` for the designated first admin (references existing `users.id`)
-- [ ] 1.5 Run migrations against local dev DB, verify schema
+- [x] 1.1 Write migration — all 9 WC tables added to GORM AutoMigrate in `database.go`; seed `wc_config` row `is_enabled=false` in `seedWcConfig()`
+- [x] 1.2 Create `internal/model/wc_match.go` — `WcMatch`, `WcScoreOdds`, `WcWallet`, `WcWalletLog`, `WcBet`, `WcSettlement`, `WcSettlementDetail` + all constants + `WcMatchWithOdds`, `WcLeaderboardEntry` response types
+- [x] 1.3 Create `internal/model/wc_user.go` — `WcUser`, `WcConfig` structs (standalone, no FK to existing users)
+- [x] 1.4 First admin seeded via `WC_ADMIN_NAME` + `WC_ADMIN_PASSWORD` env vars in `seedWcConfig()`
+- [x] 1.5 `go build ./...` passes — schema compiles cleanly
 
 ### Phase 2: Backend — Repository
 
-- [ ] 2.1 Create `internal/repository/wc_repository.go`:
+- [x] 2.1 Create `internal/repository/wc_repository.go`:
   - `UpsertMatches(matches []WcMatch)` — bulk upsert on `external_id`
   - `ListMatches(filter MatchFilter)` — filter by status/stage/group/date
   - `GetMatch(id)` — single match with `score_odds` slice preloaded
@@ -51,34 +51,32 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
   - `ListBets(userID)` — bet history with match join
   - `ListBetsForMatch(matchID)` — all bets on one match (for settlement)
   - `UpdateBetResult(tx, betID, result, payout)` — within transaction
-  - `GetLeaderboard()` — all registered users with `SUM(COALESCE(payout,0) - stake)` from all settled `wc_bets` as `net_profit`, sorted DESC; covers entire tournament regardless of tất toán giải resets; admin top-ups/deductions do not affect ranking
+  - `GetLeaderboard()` — all registered users with `SUM(payout - stake) WHERE result IS NOT NULL` from settled `wc_bets` only as `net_profit`, sorted DESC; pending bets excluded; covers entire tournament regardless of tất toán giải resets
 
 ### Phase 3: Backend — Auth (Register / Login / Middleware)
 
-- [ ] 3.1 Create `internal/repository/wc_auth_repository.go`:
-  - `CreateCredentials(userID, passwordHash)` — insert into `user_credentials`
-  - `GetCredentialsByUserID(userID)` — fetch for login check
-  - `GetUnregisteredUsers()` — users not yet in `user_credentials` (for register dropdown)
-  - `SetAdminRole(userID, isAdmin bool)` — update `is_admin` flag
-- [ ] 3.2 Create `internal/service/wc_auth_service.go`:
-  - `Register(userID, password)` — check user exists + not already registered, bcrypt hash, insert
-  - `Login(userID, password)` — lookup credentials, bcrypt compare, return signed JWT
-  - JWT claims: `{ user_id, is_admin, exp }` signed with `WC_JWT_SECRET` env var, 7-day expiry
-- [ ] 3.3 Create `internal/middleware/wc_auth.go` — `WcJWTMiddleware`: parse Bearer token, set `userID`/`isAdmin` in Gin context; return 401 if missing/invalid
-- [ ] 3.4 Create `internal/middleware/wc_admin.go` — `WcAdminMiddleware`: read `isAdmin` from context, return 403 if false
-- [ ] 3.5 Create `internal/api/wc_auth_handler.go` — `Register`, `Login`, `ResetPassword`, and `SetUserRole` handlers
-- [ ] 3.6 Add `WC_JWT_SECRET` to backend `.env`
+- [x] 3.1 Create `internal/repository/wc_user_repository.go`:
+  - `CreateUser(name, passwordHash)` — insert into `wc_users`; enforce unique name at app level
+  - `GetUserByName(name)` — fetch for login check
+  - `GetUserByID(id)` — fetch for JWT validation
+  - `SetAdminRole(wcUserID, isAdmin bool)` — update `is_admin` flag
+- [x] 3.2 Create `internal/service/wc_auth_service.go`
+- [x] 3.3 Create `internal/middleware/wc_auth.go` — `WcJWTMiddleware`
+- [x] 3.4 Create `internal/middleware/wc_admin.go` — `WcAdminMiddleware`
+- [x] 3.4b Create `internal/middleware/wc_feature.go` — `WcFeatureMiddleware`
+- [x] 3.5 Create `internal/api/wc_auth_handler.go` — `Register`, `Login`, `ResetPassword` handlers
+- [x] 3.6 Add `WC_JWT_SECRET`, `WC_ADMIN_NAME`, `WC_ADMIN_PASSWORD`, `FOOTBALL_DATA_API_KEY` to `.env`
 
 ### Phase 4: Backend — Football API Client
 
-- [ ] 4.1 Create `internal/service/wc_football_client.go`:
+- [x] 4.1 Create `internal/service/wc_football_client.go`:
   - Config: `FOOTBALL_DATA_API_KEY` env var, base URL `https://api.football-data.org/v4`
   - `FetchWCMatches()` — `GET /competitions/WC/matches` → parse into `[]WcMatch`
   - Map API response fields: `id` → `external_id`, `homeTeam.tla` → `home_team_code`, `utcDate` → `match_date`, `score.fullTime` → `home_score`/`away_score`, `status` → `status`, `stage` → `stage`, `group` → `group_name`
 
 ### Phase 5: Backend — Service & Settlement
 
-- [ ] 5.1 Create `internal/service/wc_service.go`:
+- [x] 5.1 Create `internal/service/wc_service.go`:
   - `SyncMatches()` — call client, upsert into DB, set `bets_locked_at = match_date` for each
   - `PlaceBet(userID, req)` — validate: match not locked, no duplicate; deduct wallet + insert bet in one transaction; **no balance check** (negative balance allowed)
   - `SettleMatch(matchID)` — load match score, load all unsettled bets, evaluate each → update bet result + wallet in one transaction; mark `settled_at`; idempotent (re-settle reverses then re-applies)
@@ -86,56 +84,58 @@ description: Phased implementation plan for the WC2026 tracker + betting feature
   - `PreviewSettlement(pointRate)` — read all wallets, compute direction + amount for each user; returns slice without writing to DB
   - `CreateSettlement(adminID, name, pointRate, note)` — snapshot wallets → insert settlement + details → reset all balances to 0; single transaction
 
-- [ ] 5.2 Settlement logic helpers (in `wc_service.go`):
+- [x] 5.2 Settlement logic helpers (in `wc_service.go`):
   - `evaluateHandicapBet(bet, homeScore, awayScore) (result, payout)` — adjusted score, push detection
   - `evaluateExactScoreBet(bet, homeScore, awayScore) (result, payout)` — exact match → win; any difference → lose
 
 ### Phase 6: Backend — Handler & Routes
 
-- [ ] 6.1 Create `internal/api/wc_handler.go` — handlers for all WC endpoints including settlement preview, create, list, detail, and mark-done
-- [ ] 6.2 Register `/api/v1/wc/*` routes in `router.go`:
-  - Public group (no middleware): `/auth/register`, `/auth/login`, `/auth/reset-password`, `/users`, `GET /matches*`, `GET /leaderboard`
-  - JWT group (`WcJWTMiddleware`): `GET /wallet`, `POST /bets`, `GET /bets`
-  - Admin group (`WcJWTMiddleware` + `WcAdminMiddleware`): all `/admin/*` routes including `/admin/settlements*`
+- [x] 6.1 Create `internal/api/wc_handler.go` — all WC handlers
+- [x] 6.2 Register `/api/v1/wc/*` routes in `router.go`:
+  - Config-exempt group (no feature check): `GET /admin/config`, `PUT /admin/config` (always accessible)
+  - All remaining routes wrapped in `WcFeatureMiddleware` (returns 503 when disabled)
+  - Public group (feature check + no auth): `/auth/register`, `/auth/login`, `/auth/reset-password`, `GET /matches*`, `GET /leaderboard`
+  - JWT group (`WcFeatureMiddleware` + `WcJWTMiddleware`): `GET /wallet`, `POST /bets`, `GET /bets`
+  - Admin group (`WcFeatureMiddleware` + `WcJWTMiddleware` + `WcAdminMiddleware`): all `/admin/*` routes including `/admin/matches/:id/lock`, `/admin/settlements*`
 - [ ] 6.3 Smoke test all endpoints via curl (register, login, sync, view matches, place bet, settle, leaderboard)
 
 ### Phase 7: Frontend — Types, Service, Store
 
-- [ ] 7.1 Create `src/types/wc.ts` — `WcMatch`, `WcBet`, `WcWallet`, `WcLeaderboardEntry`, `WcAuthUser`, filter/stage enums
-- [ ] 7.2 Create `src/stores/wcAuthStore.ts` — Pinia store: `token` (localStorage), `currentUser` (id, name, isAdmin); `login`, `register`, `logout` actions; axios interceptor that attaches `Authorization: Bearer <token>` header to all `/api/v1/wc/*` requests
-- [ ] 7.3 Create `src/services/wcAuthService.ts` — `register(userID, password)`, `login(userID, password)`, `getUnregisteredUsers()` API calls
-- [ ] 7.4 Create `src/services/wcService.ts` — all non-auth WC API calls
-- [ ] 7.5 Create `src/stores/wcStore.ts` — Pinia store: `matches`, `wallet`, `bets`, `leaderboard` + actions
+- [x] 7.1 Create `src/types/wc.ts` — all WC types: `WcMatch`, `WcBet`, `WcWallet`, `WcLeaderboardEntry`, `WcAuthUser`, filter/stage enums
+- [x] 7.2 Create `src/stores/wcAuthStore.ts` — Pinia store: `token` (localStorage), `user` (id, name, isAdmin); `login`, `register`, `logout`, `resetPassword` actions
+- [x] 7.2b Create `src/services/wcApi.ts` — separate axios instance for WC; attaches `Authorization: Bearer <token>` from localStorage; handles 401/503
+- [x] 7.3 Create `src/services/wcAuthService.ts` — `register`, `login`, `resetPassword` calls via main `api` (no auth needed)
+- [x] 7.4 Create `src/services/wcService.ts` — all non-auth WC API calls via `wcApi`
+- [x] 7.5 Create `src/stores/wcStore.ts` — Pinia store: `matches`, `wallet`, `bets`, `leaderboard`, `allUsers`, `allWallets`, `settlements` + all actions
 
 ### Phase 8: Frontend — Auth Pages
 
-- [ ] 8.1 Create `src/views/WcLoginView.vue` — login form: user dropdown (all registered users by name) + password input; on success store JWT in `wcAuthStore`, redirect to `/world-cup/bet`
-- [ ] 8.2 Create `src/views/WcRegisterView.vue` — register form: dropdown of unregistered active users + password + confirm password; on success auto-login + redirect to `/world-cup/bet`
-- [ ] 8.3 Add route guard to `/world-cup/bet` and all `/world-cup/*` sub-routes (except `/world-cup` schedule and `/world-cup/login`, `/world-cup/register`): redirect to `/world-cup/login` if no valid token
+- [x] 8.1 Create `src/views/WcLoginView.vue` — login form: name + password; on success store JWT in `wcAuthStore`, redirect to `/world-cup/bet`; includes password reset panel
+- [x] 8.2 Create `src/views/WcRegisterView.vue` — register form: free-text name + password + confirm password; on success auto-login + redirect to `/world-cup/bet`
+- [x] 8.3 Add route guard to `/world-cup/bet` via `router.beforeEach`: redirect to `/world-cup/login` if no token in localStorage
 
 ### Phase 9: Frontend — Schedule Page
 
-- [ ] 9.1 Create `src/components/wc/WcGroupFilter.vue` — pill filter bar: All / Group A–L / R32 / R16 / QF / SF / Final
-- [ ] 9.2 Create `src/components/wc/WcMatchCard.vue` — match row: flag + team name, score (or date/time if upcoming), status badge (Sắp diễn ra / Trực tiếp / Kết thúc)
-- [ ] 9.3 Create `src/views/WcScheduleView.vue` — full schedule with filter, grouped by date heading (public, no auth needed)
-- [ ] 9.4 Add `/world-cup` route in `router.ts`; add nav link in sidebar
+- [x] 9.1 Create `src/components/wc/WcGroupFilter.vue` — pill filter bar: All / Group A–L / R32 / R16 / QF / SF / Final
+- [x] 9.2 Create `src/components/wc/WcMatchCard.vue` — match row: emoji flags + team name, score (or date/time if upcoming), status badge; handicap info; live pulse animation; locked/settled badges
+- [x] 9.3 Create `src/views/WcScheduleView.vue` — full schedule with filter, grouped by date heading (public, no auth needed)
+- [x] 9.4 Add `/world-cup` route in `router.ts`; add "World Cup 2026" nav link in sidebar using `Promotion` icon
 
 ### Phase 10: Frontend — Betting Page
 
-- [ ] 10.1 Create `src/components/wc/WcBetForm.vue` — modal with two tabs:
-  - **Handicap tab**: two side buttons (Home / Away), each independently togglable; shows `team -X.X @ odds` per side, stake input + live payout preview per selected side
-  - **Tỉ số tab**: grid of score cards (each shows `A:B × odds`), click to select **multiple** cards; each selected card expands with its own stake input + payout preview; "Đặt cược" button submits all selected bets in sequence; disabled if no score options configured for this match
-- [ ] 10.2 Create `src/components/wc/WcBetHistoryList.vue` — table with match name, type, stake, odds, result badge, payout
-- [ ] 10.2b Create `src/components/wc/WcMatchBetList.vue` — match detail panel showing all bets from all users on that match (always visible); shows name, bet type, choice/scoreline, stake, result badge
-- [ ] 10.3 Create `src/components/wc/WcLeaderboard.vue` — rank table: rank, name, net_profit (+/- points), wins/total_bets; sorted by net_profit DESC
-- [ ] 10.4 Create `src/views/WcBettingView.vue` — wallet balance header + current user name, tabbed: Open Bets | Bet History | Leaderboard; match list showing only bettable matches; show admin panel section only when `wcAuthStore.isAdmin = true`
-- [ ] 10.5 Admin panel — user management section: table of all registered users with name, is_admin badge, promote/demote toggle; wallet balance + top-up form (delta + optional note) + link to top-up log per user
-- [ ] 10.7 Create `src/components/wc/WcSettlementPreview.vue` — admin settlement panel:
-  - `point_rate` input with live recalculation of all amounts
-  - Table: Tên | Balance | Hướng (Thu/Chi/Hoà badge) | Số tiền
-  - "Tạo tất toán" button → opens confirm dialog with settlement name + note inputs → calls `POST /admin/settlements`
-- [ ] 10.8 Create `src/components/wc/WcSettlementHistory.vue` — list of past settlements; click → expand detail table with per-user status + "Đánh dấu đã xong" button per row
-- [ ] 10.6 Add `/world-cup/bet` route
+- [x] 10.1 Create `src/components/wc/WcBetForm.vue` — modal with two tabs:
+  - **Kèo chấp tab**: two side buttons (Home / Away), each togglable; shows `team -X.X @ odds` per side, stake input + live payout preview; "Đặt cược" button submits
+  - **Tỉ số tab**: grid of score cards (each shows `A:B × odds`), click to select **multiple** cards; each selected card expands with its own stake input + payout preview; "Đặt cược" button submits all selected bets in sequence
+- [x] 10.2 Create `src/components/wc/WcBetHistoryList.vue` — list with match name, type, bet choice, stake × odds, result badge, payout
+- [x] 10.2b Create `src/components/wc/WcMatchBetList.vue` — match detail panel showing all bets from all users; shows name, bet type, choice/scoreline, stake, result badge
+- [x] 10.3 Create `src/components/wc/WcLeaderboard.vue` — rank list: medal/rank, name, wins/total, net_profit (+/- points); gold/silver/bronze medal display
+- [x] 10.4 Create `src/views/WcBettingView.vue` — wallet balance header + current user name + logout; tabs: Đặt cược | Cược đang chờ | Lịch sử | Bảng XH | Quản trị (admin only)
+- [x] 10.5 Admin panel (`WcAdminPanel.vue`) — user management: list with is_admin badge, promote/demote toggle, wallet balance + top-up dialog (delta + note)
+- [x] 10.5b Admin panel — feature flag toggle: on/off switch at top of admin panel calling `PUT /admin/config`
+- [x] 10.5c Admin panel — match management: sync button, lock/settle/score-odds buttons per match; score odds dialog with add/update/delete
+- [x] 10.7 Create `src/components/wc/WcSettlementPreview.vue` — `point_rate` input; preview table: Tên | Balance | Hướng badge | Số tiền; "Tạo tất toán" → confirm dialog with name + note
+- [x] 10.8 Create `src/components/wc/WcSettlementHistory.vue` — list of settlements; click → expand detail table with per-user status + "Đánh dấu đã xong" button
+- [x] 10.6 Add `/world-cup/bet` route (with `meta: { requiresWcAuth: true }`)
 
 ### Phase 11: Testing & Polish
 

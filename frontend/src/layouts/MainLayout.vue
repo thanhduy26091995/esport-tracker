@@ -102,7 +102,7 @@
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Menu, Trophy, HomeFilled, UserFilled, TrendCharts, DocumentCopy, Wallet, Setting, Grid } from '@element-plus/icons-vue'
+import { Menu, Trophy, HomeFilled, UserFilled, TrendCharts, DocumentCopy, Wallet, Setting, Grid, Promotion } from '@element-plus/icons-vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 
 const { t } = useI18n()
@@ -116,6 +116,7 @@ const navigation = [
   { navKey: 'nav.tournaments', href: '/tournaments', icon: Grid },
   { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
   { navKey: 'nav.fund', href: '/fund', icon: Wallet },
+  { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion },
   { navKey: 'nav.settings', href: '/settings', icon: Setting },
 ]
 

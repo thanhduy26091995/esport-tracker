@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/duyb/esport-score-tracker/internal/model"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -41,15 +42,55 @@ func Connect() (*gorm.DB, error) {
 		&model.Tournament{},
 		&model.TournamentParticipant{},
 		&model.TournamentMatch{},
+		// WC2026 models
+		&model.WcUser{},
+		&model.WcConfig{},
+		&model.WcMatch{},
+		&model.WcScoreOdds{},
+		&model.WcWallet{},
+		&model.WcWalletLog{},
+		&model.WcBet{},
+		&model.WcSettlement{},
+		&model.WcSettlementDetail{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	// Seed initial config values if not exists
 	seedConfig(db)
+	seedWcConfig(db)
 
 	log.Println("✅ Database connected successfully")
 	return db, nil
+}
+
+func seedWcConfig(db *gorm.DB) {
+	// Ensure single wc_config row exists (is_enabled = false by default)
+	var cfg model.WcConfig
+	if err := db.First(&cfg, 1).Error; err != nil {
+		db.Create(&model.WcConfig{ID: 1, IsEnabled: false})
+		log.Println("Seeded wc_config: is_enabled = false")
+	}
+
+	// Seed first WC admin from env vars (optional — skip if not set)
+	adminName := os.Getenv("WC_ADMIN_NAME")
+	adminPassword := os.Getenv("WC_ADMIN_PASSWORD")
+	if adminName != "" && adminPassword != "" {
+		var existing model.WcUser
+		if err := db.Where("name = ?", adminName).First(&existing).Error; err != nil {
+			hash, hashErr := bcrypt.GenerateFromPassword([]byte(adminPassword), 12)
+			if hashErr != nil {
+				log.Printf("⚠️  Failed to hash WC admin password: %v", hashErr)
+				return
+			}
+			db.Create(&model.WcUser{
+				Name:         adminName,
+				PasswordHash: string(hash),
+				IsAdmin:      true,
+			})
+			log.Printf("Seeded WC admin user: %s", adminName)
+		}
+	}
 }
 
 func seedConfig(db *gorm.DB) {

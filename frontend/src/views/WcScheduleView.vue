@@ -1,0 +1,137 @@
+<template>
+  <div class="page-wrapper">
+    <div class="page-container">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1 class="page-title wc-page-title">
+            🏆 World Cup 2026
+          </h1>
+          <p class="page-subtitle">{{ t('wc.schedule') }}</p>
+        </div>
+        <div class="flex gap-2">
+          <router-link to="/world-cup/bet">
+            <el-button type="success">{{ t('wc.betting') }}</el-button>
+          </router-link>
+          <router-link to="/world-cup/login" v-if="!authStore.isLoggedIn">
+            <el-button>{{ t('wc.login') }}</el-button>
+          </router-link>
+        </div>
+      </div>
+
+      <WcGroupFilter v-model="selectedFilter" />
+
+      <div v-if="store.loading" class="wc-loading">
+        <el-skeleton :rows="5" animated />
+      </div>
+
+      <template v-else-if="groupedMatches.length > 0">
+        <div v-for="group in groupedMatches" :key="group.date" class="wc-date-group">
+          <div class="wc-date-heading">{{ group.dateLabel }}</div>
+          <div class="wc-match-list">
+            <WcMatchCard
+              v-for="match in group.matches"
+              :key="match.id"
+              :match="match"
+            />
+          </div>
+        </div>
+      </template>
+
+      <div v-else class="empty-state">
+        <div class="empty-state-icon">🏟️</div>
+        <div class="empty-state-title">{{ t('wc.noMatches') }}</div>
+        <div class="empty-state-desc">{{ t('common.empty') }}</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useWcStore } from '@/stores/wcStore'
+import { useWcAuthStore } from '@/stores/wcAuthStore'
+import WcGroupFilter from '@/components/wc/WcGroupFilter.vue'
+import WcMatchCard from '@/components/wc/WcMatchCard.vue'
+import type { WcMatch } from '@/types/wc'
+
+const { t } = useI18n()
+const store = useWcStore()
+const authStore = useWcAuthStore()
+
+const selectedFilter = ref('')
+
+const filteredMatches = computed(() => {
+  if (!selectedFilter.value) return store.matches
+  // e.g. 'group_A' → stage=group, group=A; 'r16' → stage=r16
+  if (selectedFilter.value.startsWith('group_')) {
+    const g = selectedFilter.value.replace('group_', 'Group ')
+    return store.matches.filter(m => m.stage === 'group' && m.group_name === g)
+  }
+  return store.matches.filter(m => m.stage === selectedFilter.value)
+})
+
+interface DateGroup { date: string; dateLabel: string; matches: WcMatch[] }
+
+const groupedMatches = computed((): DateGroup[] => {
+  const map = new Map<string, WcMatch[]>()
+  for (const m of filteredMatches.value) {
+    const d = m.match_date.slice(0, 10)
+    if (!map.has(d)) map.set(d, [])
+    map.get(d)!.push(m)
+  }
+  const groups: DateGroup[] = []
+  for (const [date, matches] of map) {
+    const dt = new Date(date)
+    const dateLabel = dt.toLocaleDateString('vi-VN', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    })
+    groups.push({ date, dateLabel, matches })
+  }
+  return groups.sort((a, b) => a.date.localeCompare(b.date))
+})
+
+watch(selectedFilter, () => {
+  const filter: Record<string, string> = {}
+  if (selectedFilter.value.startsWith('group_')) {
+    filter.stage = 'group'
+    filter.group = selectedFilter.value.replace('group_', 'Group ')
+  } else if (selectedFilter.value) {
+    filter.stage = selectedFilter.value
+  }
+  store.fetchMatches(filter)
+})
+
+onMounted(() => store.fetchMatches())
+</script>
+
+<style scoped>
+.wc-page-title {
+  color: #16a34a;
+}
+
+.wc-loading {
+  margin-top: 16px;
+}
+
+.wc-date-group {
+  margin-bottom: 24px;
+}
+
+.wc-date-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 10px;
+}
+
+.wc-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+</style>

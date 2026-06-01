@@ -30,14 +30,14 @@ graph TD
 
 ## Data Models
 
-### `user_credentials`
+### `wc_users`
 
-Stores WC-specific credentials. Completely separate from existing `users` table — no existing rows or columns are modified.
+Standalone WC user table — **completely independent of the existing `users` / FC25 system**. No foreign keys to any existing table. No changes to existing tables.
 
 ```sql
-CREATE TABLE user_credentials (
+CREATE TABLE wc_users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       UUID NOT NULL UNIQUE REFERENCES users(id),
+  name          VARCHAR(100) NOT NULL UNIQUE,    -- display name chosen at registration
   password_hash VARCHAR(255) NOT NULL,           -- bcrypt hash
   is_admin      BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -45,33 +45,33 @@ CREATE TABLE user_credentials (
 );
 ```
 
-- `user_id` references the existing `users` table (read-only — no write to `users`)
-- A user registers by picking their name from the active users list and setting a password
-- Only one credential row per user (`UNIQUE user_id`)
+- Any person can register with any display name + password — no link to FC25 player list
+- `name` is unique (case-insensitive check enforced at app level)
 - `is_admin = true` for the first admin is seeded via a migration script; after that, admins can promote others via `PUT /admin/users/:id/role`
 
 **Auth flow:**
 ```
 Register: POST /api/v1/wc/auth/register
-  body: { "user_id": "<uuid>", "password": "..." }
-  → bcrypt hash password → INSERT user_credentials
-  → INSERT wc_wallets (user_id, balance=0)   ← wallet created here, not on first bet
-  → return JWT { user_id, is_admin, exp }
+  body: { "name": "Dennis", "password": "..." }
+  → check name not already taken
+  → bcrypt hash password → INSERT wc_users
+  → INSERT wc_wallets (wc_user_id, balance=0)   ← wallet created here, not on first bet
+  → return JWT { wc_user_id, name, is_admin, exp }
 
 Login: POST /api/v1/wc/auth/login
-  body: { "user_id": "<uuid>", "password": "..." }
-  → lookup user_credentials by user_id → bcrypt compare
-  → return JWT { user_id, is_admin, exp }
+  body: { "name": "Dennis", "password": "..." }
+  → lookup wc_users by name → bcrypt compare
+  → return JWT { wc_user_id, name, is_admin, exp }
 
 Reset password: POST /api/v1/wc/auth/reset-password
-  body: { "user_id": "<uuid>" }
-  → verify user exists in user_credentials
+  body: { "name": "Dennis" }
+  → verify name exists in wc_users
   → reset password to "{name}_@123"  (e.g. "Dennis_@123")
   → return 200; user logs in with new temp password
   (no old-password check — simple internal tool flow)
 ```
 
-JWT is signed with `WC_JWT_SECRET` env var, expiry 7 days. All `/api/v1/wc/*` betting and admin endpoints require `Authorization: Bearer <token>` (except `/auth/register` and `/auth/login`, and `GET /matches*` which are public).
+JWT is signed with `WC_JWT_SECRET` env var, expiry 7 days. All `/api/v1/wc/*` betting and admin endpoints require `Authorization: Bearer <token>` (except `/auth/register`, `/auth/login`, `/auth/reset-password`, and `GET /matches*` which are public).
 
 ---
 
@@ -141,11 +141,11 @@ Starts at 0 for every user. No lower bound — balance goes negative when the us
 
 ```sql
 CREATE TABLE wc_wallets (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    UUID NOT NULL UNIQUE REFERENCES users(id),
-  balance    INT NOT NULL DEFAULT 0,   -- can be negative; no CHECK constraint
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wc_user_id   UUID NOT NULL UNIQUE REFERENCES wc_users(id),
+  balance      INT NOT NULL DEFAULT 0,   -- can be negative; no CHECK constraint
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
@@ -153,7 +153,7 @@ CREATE TABLE wc_wallets (
 ```sql
 CREATE TABLE wc_bets (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id          UUID NOT NULL REFERENCES users(id),
+  wc_user_id       UUID NOT NULL REFERENCES wc_users(id),
   match_id         UUID NOT NULL REFERENCES wc_matches(id),
   bet_type              VARCHAR(15) NOT NULL,  -- 'handicap' | 'exact_score'
 
@@ -176,8 +176,8 @@ CREATE TABLE wc_bets (
   -- Handicap: can't bet the same side twice on the same match
   -- Exact score: can't bet the exact same scoreline twice on the same match
   -- (but user CAN place handicap + multiple exact score bets on the same match)
-  UNIQUE (user_id, match_id, bet_type, bet_choice),                                  -- handicap dedup
-  UNIQUE (user_id, match_id, predicted_home_score, predicted_away_score)             -- exact score dedup
+  UNIQUE (wc_user_id, match_id, bet_type, bet_choice),                               -- handicap dedup
+  UNIQUE (wc_user_id, match_id, predicted_home_score, predicted_away_score)          -- exact score dedup
 );
 ```
 
@@ -190,7 +190,7 @@ CREATE TABLE wc_settlements (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        VARCHAR(100) NOT NULL,    -- e.g. "World Cup 2026 - Tất toán cuối giải"
   point_rate  NUMERIC(10,2) NOT NULL,   -- VND per point (e.g. 1000 = 1 point → 1,000 VND)
-  settled_by  UUID NOT NULL REFERENCES users(id),
+  settled_by  UUID NOT NULL REFERENCES wc_users(id),
   note        VARCHAR(255),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -204,7 +204,7 @@ One row per user per settlement event. Snapshot of balance at settlement time; n
 CREATE TABLE wc_settlement_details (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   settlement_id  UUID NOT NULL REFERENCES wc_settlements(id) ON DELETE CASCADE,
-  user_id        UUID NOT NULL REFERENCES users(id),
+  wc_user_id     UUID NOT NULL REFERENCES wc_users(id),
   final_balance  INT NOT NULL,           -- wallet balance at settlement time (= net P&L, can be negative)
   amount         NUMERIC(12,2) NOT NULL, -- abs(final_balance) * point_rate
   direction      VARCHAR(10) NOT NULL,   -- 'pay' (admin pays user) | 'collect' (admin collects from user) | 'even'
@@ -212,7 +212,7 @@ CREATE TABLE wc_settlement_details (
   completed_at   TIMESTAMPTZ,
   done_note      VARCHAR(255),
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (settlement_id, user_id)
+  UNIQUE (settlement_id, wc_user_id)
 );
 ```
 
@@ -230,8 +230,8 @@ Audit trail for every admin top-up or deduction. Never modified after insert.
 ```sql
 CREATE TABLE wc_wallet_logs (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id        UUID NOT NULL REFERENCES users(id),
-  admin_id       UUID NOT NULL REFERENCES users(id),  -- who performed the action
+  wc_user_id     UUID NOT NULL REFERENCES wc_users(id),
+  admin_id       UUID NOT NULL REFERENCES wc_users(id),  -- who performed the action
   delta          INT NOT NULL,                        -- positive = top-up, negative = deduction
   balance_before INT NOT NULL,
   balance_after  INT NOT NULL,
@@ -245,10 +245,35 @@ CREATE TABLE wc_wallet_logs (
 CREATE INDEX ON wc_matches (match_date);
 CREATE INDEX ON wc_matches (status);
 CREATE INDEX ON wc_score_odds (match_id);
-CREATE INDEX ON wc_bets (user_id);
+CREATE INDEX ON wc_bets (wc_user_id);
 CREATE INDEX ON wc_bets (match_id);
-CREATE INDEX ON wc_wallet_logs (user_id);
+CREATE INDEX ON wc_wallet_logs (wc_user_id);
 ```
+
+---
+
+### `wc_config`
+
+Single-row table storing feature-level configuration. Seeded with one row at migration time.
+
+```sql
+CREATE TABLE wc_config (
+  id          INT PRIMARY KEY DEFAULT 1,         -- enforces single row
+  is_enabled  BOOLEAN NOT NULL DEFAULT false,    -- feature off by default until admin turns on
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_by  UUID REFERENCES wc_users(id),      -- last admin who toggled
+
+  CONSTRAINT single_row CHECK (id = 1)
+);
+
+-- Seed the single config row
+INSERT INTO wc_config (id, is_enabled) VALUES (1, false);
+```
+
+**Toggle behavior:**
+- `is_enabled = false` → backend `WcFeatureMiddleware` intercepts **all** `/api/v1/wc/*` requests and returns `503 Service Unavailable` — **except** `GET /admin/config` and `PUT /admin/config` so the admin can always turn it back on
+- `is_enabled = false` → frontend hides the WC nav link entirely and redirects any direct `/world-cup/*` navigation to the home page
+- Config row is read on every request (single PK lookup, negligible overhead); no caching needed at this scale
 
 ---
 
@@ -283,10 +308,9 @@ CREATE INDEX ON wc_wallet_logs (user_id);
 #### No auth required
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/auth/register` | Register: pick existing user + set password → returns JWT |
-| `POST` | `/auth/login` | Login: user_id + password → returns JWT |
-| `POST` | `/auth/reset-password` | Reset to `{name}_@123` — body: `{ "user_id": "..." }` |
-| `GET` | `/users` | List active users who have not yet registered (for register dropdown) |
+| `POST` | `/auth/register` | Register: choose display name + set password → returns JWT |
+| `POST` | `/auth/login` | Login: name + password → returns JWT |
+| `POST` | `/auth/reset-password` | Reset to `{name}_@123` — body: `{ "name": "..." }` |
 | `GET` | `/matches` | List matches with handicap kèo + odds visible. Query: `status`, `stage`, `group`, `date` |
 | `GET` | `/matches/:id` | Match detail with handicap kèo + scoreline options (visible without login) |
 | `GET` | `/matches/:id/score-odds` | All available scorelines + odds for a match |
@@ -303,20 +327,23 @@ CREATE INDEX ON wc_wallet_logs (user_id);
 #### Admin only (valid JWT + `is_admin = true`)
 | Method | Path | Description |
 |---|---|---|
+| `GET` | `/admin/config` | Get current feature config (`{ "is_enabled": true/false }`) — always accessible even when feature is off |
+| `PUT` | `/admin/config` | Toggle feature on/off — body: `{ "is_enabled": true/false }`; records `updated_by` from JWT; always accessible even when feature is off |
 | `POST` | `/admin/sync` | Fetch & upsert all WC2026 fixtures from football-data.org |
-| `PUT` | `/admin/matches/:id` | Update score, status, handicap kèo, bets_locked_at |
+| `PUT` | `/admin/matches/:id` | Update score, status, handicap kèo |
+| `POST` | `/admin/matches/:id/lock` | Manually lock bets for a match (sets `bets_locked_at = NOW()`) |
 | `POST` | `/admin/matches/:id/score-odds` | Add a scoreline with odds (e.g., `{home:1, away:0, odds:5.00}`) |
 | `PUT` | `/admin/score-odds/:id` | Update odds for an existing scoreline |
-| `DELETE` | `/admin/score-odds/:id` | Remove a scoreline option |
+| `DELETE` | `/admin/score-odds/:id` | Remove a scoreline — blocked if match is locked or completed; allowed otherwise even if bets exist (bets retain snapshotted odds) |
 | `POST` | `/admin/matches/:id/settle` | Evaluate all bets, credit/debit wallets, mark settled_at |
-| `PUT` | `/admin/wallets/:user_id` | Top-up or deduct balance — body: `{ "delta": 500, "note": "..." }`; logs to `wc_wallet_logs` |
-| `GET` | `/admin/wallets/:user_id/logs` | Full top-up/deduction history for a user |
-| `PUT` | `/admin/users/:user_id/role` | Promote or demote a registered user (`{ "is_admin": true/false }`) |
+| `PUT` | `/admin/wallets/:wc_user_id` | Top-up or deduct balance — body: `{ "delta": 500, "note": "..." }`; logs to `wc_wallet_logs` |
+| `GET` | `/admin/wallets/:wc_user_id/logs` | Full top-up/deduction history for a user |
+| `PUT` | `/admin/users/:wc_user_id/role` | Promote or demote a registered user (`{ "is_admin": true/false }`) |
 | `GET` | `/admin/settlements/preview` | Preview current settlement state — per-user balance, direction, amount at a given `point_rate` (query param); does **not** commit anything |
 | `POST` | `/admin/settlements` | Create settlement: snapshot all wallets → insert `wc_settlements` + `wc_settlement_details` → reset all `wc_wallets.balance = 0`; body: `{ "name": "...", "point_rate": 1000, "note": "..." }` |
 | `GET` | `/admin/settlements` | List all past settlement events (summary) |
 | `GET` | `/admin/settlements/:id` | Full detail of one settlement: event info + per-user breakdown |
-| `PUT` | `/admin/settlements/:id/details/:user_id` | Mark one user as done — body: `{ "status": "done", "done_note": "..." }` |
+| `PUT` | `/admin/settlements/:id/details/:wc_user_id` | Mark one user as done — body: `{ "status": "done", "done_note": "..." }` |
 
 #### Key request/response shapes
 
@@ -373,7 +400,7 @@ All bets: `201` on success, `422` with reason (match locked, duplicate type, sco
   }
 ]
 ```
-`net_profit` = `SUM(COALESCE(payout, 0) - stake)` from **all settled `wc_bets`** for that user across the entire tournament — never reset, not affected by admin top-ups/deductions or tất toán giải. Negative means net betting loss. Users with no settled bets appear at the bottom with `net_profit = 0`.
+`net_profit` = `SUM(payout - stake) WHERE result IS NOT NULL` from **settled `wc_bets` only** for that user across the entire tournament — never reset, not affected by admin top-ups/deductions or tất toán giải. Pending bets (result = NULL) are excluded. Negative means net betting loss. Users with no settled bets appear at the bottom with `net_profit = 0`.
 
 **Leaderboard vs wallet balance — two separate concepts:**
 - **Leaderboard** (`wc_bets`): pure betting P&L for the full tournament; survives wallet resets; shows who predicts best.
@@ -393,23 +420,24 @@ All bets: `201` on success, `422` with reason (match locked, duplicate type, sco
 internal/
   model/
     wc_match.go           -- WcMatch, WcWallet, WcBet, WcScoreOdds structs + constants
-    wc_auth.go            -- UserCredentials struct
+    wc_user.go            -- WcUser struct (standalone, no FK to users table)
   repository/
     wc_repository.go      -- CRUD for wc_matches, wc_score_odds, wc_wallets, wc_bets
-    wc_auth_repository.go -- CreateCredentials, GetCredentialsByUserID
+    wc_user_repository.go -- CreateUser, GetByName, GetByID
   service/
     wc_service.go         -- sync logic, settlement logic, bet validation
     wc_auth_service.go    -- Register, Login, bcrypt compare, JWT sign/verify
     wc_football_client.go -- HTTP client for football-data.org
   middleware/
-    wc_auth.go            -- WcJWTMiddleware (validates Bearer token, sets user_id in ctx)
+    wc_auth.go            -- WcJWTMiddleware (validates Bearer token, sets wc_user_id in ctx)
     wc_admin.go           -- WcAdminMiddleware (requires is_admin = true from JWT claims)
+    wc_feature.go         -- WcFeatureMiddleware (reads wc_config.is_enabled; returns 503 if false; skipped for GET/PUT /admin/config)
   api/
-    wc_handler.go         -- all WC HTTP handlers
-    wc_auth_handler.go    -- Register and Login handlers
+    wc_handler.go         -- all WC HTTP handlers including GET/PUT /admin/config
+    wc_auth_handler.go    -- Register, Login, ResetPassword handlers
     router.go             -- register /api/v1/wc/* routes with middleware groups
   migration/
-    XXXX_create_wc_tables.sql  -- includes user_credentials table
+    XXXX_create_wc_tables.sql  -- all 9 WC tables including wc_config; seeds wc_config row with is_enabled=false
 ```
 
 ### Frontend (Vue)
@@ -417,8 +445,8 @@ internal/
 ```
 src/
   views/
-    WcLoginView.vue          -- login form: user dropdown + password input
-    WcRegisterView.vue       -- register form: pick name from unregistered users + set password
+    WcLoginView.vue          -- login form: name text input + password input
+    WcRegisterView.vue       -- register form: free-text name + password + confirm (independent of FC25)
     WcScheduleView.vue       -- match list with filters, group cards, score badges (public)
     WcBettingView.vue        -- wallet header, bet tabs, history, leaderboard (requires auth)
   components/wc/
@@ -449,14 +477,14 @@ src/
 | Decision | Choice | Rationale |
 |---|---|---|
 | Auth scope | WC section only | Existing app (dashboard, ranking) stays public and untouched |
-| Credentials storage | Separate `user_credentials` table | Zero changes to existing `users` table; existing UX unaffected |
+| User storage | Standalone `wc_users` table (no FK to existing `users`) | Registration is independent of FC25 system; any name can register; feature is time-limited |
 | Password hashing | bcrypt (cost 12) | Industry standard; Go `golang.org/x/crypto/bcrypt` |
 | Token type | JWT (HS256), 7-day expiry | Simple, stateless; can be upgraded to refresh-token pair later |
 | Admin promotion | `PUT /admin/users/:id/role` endpoint | Admin can promote/demote via UI; first admin seeded in DB once at setup |
 | Password reset | Reset to `{name}_@123` via `/auth/reset-password` (no old password required) | Internal tool only — no auth needed for reset is intentional; anyone knowing a user_id can reset that user's password, which is acceptable in a closed team context |
 | Bet visibility | All bets on a match are always visible to everyone | Transparent and fun — team can see each other's picks in real time |
 | Wallet top-up log | `wc_wallet_logs` table | Audit trail: who topped up whom, by how much, with optional note |
-| Default wallet | 1000 pts via `/admin/wallets/init` | Admin can override; can be re-run to top up new users mid-tournament |
+| Default wallet | Always 0 at registration | Balance is net P&L; admin can top-up individuals at any time via `PUT /admin/wallets/:wc_user_id` |
 | Match data source | football-data.org free tier | No cost, reliable, simple REST API, WC coverage |
 | Sync trigger | Admin on-demand | Avoids cron job complexity; admin syncs before checking bets |
 | Wallet isolation | Separate `wc_wallets` table | BXH (current_score) untouched; tournament can be reset independently |
@@ -472,7 +500,11 @@ src/
 | No balance check on bet placement | Users bet freely even at 0 or negative | Internal fun tool on credit — no real money changes hands until admin does tất toán |
 | Settlement resets wallets to 0 | After snapshot, all balances → 0 | Clean slate for next settlement period; history preserved in wc_settlement_details |
 | Settlement direction logic | `balance > 0` → pay; `< 0` → collect | Balance equals net P&L since initial is always 0 |
-| Bet locking | `bets_locked_at = match_date` set at sync time | Bets auto-reject once wall clock passes `bets_locked_at` |
+| Bet locking | Auto at `match_date` (utcDate from API) or admin manual via `POST /admin/matches/:id/lock` | Two paths: time-based auto-lock + explicit admin override |
+| Score odds deletion | Allowed before lockout; blocked once match is locked or completed | Bets retain snapshotted odds so deletion doesn't affect existing bets |
+| Feature flag storage | `wc_config` table (single row, `id=1`) | DB-backed toggle survives restarts; admin can flip without redeploy |
+| Feature flag off behavior | `WcFeatureMiddleware` returns 503 on all WC endpoints | Blanket block at middleware layer; except `GET/PUT /admin/config` always pass through |
+| Feature flag default | `is_enabled = false` | Feature starts hidden; admin explicitly turns on when ready |
 
 ---
 

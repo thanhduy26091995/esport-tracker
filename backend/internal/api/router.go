@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/duyb/esport-score-tracker/internal/middleware"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/duyb/esport-score-tracker/internal/service"
 	"github.com/gin-contrib/cors"
@@ -36,6 +37,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	fundRepo := repository.NewFundRepository(db)
 	settlementRepo := repository.NewSettlementRepository(db)
 	tournamentRepo := repository.NewTournamentRepository(db)
+	wcRepo := repository.NewWcRepository(db)
+	wcUserRepo := repository.NewWcUserRepository(db)
 
 	// Initialize services
 	configService := service.NewConfigService(configRepo)
@@ -45,6 +48,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tierService := service.NewTierService(userRepo, configService)
 	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, tierService, db)
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
+	wcAuthService := service.NewWcAuthService(wcUserRepo, wcRepo)
+	wcService := service.NewWcService(wcRepo, wcUserRepo)
 
 	// Backfill tiers from existing match history on startup.
 	if err := tierService.RecalculateAllTiers(); err != nil {
@@ -58,6 +63,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	fundHandler := NewFundHandler(fundService)
 	settlementHandler := NewSettlementHandler(settlementService)
 	tournamentHandler := NewTournamentHandler(tournamentService)
+	wcAuthHandler := NewWcAuthHandler(wcAuthService)
+	wcHandler := NewWcHandler(wcService, wcAuthService)
 
 	// API v1 group
 	v1 := router.Group("/api/v1")
@@ -128,6 +135,65 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			tournaments.DELETE("/:id", tournamentHandler.Delete)
 			tournaments.PUT("/:id/complete", tournamentHandler.Complete)
 			tournaments.POST("/:id/matches/:matchId/result", tournamentHandler.RecordResult)
+		}
+	}
+
+	// WC2026 routes — /api/v1/wc
+	wc := router.Group("/api/v1/wc")
+	{
+		// Config endpoints — always accessible (exempt from feature flag)
+		wc.GET("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.GetConfig)
+		wc.PUT("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.UpdateConfig)
+
+		// Auth — public (no feature flag, no JWT required)
+		auth := wc.Group("/auth")
+		{
+			auth.POST("/register", wcAuthHandler.Register)
+			auth.POST("/login", wcAuthHandler.Login)
+			auth.POST("/reset-password", wcAuthHandler.ResetPassword)
+		}
+
+		// All remaining WC routes require the feature to be enabled
+		wcFeature := wc.Group("", middleware.WcFeatureMiddleware(wcRepo))
+		{
+			// Public (feature enabled, no auth)
+			wcFeature.GET("/matches", wcHandler.ListMatches)
+			wcFeature.GET("/matches/:id", wcHandler.GetMatch)
+			wcFeature.GET("/matches/:id/score-odds", wcHandler.GetScoreOdds)
+			wcFeature.GET("/matches/:id/bets", wcHandler.GetMatchBets)
+			wcFeature.GET("/leaderboard", wcHandler.GetLeaderboard)
+
+			// JWT required
+			wcAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService))
+			{
+				wcAuth.GET("/wallet", wcHandler.GetWallet)
+				wcAuth.POST("/bets", wcHandler.PlaceBet)
+				wcAuth.GET("/bets", wcHandler.ListBets)
+				wcAuth.DELETE("/bets/:id", wcHandler.DeleteBet)
+				wcAuth.PUT("/bets/:id", wcHandler.UpdateBet)
+			}
+
+			// Admin required
+			wcAdmin := wcFeature.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
+			{
+				wcAdmin.POST("/sync", wcHandler.SyncMatches)
+				wcAdmin.PUT("/matches/:id", wcHandler.UpdateMatch)
+				wcAdmin.POST("/matches/:id/lock", wcHandler.LockMatch)
+				wcAdmin.POST("/matches/:id/score-odds", wcHandler.AddScoreOdds)
+				wcAdmin.PUT("/score-odds/:id", wcHandler.UpdateScoreOdds)
+				wcAdmin.DELETE("/score-odds/:id", wcHandler.DeleteScoreOdds)
+				wcAdmin.POST("/matches/:id/settle", wcHandler.SettleMatch)
+				wcAdmin.GET("/users", wcHandler.ListUsers)
+				wcAdmin.PUT("/users/:wc_user_id/role", wcHandler.SetUserRole)
+				wcAdmin.GET("/wallets", wcHandler.ListAllWallets)
+				wcAdmin.PUT("/wallets/:wc_user_id", wcHandler.AdminTopUp)
+				wcAdmin.GET("/wallets/:wc_user_id/logs", wcHandler.GetWalletLogs)
+				wcAdmin.GET("/settlements/preview", wcHandler.PreviewSettlement)
+				wcAdmin.POST("/settlements", wcHandler.CreateSettlement)
+				wcAdmin.GET("/settlements", wcHandler.ListSettlements)
+				wcAdmin.GET("/settlements/:id", wcHandler.GetSettlement)
+				wcAdmin.PUT("/settlements/:id/details/:wc_user_id", wcHandler.MarkSettlementDone)
+			}
 		}
 	}
 
