@@ -87,9 +87,16 @@ function rankClass(rank: number) {
 .wc-row:hover { background: var(--surface-page); }
 
 .wc-col-rank  { display: flex; align-items: center; }
-.wc-col-name  { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-col-name  { font-size: 13px; font-weight: 600; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wc-col-points { font-size: 12px; font-weight: 700; text-align: right; }
 .wc-col-money  { font-size: 12px; font-weight: 700; text-align: right; }
+
+@media (max-width: 480px) {
+  .wc-header, .wc-row {
+    grid-template-columns: 36px 1fr 100px;
+  }
+  .wc-col-points { display: none; }
+}
 
 .wc-rank-badge {
   display: inline-flex; align-items: center; justify-content: center;
