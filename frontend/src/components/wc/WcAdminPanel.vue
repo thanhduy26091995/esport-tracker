@@ -2,10 +2,13 @@
   <div class="wc-admin-panel">
     <!-- Feature Toggle -->
     <div class="card card-body wc-admin-section">
-      <div class="wc-admin-section-title">{{ t('wc.featureToggle') }}</div>
+      <div class="wc-admin-section-title">{{ t("wc.featureToggle") }}</div>
       <div class="wc-feature-toggle-row">
-        <span class="wc-feature-status" :class="configEnabled ? 'wc-feat--on' : 'wc-feat--off'">
-          {{ configEnabled ? t('wc.featureEnabled') : t('wc.featureDisabled') }}
+        <span
+          class="wc-feature-status"
+          :class="configEnabled ? 'wc-feat--on' : 'wc-feat--off'"
+        >
+          {{ configEnabled ? t("wc.featureEnabled") : t("wc.featureDisabled") }}
         </span>
         <el-switch
           v-model="configEnabled"
@@ -25,7 +28,7 @@
           @click="handleSync"
           :icon="Refresh"
         >
-          {{ t('wc.syncMatches') }}
+          {{ t("wc.syncMatches") }}
         </el-button>
       </div>
 
@@ -49,34 +52,47 @@
             @click="adminFilter = f.key"
           >
             {{ f.label }}
-            <span v-if="f.count > 0" class="wc-filter-count">{{ f.count }}</span>
+            <span v-if="f.count > 0" class="wc-filter-count">{{
+              f.count
+            }}</span>
           </button>
         </div>
       </div>
 
       <div class="wc-admin-match-list">
-        <div v-if="adminFiltered.length === 0" class="wc-admin-empty">Không tìm thấy trận đấu nào.</div>
-        <div v-for="match in adminFiltered" :key="match.id" class="wc-admin-match-row">
+        <div v-if="adminFiltered.length === 0" class="wc-admin-empty">
+          Không tìm thấy trận đấu nào.
+        </div>
+        <div
+          v-for="match in adminFiltered"
+          :key="match.id"
+          class="wc-admin-match-row"
+        >
           <div class="wc-admin-match-name">
             {{ match.home_team }} vs {{ match.away_team }}
-            <span class="wc-admin-match-date">{{ formatDate(match.match_date) }}</span>
+            <span class="wc-admin-match-date">{{
+              formatDate(match.match_date)
+            }}</span>
           </div>
           <div class="wc-admin-match-actions">
             <el-button
-              v-if="!isLocked(match)"
+              v-if="!match.betting_open"
               size="small"
-              @click="handleLock(match.id)"
-              :icon="Lock"
+              type="success"
+              plain
+              @click="handleOpen(match.id)"
             >
-              {{ t('wc.lockMatch') }}
+              🔓 Mở cược
             </el-button>
             <el-button
               v-else
               size="small"
               type="warning"
-              @click="handleUnlock(match.id)"
+              plain
+              @click="handleClose(match.id)"
+              :icon="Lock"
             >
-              🔓 Mở cược
+              Đóng cược
             </el-button>
             <el-button
               size="small"
@@ -84,16 +100,18 @@
               @click="handleSettle(match.id)"
               :disabled="match.status !== 'completed'"
             >
-              {{ t('wc.settleMatch') }}
+              {{ t("wc.settleMatch") }}
             </el-button>
             <el-button
+              plain
               size="small"
               type="warning"
               @click="openScoreOddsDialog(match)"
             >
-              {{ t('wc.scoreOdds') }}
+              {{ t("wc.scoreOdds") }}
             </el-button>
             <el-button
+              plain
               size="small"
               type="info"
               @click="openHandicapDialog(match)"
@@ -107,7 +125,7 @@
 
     <!-- User & Wallet Management -->
     <div class="card card-body wc-admin-section">
-      <div class="wc-admin-section-title">{{ t('wc.userManagement') }}</div>
+      <div class="wc-admin-section-title">{{ t("wc.userManagement") }}</div>
       <div class="wc-user-table">
         <div v-for="user in store.allUsers" :key="user.id" class="wc-user-row">
           <div class="wc-user-info-col">
@@ -120,11 +138,8 @@
             </span>
           </div>
           <div class="wc-user-actions-col">
-            <el-button
-              size="small"
-              @click="openTopUpDialog(user)"
-            >
-              {{ t('wc.topUp') }}
+            <el-button size="small" @click="openTopUpDialog(user)">
+              {{ t("wc.topUp") }}
             </el-button>
             <el-button
               size="small"
@@ -132,7 +147,7 @@
               text
               @click="handleRoleToggle(user)"
             >
-              {{ user.is_admin ? t('wc.removeAdmin') : t('wc.makeAdmin') }}
+              {{ user.is_admin ? t("wc.removeAdmin") : t("wc.makeAdmin") }}
             </el-button>
           </div>
         </div>
@@ -141,7 +156,7 @@
 
     <!-- Settlement Panel -->
     <div class="card card-body wc-admin-section">
-      <div class="wc-admin-section-title">{{ t('wc.settlementPanel') }}</div>
+      <div class="wc-admin-section-title">{{ t("wc.settlementPanel") }}</div>
       <el-tabs v-model="settlementTab">
         <el-tab-pane :label="t('wc.previewSettlement')" name="preview">
           <WcSettlementPreview />
@@ -154,7 +169,9 @@
 
     <!-- Top-Up Dialog -->
     <el-dialog v-model="topUpVisible" :title="t('wc.topUp')" width="360px">
-      <div v-if="topUpTarget" class="wc-topup-header">{{ topUpTarget.name }}</div>
+      <div v-if="topUpTarget" class="wc-topup-header">
+        {{ topUpTarget.name }}
+      </div>
       <el-form :model="topUpForm" label-position="top">
         <el-form-item :label="t('wc.topUpDelta')">
           <el-input-number
@@ -168,23 +185,40 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="topUpVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button @click="topUpVisible = false">{{
+          t("common.cancel")
+        }}</el-button>
         <el-button type="primary" :loading="topping" @click="handleTopUp">
-          {{ t('wc.topUp') }}
+          {{ t("wc.topUp") }}
         </el-button>
       </template>
     </el-dialog>
 
     <!-- Handicap Dialog -->
-    <el-dialog v-model="handicapVisible" title="Cấu hình kèo chấp" width="440px">
+    <el-dialog
+      v-model="handicapVisible"
+      title="Cấu hình kèo chấp"
+      width="440px"
+    >
       <div class="wc-so-match-name" v-if="handicapMatch">
         {{ handicapMatch.home_team }} vs {{ handicapMatch.away_team }}
       </div>
-      <el-form :model="handicapForm" label-position="top" class="wc-handicap-config-form">
+      <el-form
+        :model="handicapForm"
+        label-position="top"
+        class="wc-handicap-config-form"
+      >
         <el-form-item label="Đội chấp (Handicap Team)">
-          <el-radio-group v-model="handicapForm.handicap_team" style="width: 100%">
-            <el-radio-button value="home">{{ handicapMatch?.home_team ?? 'Home' }}</el-radio-button>
-            <el-radio-button value="away">{{ handicapMatch?.away_team ?? 'Away' }}</el-radio-button>
+          <el-radio-group
+            v-model="handicapForm.handicap_team"
+            style="width: 100%"
+          >
+            <el-radio-button value="home">{{
+              handicapMatch?.home_team ?? "Home"
+            }}</el-radio-button>
+            <el-radio-button value="away">{{
+              handicapMatch?.away_team ?? "Away"
+            }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="Số bàn chấp (Handicap Value)">
@@ -219,21 +253,33 @@
         </div>
       </el-form>
       <template #footer>
-        <el-button @click="handicapVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="savingHandicap" @click="handleSaveHandicap">
+        <el-button @click="handicapVisible = false">{{
+          t("common.cancel")
+        }}</el-button>
+        <el-button
+          type="primary"
+          :loading="savingHandicap"
+          @click="handleSaveHandicap"
+        >
           Lưu kèo chấp
         </el-button>
       </template>
     </el-dialog>
 
     <!-- Score Odds Dialog -->
-    <el-dialog v-model="scoreOddsVisible" :title="t('wc.scoreOdds')" width="480px">
+    <el-dialog
+      v-model="scoreOddsVisible"
+      :title="t('wc.scoreOdds')"
+      width="480px"
+    >
       <div class="wc-so-match-name" v-if="scoreOddsMatch">
         {{ scoreOddsMatch.home_team }} vs {{ scoreOddsMatch.away_team }}
       </div>
       <div class="wc-so-list">
-        <div v-for="so in currentScoreOdds" :key="so.id" class="wc-so-row">
-          <span class="wc-so-score">{{ so.home_score }}–{{ so.away_score }}</span>
+        <div v-for="so in currentScoreOdds" :key="so.id" class="wc-so-row mb-2 mt-2" >
+          <span class="wc-so-score"
+            >{{ so.home_score }}–{{ so.away_score }}</span
+          >
           <el-input-number
             v-model="so.odds"
             :min="1.01"
@@ -243,20 +289,44 @@
             style="width: 120px"
             @change="handleUpdateOdds(so.id, so.odds)"
           />
-          <el-button size="small" type="danger" text @click="handleDeleteScoreOdds(so.id)">
-            {{ t('common.delete') }}
+          <el-button
+            size="small"
+            type="danger"
+            text
+            @click="handleDeleteScoreOdds(so.id)"
+          >
+            {{ t("common.delete") }}
           </el-button>
         </div>
       </div>
       <el-divider />
       <div class="wc-so-add-form">
         <span class="wc-so-add-label">Thêm tỉ số:</span>
-        <el-input-number v-model="newSo.homeScore" :min="0" :max="20" size="small" style="width: 80px" />
+        <el-input-number
+          v-model="newSo.homeScore"
+          :min="0"
+          :max="20"
+          size="small"
+          style="width: 80px"
+        />
         <span>–</span>
-        <el-input-number v-model="newSo.awayScore" :min="0" :max="20" size="small" style="width: 80px" />
-        <el-input-number v-model="newSo.odds" :min="1.01" :step="0.05" :precision="2" size="small" style="width: 100px" />
+        <el-input-number
+          v-model="newSo.awayScore"
+          :min="0"
+          :max="20"
+          size="small"
+          style="width: 80px"
+        />
+        <el-input-number
+          v-model="newSo.odds"
+          :min="1.01"
+          :step="0.05"
+          :precision="2"
+          size="small"
+          style="width: 100px"
+        />
         <el-button type="primary" size="small" @click="handleAddScoreOdds">
-          {{ t('common.create') }}
+          {{ t("common.create") }}
         </el-button>
       </div>
     </el-dialog>
@@ -264,183 +334,200 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Refresh, Lock } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { useWcStore } from '@/stores/wcStore'
-import { wcService } from '@/services/wcService'
-import { useMatchFilter } from '@/composables/useMatchFilter'
-import type { WcUser, WcMatch, WcScoreOdds } from '@/types/wc'
-import WcSettlementPreview from './WcSettlementPreview.vue'
-import WcSettlementHistory from './WcSettlementHistory.vue'
+import { ref, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
+import { Refresh, Lock } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
+import { useWcStore } from "@/stores/wcStore";
+import { wcService } from "@/services/wcService";
+import { useMatchFilter } from "@/composables/useMatchFilter";
+import type { WcUser, WcMatch, WcScoreOdds } from "@/types/wc";
+import WcSettlementPreview from "./WcSettlementPreview.vue";
+import WcSettlementHistory from "./WcSettlementHistory.vue";
 
-const { t } = useI18n()
-const store = useWcStore()
+const { t } = useI18n();
+const store = useWcStore();
 
-const storeMatches = computed(() => store.matches)
-const { search: adminSearch, activeFilter: adminFilter, filtered: adminFiltered, counts: adminCounts } =
-  useMatchFilter(storeMatches, 'incoming')
+const storeMatches = computed(() => store.matches);
+const {
+  search: adminSearch,
+  activeFilter: adminFilter,
+  filtered: adminFiltered,
+  counts: adminCounts,
+} = useMatchFilter(storeMatches, "incoming");
 
 const adminFilterOptions = computed(() => [
-  { key: 'incoming' as const, label: 'Sắp tới', count: adminCounts.value.incoming },
-  { key: 'open' as const, label: 'Mở cược', count: adminCounts.value.open },
-  { key: 'live' as const, label: 'Đang diễn', count: adminCounts.value.live },
-  { key: 'locked' as const, label: 'Đã khóa', count: adminCounts.value.locked },
-  { key: 'completed' as const, label: 'Đã kết thúc', count: adminCounts.value.completed },
-  { key: 'all' as const, label: 'Tất cả', count: adminCounts.value.all },
-])
+  {
+    key: "incoming" as const,
+    label: "Sắp tới",
+    count: adminCounts.value.incoming,
+  },
+  { key: "open" as const, label: "Mở cược", count: adminCounts.value.open },
+  { key: "live" as const, label: "Đang diễn", count: adminCounts.value.live },
+  { key: "locked" as const, label: "Đã khóa", count: adminCounts.value.locked },
+  {
+    key: "completed" as const,
+    label: "Đã kết thúc",
+    count: adminCounts.value.completed,
+  },
+  { key: "all" as const, label: "Tất cả", count: adminCounts.value.all },
+]);
 
-const settlementTab = ref('preview')
-const syncing = ref(false)
-const togglingFeature = ref(false)
-const configEnabled = ref(store.config?.is_enabled ?? false)
+const settlementTab = ref("preview");
+const syncing = ref(false);
+const togglingFeature = ref(false);
+const configEnabled = ref(store.config?.is_enabled ?? false);
 
-const topUpVisible = ref(false)
-const topUpTarget = ref<WcUser | null>(null)
-const topUpForm = ref({ delta: 0, note: '' })
-const topping = ref(false)
+const topUpVisible = ref(false);
+const topUpTarget = ref<WcUser | null>(null);
+const topUpForm = ref({ delta: 0, note: "" });
+const topping = ref(false);
 
-const scoreOddsVisible = ref(false)
-const scoreOddsMatch = ref<WcMatch | null>(null)
-const currentScoreOdds = ref<WcScoreOdds[]>([])
-const newSo = ref({ homeScore: 0, awayScore: 0, odds: 3.00 })
+const scoreOddsVisible = ref(false);
+const scoreOddsMatch = ref<WcMatch | null>(null);
+const currentScoreOdds = ref<WcScoreOdds[]>([]);
+const newSo = ref({ homeScore: 0, awayScore: 0, odds: 3.0 });
 
-const handicapVisible = ref(false)
-const handicapMatch = ref<WcMatch | null>(null)
-const savingHandicap = ref(false)
+const handicapVisible = ref(false);
+const handicapMatch = ref<WcMatch | null>(null);
+const savingHandicap = ref(false);
 const handicapForm = ref({
-  handicap_team: 'home',
+  handicap_team: "home",
   handicap_value: 0.5,
-  odds_handicap_home: 1.90,
-  odds_handicap_away: 1.90,
-})
+  odds_handicap_home: 1.9,
+  odds_handicap_away: 1.9,
+});
 
 const walletMap = computed(() => {
-  const m: Record<string, number> = {}
-  for (const w of store.allWallets) m[w.wc_user_id] = w.balance
-  return m
-})
+  const m: Record<string, number> = {};
+  for (const w of store.allWallets) m[w.wc_user_id] = w.balance;
+  return m;
+});
 
 function walletBalance(userId: string) {
-  return walletMap.value[userId] ?? 0
+  return walletMap.value[userId] ?? 0;
 }
 
 async function handleSync() {
-  syncing.value = true
+  syncing.value = true;
   try {
-    await store.syncMatches()
+    await store.syncMatches();
   } finally {
-    syncing.value = false
+    syncing.value = false;
   }
 }
 
 async function handleFeatureToggle(val: boolean) {
-  togglingFeature.value = true
+  togglingFeature.value = true;
   try {
-    await store.updateConfig(val)
-    if (store.config) store.config.is_enabled = val
+    await store.updateConfig(val);
+    if (store.config) store.config.is_enabled = val;
   } finally {
-    togglingFeature.value = false
+    togglingFeature.value = false;
   }
 }
 
-function isLocked(match: WcMatch) {
-  return !!match.bets_locked_at && new Date(match.bets_locked_at) <= new Date()
+async function handleOpen(matchId: string) {
+  await store.openMatch(matchId)
 }
 
-async function handleLock(matchId: string) {
-  await store.lockMatch(matchId)
-}
-
-async function handleUnlock(matchId: string) {
-  await store.unlockMatch(matchId)
+async function handleClose(matchId: string) {
+  await store.closeMatch(matchId)
 }
 
 async function handleSettle(matchId: string) {
-  await store.settleMatch(matchId)
+  await store.settleMatch(matchId);
 }
 
 function openTopUpDialog(user: WcUser) {
-  topUpTarget.value = user
-  topUpForm.value = { delta: 0, note: '' }
-  topUpVisible.value = true
+  topUpTarget.value = user;
+  topUpForm.value = { delta: 0, note: "" };
+  topUpVisible.value = true;
 }
 
 async function handleTopUp() {
-  if (!topUpTarget.value) return
-  topping.value = true
+  if (!topUpTarget.value) return;
+  topping.value = true;
   try {
-    await store.topUp(topUpTarget.value.id, topUpForm.value.delta, topUpForm.value.note)
-    topUpVisible.value = false
+    await store.topUp(
+      topUpTarget.value.id,
+      topUpForm.value.delta,
+      topUpForm.value.note,
+    );
+    topUpVisible.value = false;
   } finally {
-    topping.value = false
+    topping.value = false;
   }
 }
 
 async function handleRoleToggle(user: WcUser) {
-  await store.setUserRole(user.id, !user.is_admin)
+  await store.setUserRole(user.id, !user.is_admin);
 }
 
 function openHandicapDialog(match: WcMatch) {
-  handicapMatch.value = match
+  handicapMatch.value = match;
   handicapForm.value = {
-    handicap_team: match.handicap_team ?? 'home',
+    handicap_team: match.handicap_team ?? "home",
     handicap_value: match.handicap_value ?? 0.5,
-    odds_handicap_home: match.odds_handicap_home ?? 1.90,
-    odds_handicap_away: match.odds_handicap_away ?? 1.90,
-  }
-  handicapVisible.value = true
+    odds_handicap_home: match.odds_handicap_home ?? 1.9,
+    odds_handicap_away: match.odds_handicap_away ?? 1.9,
+  };
+  handicapVisible.value = true;
 }
 
 async function handleSaveHandicap() {
-  if (!handicapMatch.value) return
-  savingHandicap.value = true
+  if (!handicapMatch.value) return;
+  savingHandicap.value = true;
   try {
     await wcService.updateMatch(handicapMatch.value.id, {
       handicap_team: handicapForm.value.handicap_team,
       handicap_value: handicapForm.value.handicap_value,
       odds_handicap_home: handicapForm.value.odds_handicap_home,
       odds_handicap_away: handicapForm.value.odds_handicap_away,
-    })
-    ElMessage.success('Đã lưu kèo chấp')
-    handicapVisible.value = false
-    await store.fetchMatches()
+    });
+    ElMessage.success("Đã lưu kèo chấp");
+    handicapVisible.value = false;
+    await store.fetchMatches();
   } finally {
-    savingHandicap.value = false
+    savingHandicap.value = false;
   }
 }
 
 async function openScoreOddsDialog(match: WcMatch) {
-  scoreOddsMatch.value = match
-  const odds = await wcService.getScoreOdds(match.id)
-  currentScoreOdds.value = odds
-  scoreOddsVisible.value = true
+  scoreOddsMatch.value = match;
+  const odds = await wcService.getScoreOdds(match.id);
+  currentScoreOdds.value = odds;
+  scoreOddsVisible.value = true;
 }
 
 async function handleAddScoreOdds() {
-  if (!scoreOddsMatch.value) return
+  if (!scoreOddsMatch.value) return;
   const so = await wcService.addScoreOdds(
     scoreOddsMatch.value.id,
     newSo.value.homeScore,
     newSo.value.awayScore,
     newSo.value.odds,
-  )
-  currentScoreOdds.value.push(so)
-  newSo.value = { homeScore: 0, awayScore: 0, odds: 3.00 }
+  );
+  currentScoreOdds.value.push(so);
+  newSo.value = { homeScore: 0, awayScore: 0, odds: 3.0 };
 }
 
 async function handleUpdateOdds(id: string, odds: number) {
-  await wcService.updateScoreOdds(id, odds)
+  await wcService.updateScoreOdds(id, odds);
 }
 
 async function handleDeleteScoreOdds(id: string) {
-  await wcService.deleteScoreOdds(id)
-  currentScoreOdds.value = currentScoreOdds.value.filter(so => so.id !== id)
+  await wcService.deleteScoreOdds(id);
+  currentScoreOdds.value = currentScoreOdds.value.filter((so) => so.id !== id);
 }
 
 function formatDate(s: string) {
-  return new Date(s).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return new Date(s).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 onMounted(async () => {
@@ -450,9 +537,9 @@ onMounted(async () => {
     store.fetchAllUsers(),
     store.fetchAllWallets(),
     store.fetchSettlements(),
-  ])
-  configEnabled.value = store.config?.is_enabled ?? false
-})
+  ]);
+  configEnabled.value = store.config?.is_enabled ?? false;
+});
 </script>
 
 <style scoped>
@@ -554,7 +641,7 @@ onMounted(async () => {
 .wc-filter-count {
   font-size: 11px;
   font-weight: 700;
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 8px;
   padding: 0 5px;
   line-height: 1.4;

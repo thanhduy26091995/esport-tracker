@@ -28,9 +28,15 @@
             >
               <div class="wc-hc-team">{{ match!.home_team }}</div>
               <div class="wc-hc-odds">
-                <span v-if="homeGives" class="wc-hc-handi">-{{ match!.handicap_value }}</span>
-                <span v-else class="wc-hc-handi wc-hc-handi--receive">+{{ match!.handicap_value }}</span>
-                <span class="wc-hc-rate">@ {{ match!.odds_handicap_home?.toFixed(2) }}</span>
+                <span v-if="homeGives" class="wc-hc-handi"
+                  >-{{ match!.handicap_value }}</span
+                >
+                <span v-else class="wc-hc-handi wc-hc-handi--receive"
+                  >+{{ match!.handicap_value }}</span
+                >
+                <span class="wc-hc-rate"
+                  >@ {{ match!.odds_handicap_home?.toFixed(2) }}</span
+                >
               </div>
             </div>
 
@@ -41,9 +47,15 @@
             >
               <div class="wc-hc-team">{{ match!.away_team }}</div>
               <div class="wc-hc-odds">
-                <span v-if="!homeGives" class="wc-hc-handi">-{{ match!.handicap_value }}</span>
-                <span v-else class="wc-hc-handi wc-hc-handi--receive">+{{ match!.handicap_value }}</span>
-                <span class="wc-hc-rate">@ {{ match!.odds_handicap_away?.toFixed(2) }}</span>
+                <span v-if="!homeGives" class="wc-hc-handi"
+                  >-{{ match!.handicap_value }}</span
+                >
+                <span v-else class="wc-hc-handi wc-hc-handi--receive"
+                  >+{{ match!.handicap_value }}</span
+                >
+                <span class="wc-hc-rate"
+                  >@ {{ match!.odds_handicap_away?.toFixed(2) }}</span
+                >
               </div>
             </div>
           </div>
@@ -57,7 +69,7 @@
               style="width: 160px"
             />
             <div class="wc-payout-preview">
-              <span class="wc-payout-label">{{ t('wc.payout') }}</span>
+              <span class="wc-payout-label">{{ t("wc.payout") }}</span>
               <span class="wc-payout-value">{{ handicapPayout }}</span>
             </div>
           </div>
@@ -78,9 +90,15 @@
             :class="{ 'wc-score-card--selected': isScoreSelected(so.id) }"
             @click="toggleScore(so)"
           >
-            <div class="wc-sc-score">{{ so.home_score }}–{{ so.away_score }}</div>
+            <div class="wc-sc-score">
+              {{ so.home_score }}–{{ so.away_score }}
+            </div>
             <div class="wc-sc-odds">x{{ so.odds.toFixed(2) }}</div>
-            <div v-if="isScoreSelected(so.id)" class="wc-sc-stake-row" @click.stop>
+            <div
+              v-if="isScoreSelected(so.id)"
+              class="wc-sc-stake-row"
+              @click.stop
+            >
               <el-input-number
                 v-model="selectedScores[so.id].stake"
                 :min="1"
@@ -102,14 +120,15 @@
         <span class="wc-bet-count" v-if="totalBetCount > 0">
           {{ totalBetCount }} cược
         </span>
-        <el-button @click="visible = false">{{ t('common.cancel') }}</el-button>
+        <el-button @click="visible = false">{{ t("common.cancel") }}</el-button>
         <el-button
+          plain
           type="success"
           :loading="submitting"
           :disabled="!canSubmit"
           @click="handleSubmit"
         >
-          {{ t('wc.submitBet') }}
+          {{ t("wc.submitBet") }}
         </el-button>
       </div>
     </template>
@@ -117,123 +136,135 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { InfoFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { wcService } from '@/services/wcService'
-import type { WcMatchWithOdds, WcScoreOdds } from '@/types/wc'
+import { ref, computed, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { InfoFilled } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
+import { wcService } from "@/services/wcService";
+import type { WcMatchWithOdds, WcScoreOdds } from "@/types/wc";
 
-const { t } = useI18n()
+const { t } = useI18n();
 
 const props = defineProps<{
-  modelValue: boolean
-  match: WcMatchWithOdds | null
-  scoreOdds: WcScoreOdds[]
-}>()
+  modelValue: boolean;
+  match: WcMatchWithOdds | null;
+  scoreOdds: WcScoreOdds[];
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', v: boolean): void
-  (e: 'bet-placed'): void
-}>()
+  (e: "update:modelValue", v: boolean): void;
+  (e: "bet-placed"): void;
+}>();
 
 const visible = computed({
   get: () => props.modelValue,
-  set: (v) => emit('update:modelValue', v),
-})
+  set: (v) => emit("update:modelValue", v),
+});
 
-const activeTab = ref<'handicap' | 'exact_score'>('handicap')
-const handicapChoice = ref<'home' | 'away' | null>(null)
-const handicapStake = ref(100)
-const selectedScores = ref<Record<string, { stake: number; odds: number }>>({})
-const submitting = ref(false)
+const activeTab = ref<"handicap" | "exact_score">("handicap");
+const handicapChoice = ref<"home" | "away" | null>(null);
+const handicapStake = ref(100);
+const selectedScores = ref<Record<string, { stake: number; odds: number }>>({});
+const submitting = ref(false);
 
-const hasHandicap = computed(() =>
-  !!(props.match?.handicap_value && props.match.odds_handicap_home && props.match.odds_handicap_away),
-)
+const hasHandicap = computed(
+  () =>
+    !!(
+      props.match?.handicap_value &&
+      props.match.odds_handicap_home &&
+      props.match.odds_handicap_away
+    ),
+);
 
-const homeGives = computed(() => props.match?.handicap_team === 'home')
+const homeGives = computed(() => props.match?.handicap_team === "home");
 
 const handicapOdds = computed(() => {
-  if (!props.match) return 1
-  return handicapChoice.value === 'home'
+  if (!props.match) return 1;
+  return handicapChoice.value === "home"
     ? (props.match.odds_handicap_home ?? 1)
-    : (props.match.odds_handicap_away ?? 1)
-})
+    : (props.match.odds_handicap_away ?? 1);
+});
 
 const handicapPayout = computed(() =>
   Math.floor(handicapStake.value * handicapOdds.value),
-)
+);
 
-function selectHandicap(side: 'home' | 'away') {
-  handicapChoice.value = handicapChoice.value === side ? null : side
+function selectHandicap(side: "home" | "away") {
+  handicapChoice.value = handicapChoice.value === side ? null : side;
 }
 
 function isScoreSelected(id: string) {
-  return !!selectedScores.value[id]
+  return !!selectedScores.value[id];
 }
 
 function toggleScore(so: WcScoreOdds) {
   if (selectedScores.value[so.id]) {
-    delete selectedScores.value[so.id]
+    delete selectedScores.value[so.id];
   } else {
-    selectedScores.value[so.id] = { stake: 100, odds: so.odds }
+    selectedScores.value[so.id] = { stake: 100, odds: so.odds };
   }
 }
 
 const totalBetCount = computed(() => {
-  let count = 0
-  if (activeTab.value === 'handicap' && handicapChoice.value) count++
-  if (activeTab.value === 'exact_score') count += Object.keys(selectedScores.value).length
-  return count
-})
+  let count = 0;
+  if (activeTab.value === "handicap" && handicapChoice.value) count++;
+  if (activeTab.value === "exact_score")
+    count += Object.keys(selectedScores.value).length;
+  return count;
+});
 
 const canSubmit = computed(() => {
-  if (activeTab.value === 'handicap') return !!handicapChoice.value && handicapStake.value > 0
-  return Object.keys(selectedScores.value).length > 0
-})
+  if (activeTab.value === "handicap")
+    return !!handicapChoice.value && handicapStake.value > 0;
+  return Object.keys(selectedScores.value).length > 0;
+});
 
 function reset() {
-  handicapChoice.value = null
-  handicapStake.value = 100
-  selectedScores.value = {}
-  activeTab.value = 'handicap'
+  handicapChoice.value = null;
+  handicapStake.value = 100;
+  selectedScores.value = {};
+  activeTab.value = "handicap";
 }
 
 async function handleSubmit() {
-  if (!props.match) return
-  submitting.value = true
+  if (!props.match) return;
+  submitting.value = true;
   try {
-    if (activeTab.value === 'handicap' && handicapChoice.value) {
+    if (activeTab.value === "handicap" && handicapChoice.value) {
       await wcService.placeBet({
         match_id: props.match.id,
-        bet_type: 'handicap',
+        bet_type: "handicap",
         bet_choice: handicapChoice.value,
         stake: handicapStake.value,
-      })
-    } else if (activeTab.value === 'exact_score') {
-      const scoreBets = props.scoreOdds.filter(so => selectedScores.value[so.id])
+      });
+    } else if (activeTab.value === "exact_score") {
+      const scoreBets = props.scoreOdds.filter(
+        (so) => selectedScores.value[so.id],
+      );
       for (const so of scoreBets) {
         await wcService.placeBet({
           match_id: props.match.id,
-          bet_type: 'exact_score',
+          bet_type: "exact_score",
           predicted_home_score: so.home_score,
           predicted_away_score: so.away_score,
           stake: selectedScores.value[so.id].stake,
-        })
+        });
       }
     }
-    ElMessage.success(t('wc.betSuccess'))
-    emit('bet-placed')
-    visible.value = false
+    ElMessage.success(t("wc.betSuccess"));
+    emit("bet-placed");
+    visible.value = false;
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
-watch(() => props.modelValue, (v) => {
-  if (!v) reset()
-})
+watch(
+  () => props.modelValue,
+  (v) => {
+    if (!v) reset();
+  },
+);
 </script>
 
 <style scoped>

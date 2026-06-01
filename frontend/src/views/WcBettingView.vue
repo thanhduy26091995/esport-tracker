@@ -63,6 +63,7 @@
                     type="success"
                     size="small"
                     @click="openBetForm(match)"
+                    plain
                   >
                     {{ t('wc.placeBet') }}
                   </el-button>
@@ -165,6 +166,7 @@ const betFilterOptions = computed(() => [
 
 function isBettable(m: WcMatch): boolean {
   if (m.status === 'completed' || m.status === 'cancelled') return false
+  if (!m.betting_open) return false
   if (m.bets_locked_at && new Date(m.bets_locked_at) <= new Date()) return false
   return true
 }

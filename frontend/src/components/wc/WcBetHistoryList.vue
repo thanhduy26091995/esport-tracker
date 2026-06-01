@@ -42,17 +42,15 @@
                   size="small"
                   text
                   class="wc-bet-action-btn"
-                  title="Sửa số tiền cược"
                   @click="startEdit(bet)"
-                >✎</el-button>
+                >Sửa</el-button>
                 <el-button
                   size="small"
                   text
                   class="wc-bet-action-btn wc-bet-action-btn--delete"
-                  title="Xoá cược"
                   :loading="deletingId === bet.id"
                   @click="handleDelete(bet)"
-                >✕</el-button>
+                >Xoá</el-button>
               </template>
             </template>
           </div>
@@ -97,6 +95,7 @@ const deletingId = ref<string | null>(null)
 function isEditable(bet: WcBetWithMatch): boolean {
   if (bet.result) return false
   if (bet.match_status === 'completed' || bet.match_status === 'cancelled') return false
+  if (!bet.betting_open) return false
   if (bet.bets_locked_at && new Date(bet.bets_locked_at) <= new Date()) return false
   return true
 }

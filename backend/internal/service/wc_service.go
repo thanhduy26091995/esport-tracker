@@ -66,8 +66,12 @@ func (s *WcService) UpdateMatch(id uuid.UUID, fields map[string]interface{}) err
 	return s.repo.UpdateMatch(id, fields)
 }
 
-func (s *WcService) LockMatch(id uuid.UUID) error {
-	return s.repo.LockMatch(id)
+func (s *WcService) OpenMatch(id uuid.UUID) error {
+	return s.repo.UpdateMatch(id, map[string]interface{}{"betting_open": true})
+}
+
+func (s *WcService) CloseMatch(id uuid.UUID) error {
+	return s.repo.UpdateMatch(id, map[string]interface{}{"betting_open": false})
 }
 
 // --- Score odds ---
@@ -440,6 +444,9 @@ func (s *WcService) SetAdminRole(wcUserID uuid.UUID, isAdmin bool) error {
 
 func isLocked(m *model.WcMatch) bool {
 	if m.Status == model.WcStatusLive || m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled {
+		return true
+	}
+	if !m.BettingOpen {
 		return true
 	}
 	if m.BetsLockedAt != nil && time.Now().After(*m.BetsLockedAt) {

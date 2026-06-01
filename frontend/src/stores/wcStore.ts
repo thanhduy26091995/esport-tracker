@@ -75,15 +75,15 @@ export const useWcStore = defineStore('wc', () => {
     }
   }
 
-  async function lockMatch(id: string) {
-    await wcService.lockMatch(id)
-    ElMessage.success('Đã khoá cược trận đấu')
+  async function openMatch(id: string) {
+    await wcService.openMatch(id)
+    ElMessage.success('Đã mở cược trận đấu')
     await fetchMatches()
   }
 
-  async function unlockMatch(id: string) {
-    await wcService.unlockMatch(id)
-    ElMessage.success('Đã mở cược trận đấu')
+  async function closeMatch(id: string) {
+    await wcService.closeMatch(id)
+    ElMessage.success('Đã đóng cược trận đấu')
     await fetchMatches()
   }
 
@@ -200,8 +200,8 @@ export const useWcStore = defineStore('wc', () => {
     fetchMatches,
     fetchMatch,
     syncMatches,
-    lockMatch,
-    unlockMatch,
+    openMatch,
+    closeMatch,
     settleMatch,
     fetchWallet,
     fetchBets,

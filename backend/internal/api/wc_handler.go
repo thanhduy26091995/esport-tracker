@@ -250,15 +250,29 @@ func (h *WcHandler) UpdateMatch(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// LockMatch handles POST /api/v1/wc/admin/matches/:id/lock
-func (h *WcHandler) LockMatch(c *gin.Context) {
+// OpenMatch handles POST /api/v1/wc/admin/matches/:id/open
+func (h *WcHandler) OpenMatch(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID"})
 		return
 	}
-	if err := h.svc.LockMatch(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lock match"})
+	if err := h.svc.OpenMatch(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open match"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// CloseMatch handles POST /api/v1/wc/admin/matches/:id/close
+func (h *WcHandler) CloseMatch(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID"})
+		return
+	}
+	if err := h.svc.CloseMatch(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to close match"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})

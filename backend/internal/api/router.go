@@ -178,7 +178,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			{
 				wcAdmin.POST("/sync", wcHandler.SyncMatches)
 				wcAdmin.PUT("/matches/:id", wcHandler.UpdateMatch)
-				wcAdmin.POST("/matches/:id/lock", wcHandler.LockMatch)
+				wcAdmin.POST("/matches/:id/open", wcHandler.OpenMatch)
+				wcAdmin.POST("/matches/:id/close", wcHandler.CloseMatch)
 				wcAdmin.POST("/matches/:id/score-odds", wcHandler.AddScoreOdds)
 				wcAdmin.PUT("/score-odds/:id", wcHandler.UpdateScoreOdds)
 				wcAdmin.DELETE("/score-odds/:id", wcHandler.DeleteScoreOdds)

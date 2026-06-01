@@ -75,6 +75,7 @@ type WcMatch struct {
 	HandicapValue    *float64   `gorm:"type:numeric(4,1)" json:"handicap_value"`
 	OddsHandicapHome *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_home"`
 	OddsHandicapAway *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_away"`
+	BettingOpen      bool       `gorm:"not null;default:false" json:"betting_open"`
 	BetsLockedAt     *time.Time `json:"bets_locked_at"`
 	SettledAt        *time.Time `json:"settled_at"`
 	CreatedAt        time.Time  `json:"created_at"`
@@ -214,6 +215,7 @@ type WcBetWithMatch struct {
 	AwayTeam     string     `json:"away_team"`
 	MatchDate    time.Time  `json:"match_date"`
 	MatchStatus  string     `json:"match_status"`
+	BettingOpen  bool       `json:"betting_open"`
 	BetsLockedAt *time.Time `json:"bets_locked_at"`
 }
 

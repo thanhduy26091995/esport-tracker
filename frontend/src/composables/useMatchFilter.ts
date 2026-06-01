@@ -14,8 +14,14 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
   const search = ref('')
   const activeFilter = ref<MatchFilterKey>(defaultFilter)
 
-  function isLocked(m: WcMatch): boolean {
-    return !!m.bets_locked_at && new Date(m.bets_locked_at) <= new Date()
+  function isBettingOpen(m: WcMatch): boolean {
+    if (!m.betting_open) return false
+    if (m.bets_locked_at && new Date(m.bets_locked_at) <= new Date()) return false
+    return true
+  }
+
+  function isClosedForBetting(m: WcMatch): boolean {
+    return !isBettingOpen(m) && m.status !== 'completed' && m.status !== 'cancelled'
   }
 
   const counts = computed(() => {
@@ -26,8 +32,8 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
       if (m.status === 'scheduled') result.incoming++
       if (m.status === 'live') result.live++
       if (m.status === 'completed') result.completed++
-      if (isLocked(m) && m.status !== 'completed') result.locked++
-      if (m.status !== 'completed' && m.status !== 'cancelled' && !isLocked(m)) result.open++
+      if (isClosedForBetting(m)) result.locked++
+      if (isBettingOpen(m)) result.open++
     }
     return result
   })
@@ -37,20 +43,16 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
 
     switch (activeFilter.value) {
       case 'incoming':
-        list = list.filter(m => m.status === 'scheduled' && !isLocked(m))
+        list = list.filter(m => m.status === 'scheduled')
         break
       case 'open':
-        list = list.filter(m =>
-          m.status !== 'completed' &&
-          m.status !== 'cancelled' &&
-          !isLocked(m),
-        )
+        list = list.filter(m => isBettingOpen(m))
         break
       case 'live':
         list = list.filter(m => m.status === 'live')
         break
       case 'locked':
-        list = list.filter(m => isLocked(m) && m.status !== 'completed')
+        list = list.filter(m => isClosedForBetting(m))
         break
       case 'completed':
         list = list.filter(m => m.status === 'completed')

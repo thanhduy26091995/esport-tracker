@@ -37,6 +37,7 @@ export interface WcMatch {
   handicap_team?: string
   odds_handicap_home?: number
   odds_handicap_away?: number
+  betting_open: boolean
   bets_locked_at?: string
   settled_at?: string
   created_at: string
@@ -102,6 +103,7 @@ export interface WcBetWithMatch extends WcBet {
   away_team: string
   match_date: string
   match_status: WcMatchStatus
+  betting_open: boolean
   bets_locked_at?: string
 }
 

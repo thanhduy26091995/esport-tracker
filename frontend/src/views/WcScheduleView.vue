@@ -10,7 +10,7 @@
         </div>
         <div class="flex gap-2">
           <router-link to="/world-cup/bet">
-            <el-button type="success">{{ t('wc.betting') }}</el-button>
+            <el-button plain type="success">{{ t('wc.betting') }}</el-button>
           </router-link>
           <router-link to="/world-cup/login" v-if="!authStore.isLoggedIn">
             <el-button>{{ t('wc.login') }}</el-button>

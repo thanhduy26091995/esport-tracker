@@ -45,11 +45,11 @@ export const wcService = {
   async updateMatch(id: string, fields: Record<string, unknown>): Promise<void> {
     await wcApi.put(`/admin/matches/${id}`, fields)
   },
-  async lockMatch(id: string): Promise<void> {
-    await wcApi.post(`/admin/matches/${id}/lock`)
+  async openMatch(id: string): Promise<void> {
+    await wcApi.post(`/admin/matches/${id}/open`)
   },
-  async unlockMatch(id: string): Promise<void> {
-    await wcApi.put(`/admin/matches/${id}`, { bets_locked_at: null })
+  async closeMatch(id: string): Promise<void> {
+    await wcApi.post(`/admin/matches/${id}/close`)
   },
   async settleMatch(id: string): Promise<{ bets_processed: number; total_paid_out: number }> {
     const r = await wcApi.post(`/admin/matches/${id}/settle`)

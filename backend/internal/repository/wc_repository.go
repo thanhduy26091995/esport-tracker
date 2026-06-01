@@ -232,7 +232,7 @@ func (r *WcRepository) CreateBet(tx *gorm.DB, bet *model.WcBet) error {
 func (r *WcRepository) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
 	var bets []*model.WcBetWithMatch
 	err := r.db.Table("wc_bets b").
-		Select("b.*, m.home_team, m.away_team, m.match_date, m.status AS match_status, m.bets_locked_at").
+		Select("b.*, m.home_team, m.away_team, m.match_date, m.status AS match_status, m.betting_open, m.bets_locked_at").
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
 		Where("b.wc_user_id = ?", wcUserID).
 		Order("b.created_at DESC").
