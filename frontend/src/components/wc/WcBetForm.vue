@@ -141,7 +141,7 @@ import { useI18n } from "vue-i18n";
 import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { wcService } from "@/services/wcService";
-import type { WcMatchWithOdds, WcScoreOdds } from "@/types/wc";
+import type { WcMatchWithOdds, WcScoreOdds, WcBetWithMatch } from "@/types/wc";
 
 const { t } = useI18n();
 
@@ -149,6 +149,7 @@ const props = defineProps<{
   modelValue: boolean;
   match: WcMatchWithOdds | null;
   scoreOdds: WcScoreOdds[];
+  existingBets?: WcBetWithMatch[];
 }>();
 
 const emit = defineEmits<{
@@ -166,6 +167,10 @@ const handicapChoice = ref<"home" | "away" | null>(null);
 const handicapStake = ref(100);
 const selectedScores = ref<Record<string, { stake: number; odds: number }>>({});
 const submitting = ref(false);
+
+// Existing bet refs — populated from props.existingBets on open
+const existingHandicapBet = ref<WcBetWithMatch | null>(null);
+const existingScoreBetMap = ref<Record<string, WcBetWithMatch>>({});
 
 const hasHandicap = computed(
   () =>
@@ -224,6 +229,34 @@ function reset() {
   handicapStake.value = 100;
   selectedScores.value = {};
   activeTab.value = "handicap";
+  existingHandicapBet.value = null;
+  existingScoreBetMap.value = {};
+}
+
+function populateFromExisting() {
+  const bets = props.existingBets ?? [];
+  let hasHandicap = false;
+  let hasScore = false;
+  for (const bet of bets) {
+    if (bet.bet_type === "handicap" && bet.bet_choice) {
+      existingHandicapBet.value = bet;
+      handicapChoice.value = bet.bet_choice as "home" | "away";
+      handicapStake.value = bet.stake;
+      hasHandicap = true;
+    } else if (bet.bet_type === "exact_score") {
+      const so = props.scoreOdds.find(
+        (s) =>
+          s.home_score === bet.predicted_home_score &&
+          s.away_score === bet.predicted_away_score,
+      );
+      if (so) {
+        existingScoreBetMap.value[so.id] = bet;
+        selectedScores.value[so.id] = { stake: bet.stake, odds: so.odds };
+        hasScore = true;
+      }
+    }
+  }
+  if (!hasHandicap && hasScore) activeTab.value = "exact_score";
 }
 
 async function handleSubmit() {
@@ -231,24 +264,39 @@ async function handleSubmit() {
   submitting.value = true;
   try {
     if (activeTab.value === "handicap" && handicapChoice.value) {
-      await wcService.placeBet({
-        match_id: props.match.id,
-        bet_type: "handicap",
-        bet_choice: handicapChoice.value,
-        stake: handicapStake.value,
-      });
-    } else if (activeTab.value === "exact_score") {
-      const scoreBets = props.scoreOdds.filter(
-        (so) => selectedScores.value[so.id],
-      );
-      for (const so of scoreBets) {
+      const existing = existingHandicapBet.value;
+      if (existing && existing.bet_choice === handicapChoice.value) {
+        if (existing.stake !== handicapStake.value) {
+          await wcService.updateBetStake(existing.id, handicapStake.value);
+        }
+        // unchanged — no-op
+      } else {
+        if (existing) await wcService.deleteBet(existing.id);
         await wcService.placeBet({
           match_id: props.match.id,
-          bet_type: "exact_score",
-          predicted_home_score: so.home_score,
-          predicted_away_score: so.away_score,
-          stake: selectedScores.value[so.id].stake,
+          bet_type: "handicap",
+          bet_choice: handicapChoice.value,
+          stake: handicapStake.value,
         });
+      }
+    } else if (activeTab.value === "exact_score") {
+      for (const so of props.scoreOdds.filter((s) => selectedScores.value[s.id])) {
+        const existing = existingScoreBetMap.value[so.id];
+        const stake = selectedScores.value[so.id].stake;
+        if (existing) {
+          if (existing.stake !== stake) {
+            await wcService.updateBetStake(existing.id, stake);
+          }
+          // unchanged — no-op
+        } else {
+          await wcService.placeBet({
+            match_id: props.match.id,
+            bet_type: "exact_score",
+            predicted_home_score: so.home_score,
+            predicted_away_score: so.away_score,
+            stake,
+          });
+        }
       }
     }
     ElMessage.success(t("wc.betSuccess"));
@@ -262,7 +310,8 @@ async function handleSubmit() {
 watch(
   () => props.modelValue,
   (v) => {
-    if (!v) reset();
+    reset();
+    if (v && props.existingBets?.length) populateFromExisting();
   },
 );
 </script>
@@ -380,12 +429,12 @@ watch(
   font-size: 20px;
   font-weight: 800;
   color: #16a34a;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .wc-score-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   padding: 4px 0;
   max-height: 300px;
@@ -417,7 +466,7 @@ watch(
   font-size: 18px;
   font-weight: 800;
   color: var(--text-primary);
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .wc-sc-odds {

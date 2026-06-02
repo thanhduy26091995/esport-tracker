@@ -94,7 +94,7 @@ func (c *footballClient) FetchWCMatches() ([]model.WcMatch, error) {
 			HomeTeamCode: m.HomeTeam.TLA,
 			AwayTeamCode: m.AwayTeam.TLA,
 			MatchDate:    matchDate,
-			GroupName:    m.Group,
+			GroupName:    normalizeGroupName(m.Group),
 			Stage:        stage,
 			Venue:        m.Venue,
 			Status:       status,
@@ -105,6 +105,18 @@ func (c *footballClient) FetchWCMatches() ([]model.WcMatch, error) {
 		matches = append(matches, wm)
 	}
 	return matches, nil
+}
+
+// normalizeGroupName converts API format "GROUP_A" → "Group A".
+func normalizeGroupName(group string) string {
+	if group == "" {
+		return ""
+	}
+	parts := strings.SplitN(strings.ToUpper(group), "_", 2)
+	if len(parts) == 2 && parts[0] == "GROUP" {
+		return "Group " + parts[1]
+	}
+	return group
 }
 
 func mapStatus(s string) string {

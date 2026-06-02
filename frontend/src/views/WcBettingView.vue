@@ -113,6 +113,7 @@
       v-model="betFormVisible"
       :match="selectedMatch"
       :score-odds="selectedScoreOdds"
+      :existing-bets="selectedMatchBets"
       @bet-placed="onBetPlaced"
     />
   </div>
@@ -145,6 +146,12 @@ const selectedMatch = ref<WcMatchWithOdds | null>(null)
 const selectedScoreOdds = ref<WcScoreOdds[]>([])
 const expandedMatchId = ref<string | null>(null)
 const matchBetCounts = ref<Record<string, number>>({})
+
+const selectedMatchBets = computed(() =>
+  selectedMatch.value
+    ? store.bets.filter((b) => b.match_id === selectedMatch.value!.id)
+    : [],
+)
 
 const walletClass = computed(() => {
   const b = store.wallet?.balance ?? 0
@@ -240,7 +247,7 @@ onMounted(async () => {
 .wc-wallet-value {
   font-size: 18px;
   font-weight: 800;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .wc-wallet-pos { color: #16a34a; }
