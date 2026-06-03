@@ -91,7 +91,7 @@ async function handleRegister() {
   if (form.value.password !== form.value.confirmPassword) return
   try {
     await authStore.register(form.value.name, form.value.password)
-    router.push('/world-cup/bet')
+    router.push('/world-cup/predict')
   } catch { /* error shown by store */ }
 }
 </script>

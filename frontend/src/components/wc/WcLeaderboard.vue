@@ -18,10 +18,10 @@
         </div>
         <div class="wc-lb-name">{{ entry.name }}</div>
         <div class="wc-lb-stats">
-          <span class="wc-lb-stat">{{ entry.wins }}W / {{ entry.total_bets }}T</span>
+          <span class="wc-lb-stat">{{ entry.correct }}W / {{ entry.total_predictions }}T</span>
         </div>
-        <div class="wc-lb-profit" :class="entry.net_profit >= 0 ? 'wc-profit--pos' : 'wc-profit--neg'">
-          {{ entry.net_profit >= 0 ? '+' : '' }}{{ entry.net_profit }}
+        <div class="wc-lb-profit" :class="entry.net_points >= 0 ? 'wc-profit--pos' : 'wc-profit--neg'">
+          {{ entry.net_points >= 0 ? '+' : '' }}{{ entry.net_points }}
         </div>
       </div>
     </div>

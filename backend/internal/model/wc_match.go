@@ -31,23 +31,23 @@ const (
 	WcTeamAway = "away"
 )
 
-// Bet type constants
+// Prediction type constants
 const (
-	WcBetTypeHandicap   = "handicap"
-	WcBetTypeExactScore = "exact_score"
+	WcPredictionTypeHandicap   = "handicap"
+	WcPredictionTypeExactScore = "exact_score"
 )
 
-// Bet result constants
+// Prediction result constants
 const (
-	WcResultWin  = "win"
-	WcResultLose = "lose"
-	WcResultPush = "push"
+	WcResultCorrect   = "correct"
+	WcResultIncorrect = "incorrect"
+	WcResultVoid      = "void"
 )
 
 // Settlement direction constants
 const (
-	WcDirectionPay     = "pay"     // admin pays user (user won overall)
-	WcDirectionCollect = "collect" // admin collects from user (user lost overall)
+	WcDirectionPay     = "pay"
+	WcDirectionCollect = "collect"
 	WcDirectionEven    = "even"
 )
 
@@ -58,46 +58,46 @@ const (
 )
 
 type WcMatch struct {
-	ID               uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	ExternalID       string     `gorm:"type:varchar(64);uniqueIndex" json:"external_id"`
-	HomeTeam         string     `gorm:"type:varchar(100);not null" json:"home_team"`
-	AwayTeam         string     `gorm:"type:varchar(100);not null" json:"away_team"`
-	HomeTeamCode     string     `gorm:"type:char(3)" json:"home_team_code"`
-	AwayTeamCode     string     `gorm:"type:char(3)" json:"away_team_code"`
-	MatchDate        time.Time  `gorm:"not null" json:"match_date"`
-	GroupName        string     `gorm:"type:varchar(30)" json:"group_name"`
-	Stage            string     `gorm:"type:varchar(30);not null;default:'group'" json:"stage"`
-	Venue            string     `gorm:"type:varchar(100)" json:"venue"`
-	HomeScore        *int       `json:"home_score"`
-	AwayScore        *int       `json:"away_score"`
-	Status           string     `gorm:"type:varchar(20);not null;default:'scheduled'" json:"status"`
-	HandicapTeam     string     `gorm:"type:varchar(5)" json:"handicap_team"`
-	HandicapValue    *float64   `gorm:"type:numeric(4,1)" json:"handicap_value"`
-	OddsHandicapHome *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_home"`
-	OddsHandicapAway *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_away"`
-	BettingOpen      bool       `gorm:"not null;default:false" json:"betting_open"`
-	BetsLockedAt     *time.Time `json:"bets_locked_at"`
-	SettledAt        *time.Time `json:"settled_at"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	ID                  uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	ExternalID          string     `gorm:"type:varchar(64);uniqueIndex" json:"external_id"`
+	HomeTeam            string     `gorm:"type:varchar(100);not null" json:"home_team"`
+	AwayTeam            string     `gorm:"type:varchar(100);not null" json:"away_team"`
+	HomeTeamCode        string     `gorm:"type:char(3)" json:"home_team_code"`
+	AwayTeamCode        string     `gorm:"type:char(3)" json:"away_team_code"`
+	MatchDate           time.Time  `gorm:"not null" json:"match_date"`
+	GroupName           string     `gorm:"type:varchar(30)" json:"group_name"`
+	Stage               string     `gorm:"type:varchar(30);not null;default:'group'" json:"stage"`
+	Venue               string     `gorm:"type:varchar(100)" json:"venue"`
+	HomeScore           *int       `json:"home_score"`
+	AwayScore           *int       `json:"away_score"`
+	Status              string     `gorm:"type:varchar(20);not null;default:'scheduled'" json:"status"`
+	HandicapTeam        string     `gorm:"type:varchar(5)" json:"handicap_team"`
+	HandicapValue       *float64   `gorm:"type:numeric(4,1)" json:"handicap_value"`
+	OddsHandicapHome    *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_home"`
+	OddsHandicapAway    *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_away"`
+	PredictionsOpen     bool       `gorm:"not null;default:false" json:"predictions_open"`
+	PredictionsLockedAt *time.Time `json:"predictions_locked_at"`
+	SettledAt           *time.Time `json:"settled_at"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 func (WcMatch) TableName() string {
 	return "wc_matches"
 }
 
-type WcScoreOdds struct {
+type WcScoreMultiplier struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	MatchID   uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_score_odds_scoreline" json:"match_id"`
-	HomeScore int       `gorm:"not null;uniqueIndex:idx_score_odds_scoreline" json:"home_score"`
-	AwayScore int       `gorm:"not null;uniqueIndex:idx_score_odds_scoreline" json:"away_score"`
-	Odds      float64   `gorm:"type:numeric(5,2);not null" json:"odds"`
+	MatchID   uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_score_multiplier_scoreline" json:"match_id"`
+	HomeScore int       `gorm:"not null;uniqueIndex:idx_score_multiplier_scoreline" json:"home_score"`
+	AwayScore int       `gorm:"not null;uniqueIndex:idx_score_multiplier_scoreline" json:"away_score"`
+	Multiplier float64  `gorm:"type:numeric(5,2);not null" json:"multiplier"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func (WcScoreOdds) TableName() string {
-	return "wc_score_odds"
+func (WcScoreMultiplier) TableName() string {
+	return "wc_score_multipliers"
 }
 
 type WcWallet struct {
@@ -127,33 +127,32 @@ func (WcWalletLog) TableName() string {
 	return "wc_wallet_logs"
 }
 
-type WcBet struct {
+type WcPrediction struct {
 	ID uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 
-	// Both bet types
-	WcUserID  uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"wc_user_id"`
-	MatchID   uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"match_id"`
-	BetType   string    `gorm:"type:varchar(15);not null;uniqueIndex:idx_bet_hc_dedup" json:"bet_type"`
-	Stake     int       `gorm:"not null" json:"stake"`
-	OddsSnapshot float64 `gorm:"type:numeric(5,2);not null" json:"odds_snapshot"`
+	WcUserID       uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_prediction_hc_dedup;uniqueIndex:idx_prediction_es_dedup" json:"wc_user_id"`
+	MatchID        uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_prediction_hc_dedup;uniqueIndex:idx_prediction_es_dedup" json:"match_id"`
+	PredictionType string    `gorm:"type:varchar(15);not null;uniqueIndex:idx_prediction_hc_dedup" json:"prediction_type"`
+	Points         int       `gorm:"not null" json:"points"`
+	MultiplierSnapshot float64 `gorm:"type:numeric(5,2);not null" json:"multiplier_snapshot"`
 
-	// Handicap bet fields (nullable for exact_score bets)
-	BetChoice            *string  `gorm:"type:varchar(5);uniqueIndex:idx_bet_hc_dedup" json:"bet_choice,omitempty"`
+	// Handicap prediction fields (nullable for exact_score predictions)
+	PredictionChoice     *string  `gorm:"type:varchar(5);uniqueIndex:idx_prediction_hc_dedup" json:"prediction_choice,omitempty"`
 	HandicapSnapshot     *float64 `gorm:"type:numeric(4,1)" json:"handicap_snapshot,omitempty"`
 	HandicapTeamSnapshot *string  `gorm:"type:varchar(5)" json:"handicap_team_snapshot,omitempty"`
 
-	// Exact score bet fields (nullable for handicap bets)
-	PredictedHomeScore *int `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_home_score,omitempty"`
-	PredictedAwayScore *int `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_away_score,omitempty"`
+	// Exact score prediction fields (nullable for handicap predictions)
+	PredictedHomeScore *int `gorm:"uniqueIndex:idx_prediction_es_dedup" json:"predicted_home_score,omitempty"`
+	PredictedAwayScore *int `gorm:"uniqueIndex:idx_prediction_es_dedup" json:"predicted_away_score,omitempty"`
 
-	// Settlement
-	Result    *string `gorm:"type:varchar(10)" json:"result,omitempty"`
-	Payout    *int    `json:"payout,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	// Result
+	Result      *string `gorm:"type:varchar(10)" json:"result,omitempty"`
+	PointsEarned *int   `json:"points_earned,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
-func (WcBet) TableName() string {
-	return "wc_bets"
+func (WcPrediction) TableName() string {
+	return "wc_predictions"
 }
 
 type WcSettlement struct {
@@ -189,17 +188,17 @@ func (WcSettlementDetail) TableName() string {
 // WcMatchWithOdds is returned by GET /matches/:id.
 type WcMatchWithOdds struct {
 	WcMatch
-	ScoreOdds []WcScoreOdds `json:"score_odds"`
+	ScoreMultipliers []WcScoreMultiplier `json:"score_multipliers"`
 }
 
 // WcLeaderboardEntry is used by GET /leaderboard.
 type WcLeaderboardEntry struct {
-	Rank      int       `json:"rank"`
-	WcUserID  uuid.UUID `json:"wc_user_id"`
-	Name      string    `json:"name"`
-	NetProfit int       `json:"net_profit"`
-	TotalBets int       `json:"total_bets"`
-	Wins      int       `json:"wins"`
+	Rank             int       `json:"rank"`
+	WcUserID         uuid.UUID `json:"wc_user_id"`
+	Name             string    `json:"name"`
+	NetPoints        int       `json:"net_points"`
+	TotalPredictions int       `json:"total_predictions"`
+	Correct          int       `json:"correct"`
 }
 
 // WcWalletWithUser is used by GetAllWallets (admin panel + settlement preview).
@@ -208,30 +207,30 @@ type WcWalletWithUser struct {
 	Name string `json:"name"`
 }
 
-// WcBetWithMatch is used by ListBets (user bet history).
-type WcBetWithMatch struct {
-	WcBet
-	HomeTeam     string     `json:"home_team"`
-	AwayTeam     string     `json:"away_team"`
-	MatchDate    time.Time  `json:"match_date"`
-	MatchStatus  string     `json:"match_status"`
-	BettingOpen  bool       `json:"betting_open"`
-	BetsLockedAt *time.Time `json:"bets_locked_at"`
+// WcPredictionWithMatch is used by ListPredictions (user prediction history).
+type WcPredictionWithMatch struct {
+	WcPrediction
+	HomeTeam            string     `json:"home_team"`
+	AwayTeam            string     `json:"away_team"`
+	MatchDate           time.Time  `json:"match_date"`
+	MatchStatus         string     `json:"match_status"`
+	PredictionsOpen     bool       `json:"predictions_open"`
+	PredictionsLockedAt *time.Time `json:"predictions_locked_at"`
 }
 
-// WcBetPublic is used by ListBetsForMatchPublic — visible to everyone.
-type WcBetPublic struct {
+// WcPredictionPublic is used by ListPredictionsForMatchPublic — visible to everyone.
+type WcPredictionPublic struct {
 	ID                 uuid.UUID `json:"id"`
 	WcUserID           uuid.UUID `json:"wc_user_id"`
 	Name               string    `json:"name"`
-	BetType            string    `json:"bet_type"`
-	BetChoice          *string   `json:"bet_choice,omitempty"`
+	PredictionType     string    `json:"prediction_type"`
+	PredictionChoice   *string   `json:"prediction_choice,omitempty"`
 	PredictedHomeScore *int      `json:"predicted_home_score,omitempty"`
 	PredictedAwayScore *int      `json:"predicted_away_score,omitempty"`
-	Stake              int       `json:"stake"`
-	OddsSnapshot       float64   `json:"odds_snapshot"`
+	Points             int       `json:"points"`
+	MultiplierSnapshot float64   `json:"multiplier_snapshot"`
 	Result             *string   `json:"result,omitempty"`
-	Payout             *int      `json:"payout,omitempty"`
+	PointsEarned       *int      `json:"points_earned,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 

@@ -84,8 +84,8 @@ const hasScore = computed(() =>
 )
 
 const isLocked = computed(() => {
-  if (!props.match.bets_locked_at) return false
-  return new Date(props.match.bets_locked_at) <= new Date()
+  if (!props.match.predictions_locked_at) return false
+  return new Date(props.match.predictions_locked_at) <= new Date()
 })
 
 const matchDate = computed(() => new Date(props.match.match_date))

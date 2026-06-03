@@ -60,7 +60,7 @@ func (r *WcRepository) UpsertMatches(matches []model.WcMatch) error {
 			"home_team", "away_team", "home_team_code", "away_team_code",
 			"match_date", "group_name", "stage", "venue",
 			"home_score", "away_score", "status",
-			"bets_locked_at", "updated_at",
+			"predictions_locked_at", "updated_at",
 		}),
 	}).Create(&matches).Error
 }
@@ -102,7 +102,7 @@ func (r *WcRepository) GetMatchWithOdds(id uuid.UUID) (*model.WcMatchWithOdds, e
 	}
 	err = r.db.Where("match_id = ?", id).
 		Order("home_score ASC, away_score ASC").
-		Find(&m.ScoreOdds).Error
+		Find(&m.ScoreMultipliers).Error
 	return &m, err
 }
 
@@ -116,27 +116,27 @@ func (r *WcRepository) LockMatch(id uuid.UUID) error {
 	now := time.Now()
 	return r.db.Model(&model.WcMatch{}).
 		Where("id = ?", id).
-		Update("bets_locked_at", now).Error
+		Update("predictions_locked_at", now).Error
 }
 
-// --- Score odds ---
+// --- Score multipliers ---
 
-func (r *WcRepository) CreateScoreOdds(so *model.WcScoreOdds) error {
+func (r *WcRepository) CreateScoreMultiplier(so *model.WcScoreMultiplier) error {
 	return r.db.Create(so).Error
 }
 
-func (r *WcRepository) UpdateScoreOdds(id uuid.UUID, odds float64) error {
-	return r.db.Model(&model.WcScoreOdds{}).
+func (r *WcRepository) UpdateScoreMultiplier(id uuid.UUID, multiplier float64) error {
+	return r.db.Model(&model.WcScoreMultiplier{}).
 		Where("id = ?", id).
-		Updates(map[string]interface{}{"odds": odds, "updated_at": time.Now()}).Error
+		Updates(map[string]interface{}{"multiplier": multiplier, "updated_at": time.Now()}).Error
 }
 
-func (r *WcRepository) DeleteScoreOdds(id uuid.UUID) error {
-	return r.db.Delete(&model.WcScoreOdds{}, "id = ?", id).Error
+func (r *WcRepository) DeleteScoreMultiplier(id uuid.UUID) error {
+	return r.db.Delete(&model.WcScoreMultiplier{}, "id = ?", id).Error
 }
 
-func (r *WcRepository) GetScoreOdds(matchID uuid.UUID, homeScore, awayScore int) (*model.WcScoreOdds, error) {
-	var so model.WcScoreOdds
+func (r *WcRepository) GetScoreMultiplier(matchID uuid.UUID, homeScore, awayScore int) (*model.WcScoreMultiplier, error) {
+	var so model.WcScoreMultiplier
 	err := r.db.Where("match_id = ? AND home_score = ? AND away_score = ?", matchID, homeScore, awayScore).
 		First(&so).Error
 	if err != nil {
@@ -145,8 +145,8 @@ func (r *WcRepository) GetScoreOdds(matchID uuid.UUID, homeScore, awayScore int)
 	return &so, nil
 }
 
-func (r *WcRepository) GetScoreOddsByID(id uuid.UUID) (*model.WcScoreOdds, error) {
-	var so model.WcScoreOdds
+func (r *WcRepository) GetScoreMultiplierByID(id uuid.UUID) (*model.WcScoreMultiplier, error) {
+	var so model.WcScoreMultiplier
 	err := r.db.First(&so, "id = ?", id).Error
 	if err != nil {
 		return nil, err
@@ -154,8 +154,8 @@ func (r *WcRepository) GetScoreOddsByID(id uuid.UUID) (*model.WcScoreOdds, error
 	return &so, nil
 }
 
-func (r *WcRepository) ListScoreOdds(matchID uuid.UUID) ([]*model.WcScoreOdds, error) {
-	var odds []*model.WcScoreOdds
+func (r *WcRepository) ListScoreMultipliers(matchID uuid.UUID) ([]*model.WcScoreMultiplier, error) {
+	var odds []*model.WcScoreMultiplier
 	err := r.db.Where("match_id = ?", matchID).
 		Order("home_score ASC, away_score ASC").
 		Find(&odds).Error
@@ -219,9 +219,9 @@ func (r *WcRepository) ResetAllWallets(tx *gorm.DB) error {
 		Update("balance", 0).Error
 }
 
-// --- Bets ---
+// --- Predictions ---
 
-func (r *WcRepository) CreateBet(tx *gorm.DB, bet *model.WcBet) error {
+func (r *WcRepository) CreatePrediction(tx *gorm.DB, bet *model.WcPrediction) error {
 	db := r.db
 	if tx != nil {
 		db = tx
@@ -229,10 +229,10 @@ func (r *WcRepository) CreateBet(tx *gorm.DB, bet *model.WcBet) error {
 	return db.Create(bet).Error
 }
 
-func (r *WcRepository) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
-	var bets []*model.WcBetWithMatch
-	err := r.db.Table("wc_bets b").
-		Select("b.*, m.home_team, m.away_team, m.match_date, m.status AS match_status, m.betting_open, m.bets_locked_at").
+func (r *WcRepository) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictionWithMatch, error) {
+	var bets []*model.WcPredictionWithMatch
+	err := r.db.Table("wc_predictions b").
+		Select("b.*, m.home_team, m.away_team, m.match_date, m.status AS match_status, m.predictions_open, m.predictions_locked_at").
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
 		Where("b.wc_user_id = ?", wcUserID).
 		Order("b.created_at DESC").
@@ -240,30 +240,30 @@ func (r *WcRepository) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, er
 	return bets, err
 }
 
-func (r *WcRepository) GetBetByID(id uuid.UUID) (*model.WcBet, error) {
-	var bet model.WcBet
+func (r *WcRepository) GetPredictionByID(id uuid.UUID) (*model.WcPrediction, error) {
+	var bet model.WcPrediction
 	err := r.db.Where("id = ?", id).First(&bet).Error
 	return &bet, err
 }
 
-func (r *WcRepository) DeleteBet(id uuid.UUID) error {
-	return r.db.Delete(&model.WcBet{}, "id = ?", id).Error
+func (r *WcRepository) DeletePrediction(id uuid.UUID) error {
+	return r.db.Delete(&model.WcPrediction{}, "id = ?", id).Error
 }
 
-func (r *WcRepository) UpdateBetStake(id uuid.UUID, stake int) error {
-	return r.db.Model(&model.WcBet{}).Where("id = ?", id).Update("stake", stake).Error
+func (r *WcRepository) UpdatePredictionPoints(id uuid.UUID, points int) error {
+	return r.db.Model(&model.WcPrediction{}).Where("id = ?", id).Update("points", points).Error
 }
 
-func (r *WcRepository) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBet, error) {
-	var bets []*model.WcBet
+func (r *WcRepository) ListPredictionsForMatch(matchID uuid.UUID) ([]*model.WcPrediction, error) {
+	var bets []*model.WcPrediction
 	err := r.db.Where("match_id = ?", matchID).Find(&bets).Error
 	return bets, err
 }
 
-func (r *WcRepository) ListBetsForMatchPublic(matchID uuid.UUID) ([]*model.WcBetPublic, error) {
-	var bets []*model.WcBetPublic
-	err := r.db.Table("wc_bets b").
-		Select("b.id, b.wc_user_id, u.name, b.bet_type, b.bet_choice, b.predicted_home_score, b.predicted_away_score, b.stake, b.odds_snapshot, b.result, b.payout, b.created_at").
+func (r *WcRepository) ListPredictionsForMatchPublic(matchID uuid.UUID) ([]*model.WcPredictionPublic, error) {
+	var bets []*model.WcPredictionPublic
+	err := r.db.Table("wc_predictions b").
+		Select("b.id, b.wc_user_id, u.name, b.prediction_type, b.prediction_choice, b.predicted_home_score, b.predicted_away_score, b.points, b.multiplier_snapshot, b.result, b.points_earned, b.created_at").
 		Joins("JOIN wc_users u ON u.id = b.wc_user_id").
 		Where("b.match_id = ?", matchID).
 		Order("b.created_at ASC").
@@ -271,14 +271,14 @@ func (r *WcRepository) ListBetsForMatchPublic(matchID uuid.UUID) ([]*model.WcBet
 	return bets, err
 }
 
-func (r *WcRepository) UpdateBetResult(tx *gorm.DB, betID uuid.UUID, result string, payout int) error {
+func (r *WcRepository) UpdatePredictionResult(tx *gorm.DB, betID uuid.UUID, result string, pointsEarned int) error {
 	db := r.db
 	if tx != nil {
 		db = tx
 	}
-	return db.Model(&model.WcBet{}).
+	return db.Model(&model.WcPrediction{}).
 		Where("id = ?", betID).
-		Updates(map[string]interface{}{"result": result, "payout": payout}).Error
+		Updates(map[string]interface{}{"result": result, "points_earned": pointsEarned}).Error
 }
 
 func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
@@ -287,13 +287,13 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 		SELECT
 			u.id   AS wc_user_id,
 			u.name,
-			COALESCE(SUM(b.payout - b.stake) FILTER (WHERE b.result IS NOT NULL), 0) AS net_profit,
-			COUNT(b.id) FILTER (WHERE b.result IS NOT NULL)                           AS total_bets,
-			COUNT(b.id) FILTER (WHERE b.result = 'win')                               AS wins
+			COALESCE(SUM(b.points_earned - b.points) FILTER (WHERE b.result IS NOT NULL), 0) AS net_points,
+			COUNT(b.id) FILTER (WHERE b.result IS NOT NULL)                                   AS total_predictions,
+			COUNT(b.id) FILTER (WHERE b.result = 'correct')                                   AS correct
 		FROM wc_users u
-		LEFT JOIN wc_bets b ON b.wc_user_id = u.id
+		LEFT JOIN wc_predictions b ON b.wc_user_id = u.id
 		GROUP BY u.id, u.name
-		ORDER BY net_profit DESC, u.name ASC
+		ORDER BY net_points DESC, u.name ASC
 	`).Scan(&rows).Error
 	if err != nil {
 		return nil, err

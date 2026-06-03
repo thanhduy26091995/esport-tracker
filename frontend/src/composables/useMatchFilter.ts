@@ -14,14 +14,14 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
   const search = ref('')
   const activeFilter = ref<MatchFilterKey>(defaultFilter)
 
-  function isBettingOpen(m: WcMatch): boolean {
-    if (!m.betting_open) return false
-    if (m.bets_locked_at && new Date(m.bets_locked_at) <= new Date()) return false
+  function isPredictionsOpen(m: WcMatch): boolean {
+    if (!m.predictions_open) return false
+    if (m.predictions_locked_at && new Date(m.predictions_locked_at) <= new Date()) return false
     return true
   }
 
-  function isClosedForBetting(m: WcMatch): boolean {
-    return !isBettingOpen(m) && m.status !== 'completed' && m.status !== 'cancelled'
+  function isClosedForPredictions(m: WcMatch): boolean {
+    return !isPredictionsOpen(m) && m.status !== 'completed' && m.status !== 'cancelled'
   }
 
   const counts = computed(() => {
@@ -32,8 +32,8 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
       if (m.status === 'scheduled') result.incoming++
       if (m.status === 'live') result.live++
       if (m.status === 'completed') result.completed++
-      if (isClosedForBetting(m)) result.locked++
-      if (isBettingOpen(m)) result.open++
+      if (isClosedForPredictions(m)) result.locked++
+      if (isPredictionsOpen(m)) result.open++
     }
     return result
   })
@@ -46,13 +46,13 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
         list = list.filter(m => m.status === 'scheduled')
         break
       case 'open':
-        list = list.filter(m => isBettingOpen(m))
+        list = list.filter(m => isPredictionsOpen(m))
         break
       case 'live':
         list = list.filter(m => m.status === 'live')
         break
       case 'locked':
-        list = list.filter(m => isClosedForBetting(m))
+        list = list.filter(m => isClosedForPredictions(m))
         break
       case 'completed':
         list = list.filter(m => m.status === 'completed')

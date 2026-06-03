@@ -1,5 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+const WC_API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
+
+async function isWcFeatureEnabled(): Promise<boolean> {
+  try {
+    const res = await fetch(`${WC_API_BASE}/config`)
+    const data = await res.json()
+    return !!data.is_enabled
+  } catch {
+    return false
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -24,10 +36,10 @@ const router = createRouter({
       component: () => import('../views/WcRegisterView.vue')
     },
     {
-      path: '/world-cup/bet',
-      name: 'wc-bet',
-      component: () => import('../views/WcBettingView.vue'),
-      meta: { requiresWcAuth: true }
+      path: '/world-cup/predict',
+      name: 'wc-predict',
+      component: () => import('../views/WcPredictView.vue'),
+      meta: { requiresWcAuth: true, requiresWcFeature: true }
     },
     {
       path: '/users',
@@ -68,11 +80,20 @@ const router = createRouter({
       path: '/tournaments/:id',
       name: 'tournament-detail',
       component: () => import('../views/TournamentDetailView.vue')
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('../views/NotFoundView.vue')
     }
   ]
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
+  if (to.meta.requiresWcFeature) {
+    const enabled = await isWcFeatureEnabled()
+    if (!enabled) return { name: 'not-found' }
+  }
   if (to.meta.requiresWcAuth) {
     const token = localStorage.getItem('wc_token')
     if (!token) return { name: 'wc-login' }

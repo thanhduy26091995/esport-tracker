@@ -76,13 +76,13 @@
           </div>
           <div class="wc-admin-match-actions">
             <el-button
-              v-if="!match.betting_open"
+              v-if="!match.predictions_open"
               size="small"
               type="success"
               plain
               @click="handleOpen(match.id)"
             >
-              🔓 Mở cược
+              🔓 Mở dự đoán
             </el-button>
             <el-button
               v-else
@@ -92,7 +92,7 @@
               @click="handleClose(match.id)"
               :icon="Lock"
             >
-              Đóng cược
+              Đóng dự đoán
             </el-button>
             <el-button
               size="small"
@@ -100,15 +100,15 @@
               @click="handleSettle(match.id)"
               :disabled="match.status !== 'completed'"
             >
-              {{ t("wc.settleMatch") }}
+              {{ t("wc.finalizeMatch") }}
             </el-button>
             <el-button
               plain
               size="small"
               type="warning"
-              @click="openScoreOddsDialog(match)"
+              @click="openScoreMultipliersDialog(match)"
             >
-              {{ t("wc.scoreOdds") }}
+              {{ t("wc.scoreMultipliers") }}
             </el-button>
             <el-button
               plain
@@ -116,7 +116,7 @@
               type="info"
               @click="openHandicapDialog(match)"
             >
-              Kèo chấp
+              Chấp điểm
             </el-button>
           </div>
         </div>
@@ -197,7 +197,7 @@
     <!-- Handicap Dialog -->
     <el-dialog
       v-model="handicapVisible"
-      title="Cấu hình kèo chấp"
+      title="Cấu hình chấp điểm"
       width="440px"
     >
       <div class="wc-so-match-name" v-if="handicapMatch">
@@ -261,39 +261,39 @@
           :loading="savingHandicap"
           @click="handleSaveHandicap"
         >
-          Lưu kèo chấp
+          Lưu chấp điểm
         </el-button>
       </template>
     </el-dialog>
 
-    <!-- Score Odds Dialog -->
+    <!-- Score Multipliers Dialog -->
     <el-dialog
-      v-model="scoreOddsVisible"
-      :title="t('wc.scoreOdds')"
+      v-model="scoreMultipliersVisible"
+      :title="t('wc.scoreMultipliers')"
       width="480px"
     >
-      <div class="wc-so-match-name" v-if="scoreOddsMatch">
-        {{ scoreOddsMatch.home_team }} vs {{ scoreOddsMatch.away_team }}
+      <div class="wc-so-match-name" v-if="scoreMultipliersMatch">
+        {{ scoreMultipliersMatch.home_team }} vs {{ scoreMultipliersMatch.away_team }}
       </div>
       <div class="wc-so-list">
-        <div v-for="so in currentScoreOdds" :key="so.id" class="wc-so-row mb-2 mt-2" >
+        <div v-for="so in currentScoreMultipliers" :key="so.id" class="wc-so-row mb-2 mt-2" >
           <span class="wc-so-score"
             >{{ so.home_score }}–{{ so.away_score }}</span
           >
           <el-input-number
-            v-model="so.odds"
+            v-model="so.multiplier"
             :min="1.01"
             :step="0.05"
             :precision="2"
             size="small"
             style="width: 120px"
-            @change="handleUpdateOdds(so.id, so.odds)"
+            @change="handleUpdateMultiplier(so.id, so.multiplier)"
           />
           <el-button
             size="small"
             type="danger"
             text
-            @click="handleDeleteScoreOdds(so.id)"
+            @click="handleDeleteScoreMultiplier(so.id)"
           >
             {{ t("common.delete") }}
           </el-button>
@@ -318,14 +318,14 @@
           style="width: 80px"
         />
         <el-input-number
-          v-model="newSo.odds"
+          v-model="newSo.multiplier"
           :min="1.01"
           :step="0.05"
           :precision="2"
           size="small"
           style="width: 100px"
         />
-        <el-button type="primary" size="small" @click="handleAddScoreOdds">
+        <el-button type="primary" size="small" @click="handleAddScoreMultiplier">
           {{ t("common.create") }}
         </el-button>
       </div>
@@ -341,7 +341,7 @@ import { ElMessage } from "element-plus";
 import { useWcStore } from "@/stores/wcStore";
 import { wcService } from "@/services/wcService";
 import { useMatchFilter } from "@/composables/useMatchFilter";
-import type { WcUser, WcMatch, WcScoreOdds } from "@/types/wc";
+import type { WcUser, WcMatch, WcScoreMultiplier } from "@/types/wc";
 import WcSettlementPreview from "./WcSettlementPreview.vue";
 import WcSettlementHistory from "./WcSettlementHistory.vue";
 
@@ -362,7 +362,7 @@ const adminFilterOptions = computed(() => [
     label: "Sắp tới",
     count: adminCounts.value.incoming,
   },
-  { key: "open" as const, label: "Mở cược", count: adminCounts.value.open },
+  { key: "open" as const, label: "Mở dự đoán", count: adminCounts.value.open },
   { key: "live" as const, label: "Đang diễn", count: adminCounts.value.live },
   { key: "locked" as const, label: "Đã khóa", count: adminCounts.value.locked },
   {
@@ -383,10 +383,10 @@ const topUpTarget = ref<WcUser | null>(null);
 const topUpForm = ref({ delta: 0, note: "" });
 const topping = ref(false);
 
-const scoreOddsVisible = ref(false);
-const scoreOddsMatch = ref<WcMatch | null>(null);
-const currentScoreOdds = ref<WcScoreOdds[]>([]);
-const newSo = ref({ homeScore: 0, awayScore: 0, odds: 3.0 });
+const scoreMultipliersVisible = ref(false);
+const scoreMultipliersMatch = ref<WcMatch | null>(null);
+const currentScoreMultipliers = ref<WcScoreMultiplier[]>([]);
+const newSo = ref({ homeScore: 0, awayScore: 0, multiplier: 3.0 });
 
 const handicapVisible = ref(false);
 const handicapMatch = ref<WcMatch | null>(null);
@@ -436,7 +436,7 @@ async function handleClose(matchId: string) {
 }
 
 async function handleSettle(matchId: string) {
-  await store.settleMatch(matchId);
+  await store.finalizeMatch(matchId);
 }
 
 function openTopUpDialog(user: WcUser) {
@@ -485,7 +485,7 @@ async function handleSaveHandicap() {
       odds_handicap_home: handicapForm.value.odds_handicap_home,
       odds_handicap_away: handicapForm.value.odds_handicap_away,
     });
-    ElMessage.success("Đã lưu kèo chấp");
+    ElMessage.success("Đã lưu chấp điểm");
     handicapVisible.value = false;
     await store.fetchMatches();
   } finally {
@@ -493,32 +493,32 @@ async function handleSaveHandicap() {
   }
 }
 
-async function openScoreOddsDialog(match: WcMatch) {
-  scoreOddsMatch.value = match;
-  const odds = await wcService.getScoreOdds(match.id);
-  currentScoreOdds.value = odds;
-  scoreOddsVisible.value = true;
+async function openScoreMultipliersDialog(match: WcMatch) {
+  scoreMultipliersMatch.value = match;
+  const multipliers = await wcService.getScoreMultipliers(match.id);
+  currentScoreMultipliers.value = multipliers;
+  scoreMultipliersVisible.value = true;
 }
 
-async function handleAddScoreOdds() {
-  if (!scoreOddsMatch.value) return;
-  const so = await wcService.addScoreOdds(
-    scoreOddsMatch.value.id,
+async function handleAddScoreMultiplier() {
+  if (!scoreMultipliersMatch.value) return;
+  const so = await wcService.addScoreMultiplier(
+    scoreMultipliersMatch.value.id,
     newSo.value.homeScore,
     newSo.value.awayScore,
-    newSo.value.odds,
+    newSo.value.multiplier,
   );
-  currentScoreOdds.value.push(so);
-  newSo.value = { homeScore: 0, awayScore: 0, odds: 3.0 };
+  currentScoreMultipliers.value.push(so);
+  newSo.value = { homeScore: 0, awayScore: 0, multiplier: 3.0 };
 }
 
-async function handleUpdateOdds(id: string, odds: number) {
-  await wcService.updateScoreOdds(id, odds);
+async function handleUpdateMultiplier(id: string, multiplier: number) {
+  await wcService.updateScoreMultiplier(id, multiplier);
 }
 
-async function handleDeleteScoreOdds(id: string) {
-  await wcService.deleteScoreOdds(id);
-  currentScoreOdds.value = currentScoreOdds.value.filter((so) => so.id !== id);
+async function handleDeleteScoreMultiplier(id: string) {
+  await wcService.deleteScoreMultiplier(id);
+  currentScoreMultipliers.value = currentScoreMultipliers.value.filter((so) => so.id !== id);
 }
 
 function formatDate(s: string) {

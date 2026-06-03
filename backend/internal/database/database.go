@@ -46,10 +46,10 @@ func Connect() (*gorm.DB, error) {
 		&model.WcUser{},
 		&model.WcConfig{},
 		&model.WcMatch{},
-		&model.WcScoreOdds{},
+		&model.WcScoreMultiplier{},
 		&model.WcWallet{},
 		&model.WcWalletLog{},
-		&model.WcBet{},
+		&model.WcPrediction{},
 		&model.WcSettlement{},
 		&model.WcSettlementDetail{},
 	); err != nil {

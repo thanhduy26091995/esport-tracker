@@ -8,14 +8,6 @@
           </h1>
           <p class="page-subtitle">{{ t('wc.schedule') }}</p>
         </div>
-        <div class="flex gap-2">
-          <router-link to="/world-cup/bet">
-            <el-button plain type="success">{{ t('wc.betting') }}</el-button>
-          </router-link>
-          <router-link to="/world-cup/login" v-if="!authStore.isLoggedIn">
-            <el-button>{{ t('wc.login') }}</el-button>
-          </router-link>
-        </div>
       </div>
 
       <WcGroupFilter v-model="selectedFilter" />
@@ -50,14 +42,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWcStore } from '@/stores/wcStore'
-import { useWcAuthStore } from '@/stores/wcAuthStore'
 import WcGroupFilter from '@/components/wc/WcGroupFilter.vue'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import type { WcMatch } from '@/types/wc'
 
 const { t } = useI18n()
 const store = useWcStore()
-const authStore = useWcAuthStore()
 
 const selectedFilter = ref('')
 

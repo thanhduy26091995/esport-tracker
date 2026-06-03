@@ -100,7 +100,7 @@ func (c *footballClient) FetchWCMatches() ([]model.WcMatch, error) {
 			Status:       status,
 			HomeScore:    m.Score.FullTime.Home,
 			AwayScore:    m.Score.FullTime.Away,
-			BetsLockedAt: &matchDate, // auto-lock at kickoff time
+			PredictionsLockedAt: &matchDate, // auto-lock at kickoff time
 		}
 		matches = append(matches, wm)
 	}

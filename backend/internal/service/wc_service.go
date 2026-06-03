@@ -67,16 +67,16 @@ func (s *WcService) UpdateMatch(id uuid.UUID, fields map[string]interface{}) err
 }
 
 func (s *WcService) OpenMatch(id uuid.UUID) error {
-	return s.repo.UpdateMatch(id, map[string]interface{}{"betting_open": true})
+	return s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": true})
 }
 
 func (s *WcService) CloseMatch(id uuid.UUID) error {
-	return s.repo.UpdateMatch(id, map[string]interface{}{"betting_open": false})
+	return s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": false})
 }
 
-// --- Score odds ---
+// --- Score multipliers ---
 
-func (s *WcService) AddScoreOdds(matchID uuid.UUID, homeScore, awayScore int, odds float64) (*model.WcScoreOdds, error) {
+func (s *WcService) AddScoreMultiplier(matchID uuid.UUID, homeScore, awayScore int, odds float64) (*model.WcScoreMultiplier, error) {
 	m, err := s.repo.GetMatch(matchID)
 	if err != nil {
 		return nil, fmt.Errorf("match not found")
@@ -84,21 +84,21 @@ func (s *WcService) AddScoreOdds(matchID uuid.UUID, homeScore, awayScore int, od
 	if isFinished(m) {
 		return nil, fmt.Errorf("match is already completed or cancelled — cannot add score odds")
 	}
-	so := &model.WcScoreOdds{
+	so := &model.WcScoreMultiplier{
 		MatchID:   matchID,
 		HomeScore: homeScore,
 		AwayScore: awayScore,
-		Odds:      odds,
+		Multiplier: odds,
 	}
-	return so, s.repo.CreateScoreOdds(so)
+	return so, s.repo.CreateScoreMultiplier(so)
 }
 
-func (s *WcService) UpdateScoreOdds(id uuid.UUID, odds float64) error {
-	return s.repo.UpdateScoreOdds(id, odds)
+func (s *WcService) UpdateScoreMultiplier(id uuid.UUID, multiplier float64) error {
+	return s.repo.UpdateScoreMultiplier(id, multiplier)
 }
 
-func (s *WcService) DeleteScoreOdds(id uuid.UUID) error {
-	so, err := s.repo.GetScoreOddsByID(id)
+func (s *WcService) DeleteScoreMultiplier(id uuid.UUID) error {
+	so, err := s.repo.GetScoreMultiplierByID(id)
 	if err != nil {
 		return fmt.Errorf("score odds not found")
 	}
@@ -109,25 +109,25 @@ func (s *WcService) DeleteScoreOdds(id uuid.UUID) error {
 	if isFinished(m) {
 		return fmt.Errorf("match is already completed or cancelled — cannot delete score odds")
 	}
-	return s.repo.DeleteScoreOdds(id)
+	return s.repo.DeleteScoreMultiplier(id)
 }
 
-func (s *WcService) ListScoreOdds(matchID uuid.UUID) ([]*model.WcScoreOdds, error) {
-	return s.repo.ListScoreOdds(matchID)
+func (s *WcService) ListScoreMultipliers(matchID uuid.UUID) ([]*model.WcScoreMultiplier, error) {
+	return s.repo.ListScoreMultipliers(matchID)
 }
 
-// --- Betting ---
+// --- Predictions ---
 
-type PlaceBetRequest struct {
+type SubmitPredictionRequest struct {
 	MatchID            uuid.UUID
-	BetType            string
-	BetChoice          *string // handicap: 'home'|'away'; nil for exact_score
+	PredictionType     string
+	PredictionChoice   *string // handicap: 'home'|'away'; nil for exact_score
 	PredictedHomeScore *int    // exact_score only
 	PredictedAwayScore *int    // exact_score only
-	Stake              int
+	Points             int
 }
 
-func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.WcBet, error) {
+func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionRequest) (*model.WcPrediction, error) {
 	m, err := s.repo.GetMatch(req.MatchID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -137,118 +137,118 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 	}
 
 	if isLocked(m) {
-		return nil, fmt.Errorf("bets are closed for this match")
+		return nil, fmt.Errorf("predictions are closed for this match")
 	}
 
-	if req.Stake <= 0 {
-		return nil, fmt.Errorf("stake must be greater than 0")
+	if req.Points <= 0 {
+		return nil, fmt.Errorf("points must be greater than 0")
 	}
 
-	var oddsSnapshot float64
+	var multiplierSnapshot float64
 	var handicapSnapshot *float64
 	var handicapTeamSnapshot *string
 
-	switch req.BetType {
-	case model.WcBetTypeHandicap:
-		if req.BetChoice == nil || (*req.BetChoice != model.WcTeamHome && *req.BetChoice != model.WcTeamAway) {
-			return nil, fmt.Errorf("bet_choice must be 'home' or 'away' for handicap bets")
+	switch req.PredictionType {
+	case model.WcPredictionTypeHandicap:
+		if req.PredictionChoice == nil || (*req.PredictionChoice != model.WcTeamHome && *req.PredictionChoice != model.WcTeamAway) {
+			return nil, fmt.Errorf("prediction_choice must be 'home' or 'away' for handicap predictions")
 		}
 		if m.HandicapValue == nil || m.OddsHandicapHome == nil || m.OddsHandicapAway == nil {
 			return nil, fmt.Errorf("handicap odds not set for this match")
 		}
-		if *req.BetChoice == model.WcTeamHome {
-			oddsSnapshot = *m.OddsHandicapHome
+		if *req.PredictionChoice == model.WcTeamHome {
+			multiplierSnapshot = *m.OddsHandicapHome
 		} else {
-			oddsSnapshot = *m.OddsHandicapAway
+			multiplierSnapshot = *m.OddsHandicapAway
 		}
 		handicapSnapshot = m.HandicapValue
 		handicapTeamSnapshot = &m.HandicapTeam
 
-	case model.WcBetTypeExactScore:
+	case model.WcPredictionTypeExactScore:
 		if req.PredictedHomeScore == nil || req.PredictedAwayScore == nil {
 			return nil, fmt.Errorf("predicted_home_score and predicted_away_score are required")
 		}
-		so, err := s.repo.GetScoreOdds(req.MatchID, *req.PredictedHomeScore, *req.PredictedAwayScore)
+		so, err := s.repo.GetScoreMultiplier(req.MatchID, *req.PredictedHomeScore, *req.PredictedAwayScore)
 		if err != nil {
-			return nil, fmt.Errorf("scoreline %d:%d is not available for betting on this match",
+			return nil, fmt.Errorf("scoreline %d:%d is not available for this match",
 				*req.PredictedHomeScore, *req.PredictedAwayScore)
 		}
-		oddsSnapshot = so.Odds
+		multiplierSnapshot = so.Multiplier
 
 	default:
-		return nil, fmt.Errorf("bet_type must be 'handicap' or 'exact_score'")
+		return nil, fmt.Errorf("prediction_type must be 'handicap' or 'exact_score'")
 	}
 
-	bet := &model.WcBet{
+	bet := &model.WcPrediction{
 		WcUserID:             wcUserID,
 		MatchID:              req.MatchID,
-		BetType:              req.BetType,
-		BetChoice:            req.BetChoice,
+		PredictionType:       req.PredictionType,
+		PredictionChoice:     req.PredictionChoice,
 		PredictedHomeScore:   req.PredictedHomeScore,
 		PredictedAwayScore:   req.PredictedAwayScore,
-		Stake:                req.Stake,
-		OddsSnapshot:         oddsSnapshot,
+		Points:               req.Points,
+		MultiplierSnapshot:   multiplierSnapshot,
 		HandicapSnapshot:     handicapSnapshot,
 		HandicapTeamSnapshot: handicapTeamSnapshot,
 	}
 
-	if err := s.repo.CreateBet(nil, bet); err != nil {
-		return nil, fmt.Errorf("failed to place bet (may be duplicate): %w", err)
+	if err := s.repo.CreatePrediction(nil, bet); err != nil {
+		return nil, fmt.Errorf("failed to submit prediction (may be duplicate): %w", err)
 	}
 	return bet, nil
 }
 
-func (s *WcService) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
-	return s.repo.ListBets(wcUserID)
+func (s *WcService) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictionWithMatch, error) {
+	return s.repo.ListPredictions(wcUserID)
 }
 
-func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
-	bet, err := s.repo.GetBetByID(betID)
+func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
+	bet, err := s.repo.GetPredictionByID(betID)
 	if err != nil {
-		return fmt.Errorf("bet not found")
+		return fmt.Errorf("prediction not found")
 	}
 	if bet.WcUserID != wcUserID {
 		return fmt.Errorf("unauthorized")
 	}
 	if bet.Result != nil {
-		return fmt.Errorf("cannot delete a settled bet")
+		return fmt.Errorf("cannot delete a finalized prediction")
 	}
 	m, err := s.repo.GetMatch(bet.MatchID)
 	if err != nil {
 		return fmt.Errorf("match not found")
 	}
 	if isLocked(m) {
-		return fmt.Errorf("cannot modify bet: match is locked")
+		return fmt.Errorf("cannot modify prediction: match is locked")
 	}
-	return s.repo.DeleteBet(betID)
+	return s.repo.DeletePrediction(betID)
 }
 
-func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
-	if stake <= 0 {
-		return fmt.Errorf("stake must be greater than 0")
+func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int) error {
+	if points <= 0 {
+		return fmt.Errorf("points must be greater than 0")
 	}
-	bet, err := s.repo.GetBetByID(betID)
+	bet, err := s.repo.GetPredictionByID(betID)
 	if err != nil {
-		return fmt.Errorf("bet not found")
+		return fmt.Errorf("prediction not found")
 	}
 	if bet.WcUserID != wcUserID {
 		return fmt.Errorf("unauthorized")
 	}
 	if bet.Result != nil {
-		return fmt.Errorf("cannot modify a settled bet")
+		return fmt.Errorf("cannot modify a finalized prediction")
 	}
 	m, err := s.repo.GetMatch(bet.MatchID)
 	if err != nil {
 		return fmt.Errorf("match not found")
 	}
 	if isLocked(m) {
-		return fmt.Errorf("cannot modify bet: match is locked")
+		return fmt.Errorf("cannot modify prediction: match is locked")
 	}
-	return s.repo.UpdateBetStake(betID, stake)
+	return s.repo.UpdatePredictionPoints(betID, points)
 }
 
-func (s *WcService) ListBetsForMatchPublic(matchID uuid.UUID) ([]*model.WcBetPublic, error) {
-	return s.repo.ListBetsForMatchPublic(matchID)
+func (s *WcService) ListPredictionsForMatchPublic(matchID uuid.UUID) ([]*model.WcPredictionPublic, error) {
+	return s.repo.ListPredictionsForMatchPublic(matchID)
 }
 
 func (s *WcService) GetWallet(wcUserID uuid.UUID) (*model.WcWallet, error) {
@@ -261,9 +261,9 @@ func (s *WcService) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 
 // --- Match settlement ---
 
-// SettleMatch evaluates all bets on a match, credits/debits wallets, and marks settled_at.
+// FinalizeMatch evaluates all predictions on a match, credits/debits wallets, and marks settled_at.
 // Idempotent: re-settling reverses previous payouts before re-applying.
-func (s *WcService) SettleMatch(matchID uuid.UUID) (int, int, error) {
+func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 	m, err := s.repo.GetMatch(matchID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("match not found")
@@ -272,52 +272,52 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, int, error) {
 		return 0, 0, fmt.Errorf("match score not set — cannot settle")
 	}
 
-	bets, err := s.repo.ListBetsForMatch(matchID)
+	bets, err := s.repo.ListPredictionsForMatch(matchID)
 	if err != nil {
 		return 0, 0, err
 	}
 
 	db := s.repo.DB()
-	var totalPayout int
+	var totalPointsEarned int
 	processed := 0
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, bet := range bets {
 			// Reverse previous payout if re-settling
-			if bet.Result != nil && bet.Payout != nil && *bet.Payout > 0 {
-				prevDelta := -(*bet.Payout)
+			if bet.Result != nil && bet.PointsEarned != nil && *bet.PointsEarned > 0 {
+				prevDelta := -(*bet.PointsEarned)
 				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, prevDelta); err != nil {
 					return err
 				}
 			}
 
 			var result string
-			var payout int
+			var pointsEarned int
 
-			switch bet.BetType {
-			case model.WcBetTypeHandicap:
-				result, payout = evaluateHandicapBet(bet, *m.HomeScore, *m.AwayScore)
-			case model.WcBetTypeExactScore:
-				result, payout = evaluateExactScoreBet(bet, *m.HomeScore, *m.AwayScore)
+			switch bet.PredictionType {
+			case model.WcPredictionTypeHandicap:
+				result, pointsEarned = evaluateHandicapBet(bet, *m.HomeScore, *m.AwayScore)
+			case model.WcPredictionTypeExactScore:
+				result, pointsEarned = evaluateExactScoreBet(bet, *m.HomeScore, *m.AwayScore)
 			}
 
-			if err := s.repo.UpdateBetResult(tx, bet.ID, result, payout); err != nil {
+			if err := s.repo.UpdatePredictionResult(tx, bet.ID, result, pointsEarned); err != nil {
 				return err
 			}
 
-			// Credit wallet with payout (0 for losses)
-			if payout > 0 {
-				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, payout); err != nil {
+			// Credit wallet with pointsEarned (0 for losses)
+			if pointsEarned > 0 {
+				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, pointsEarned); err != nil {
 					return err
 				}
 			}
-			// Deduct stake from wallet (happens on bet placement for losses only conceptually;
-			// here we track net: payout - stake)
-			if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, -bet.Stake); err != nil {
+			// Deduct points from wallet (happens on bet placement for losses only conceptually;
+			// here we track net: pointsEarned - points)
+			if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, -bet.Points); err != nil {
 				return err
 			}
 
-			totalPayout += payout
+			totalPointsEarned += pointsEarned
 			processed++
 		}
 
@@ -329,7 +329,7 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, int, error) {
 		})
 	})
 
-	return processed, totalPayout, err
+	return processed, totalPointsEarned, err
 }
 
 // --- Tournament settlement ---
@@ -446,10 +446,10 @@ func isLocked(m *model.WcMatch) bool {
 	if m.Status == model.WcStatusLive || m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled {
 		return true
 	}
-	if !m.BettingOpen {
+	if !m.PredictionsOpen {
 		return true
 	}
-	if m.BetsLockedAt != nil && time.Now().After(*m.BetsLockedAt) {
+	if m.PredictionsLockedAt != nil && time.Now().After(*m.PredictionsLockedAt) {
 		return true
 	}
 	return false
@@ -461,10 +461,10 @@ func isFinished(m *model.WcMatch) bool {
 	return m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled
 }
 
-// evaluateHandicapBet applies Asian handicap rules to determine result and payout.
-func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, int) {
-	if bet.HandicapSnapshot == nil || bet.HandicapTeamSnapshot == nil || bet.BetChoice == nil {
-		return model.WcResultLose, 0
+// evaluateHandicapBet applies Asian handicap rules to determine result and pointsEarned.
+func evaluateHandicapBet(bet *model.WcPrediction, homeScore, awayScore int) (string, int) {
+	if bet.HandicapSnapshot == nil || bet.HandicapTeamSnapshot == nil || bet.PredictionChoice == nil {
+		return model.WcResultIncorrect, 0
 	}
 
 	h := *bet.HandicapSnapshot
@@ -485,24 +485,24 @@ func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, in
 		handicapWinner = model.WcTeamAway
 	} else {
 		// Push: adjusted scores equal (only possible with whole-number handicap)
-		return model.WcResultPush, bet.Stake
+		return model.WcResultVoid, bet.Points
 	}
 
-	if handicapWinner == *bet.BetChoice {
-		payout := int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
-		return model.WcResultWin, payout
+	if handicapWinner == *bet.PredictionChoice {
+		pointsEarned := int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
+		return model.WcResultCorrect, pointsEarned
 	}
-	return model.WcResultLose, 0
+	return model.WcResultIncorrect, 0
 }
 
 // evaluateExactScoreBet checks if the predicted score matches the actual score.
-func evaluateExactScoreBet(bet *model.WcBet, homeScore, awayScore int) (string, int) {
+func evaluateExactScoreBet(bet *model.WcPrediction, homeScore, awayScore int) (string, int) {
 	if bet.PredictedHomeScore == nil || bet.PredictedAwayScore == nil {
-		return model.WcResultLose, 0
+		return model.WcResultIncorrect, 0
 	}
 	if *bet.PredictedHomeScore == homeScore && *bet.PredictedAwayScore == awayScore {
-		payout := int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
-		return model.WcResultWin, payout
+		pointsEarned := int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
+		return model.WcResultCorrect, pointsEarned
 	}
-	return model.WcResultLose, 0
+	return model.WcResultIncorrect, 0
 }

@@ -1,7 +1,7 @@
 export type WcMatchStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
 export type WcStage = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final' | 'third_place'
-export type WcBetType = 'handicap' | 'exact_score'
-export type WcBetResult = 'win' | 'lose' | 'push'
+export type WcPredictionType = 'handicap' | 'exact_score'
+export type WcPredictionResult = 'correct' | 'incorrect' | 'void'
 export type WcSettlementDirection = 'pay' | 'collect' | 'even'
 export type WcSettlementStatus = 'pending' | 'done'
 
@@ -37,25 +37,25 @@ export interface WcMatch {
   handicap_team?: string
   odds_handicap_home?: number
   odds_handicap_away?: number
-  betting_open: boolean
-  bets_locked_at?: string
+  predictions_open: boolean
+  predictions_locked_at?: string
   settled_at?: string
   created_at: string
   updated_at: string
 }
 
-export interface WcScoreOdds {
+export interface WcScoreMultiplier {
   id: string
   match_id: string
   home_score: number
   away_score: number
-  odds: number
+  multiplier: number
   created_at: string
   updated_at: string
 }
 
 export interface WcMatchWithOdds extends WcMatch {
-  score_odds: WcScoreOdds[]
+  score_multipliers: WcScoreMultiplier[]
 }
 
 export interface WcWallet {
@@ -80,54 +80,54 @@ export interface WcWalletLog {
   created_at: string
 }
 
-export interface WcBet {
+export interface WcPrediction {
   id: string
   wc_user_id: string
   match_id: string
-  bet_type: WcBetType
-  bet_choice?: string
-  stake: number
-  odds_snapshot: number
+  prediction_type: WcPredictionType
+  prediction_choice?: string
+  points: number
+  multiplier_snapshot: number
   handicap_snapshot?: number
   handicap_team_snapshot?: string
   predicted_home_score?: number
   predicted_away_score?: number
-  result?: WcBetResult
-  payout?: number
+  result?: WcPredictionResult
+  points_earned?: number
   created_at: string
   updated_at: string
 }
 
-export interface WcBetWithMatch extends WcBet {
+export interface WcPredictionWithMatch extends WcPrediction {
   home_team: string
   away_team: string
   match_date: string
   match_status: WcMatchStatus
-  betting_open: boolean
-  bets_locked_at?: string
+  predictions_open: boolean
+  predictions_locked_at?: string
 }
 
-export interface WcBetPublic {
+export interface WcPredictionPublic {
   id: string
   wc_user_id: string
   name: string
-  bet_type: WcBetType
-  bet_choice?: string
-  stake: number
-  odds_snapshot: number
+  prediction_type: WcPredictionType
+  prediction_choice?: string
+  points: number
+  multiplier_snapshot: number
   predicted_home_score?: number
   predicted_away_score?: number
-  result?: WcBetResult
-  payout?: number
+  result?: WcPredictionResult
+  points_earned?: number
   created_at: string
 }
 
 export interface WcLeaderboardEntry {
   wc_user_id: string
   name: string
-  net_profit: number
-  total_bets: number
-  wins: number
+  net_points: number
+  total_predictions: number
+  correct: number
 }
 
 export interface WcSettlement {
@@ -180,13 +180,13 @@ export interface WcLoginResponse {
   is_admin: boolean
 }
 
-export interface WcPlaceBetRequest {
+export interface WcSubmitPredictionRequest {
   match_id: string
-  bet_type: WcBetType
-  bet_choice?: string
+  prediction_type: WcPredictionType
+  prediction_choice?: string
   predicted_home_score?: number
   predicted_away_score?: number
-  stake: number
+  points: number
 }
 
 export interface WcMatchFilter {

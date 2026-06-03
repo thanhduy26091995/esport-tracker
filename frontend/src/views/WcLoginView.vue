@@ -106,7 +106,7 @@ async function handleLogin() {
   if (!form.value.name || !form.value.password) return
   try {
     await authStore.login(form.value.name, form.value.password)
-    router.push('/world-cup/bet')
+    router.push('/world-cup/predict')
   } catch { /* error shown by store */ }
 }
 

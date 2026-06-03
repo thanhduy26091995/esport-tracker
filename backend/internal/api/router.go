@@ -142,8 +142,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wc := router.Group("/api/v1/wc")
 	{
 		// Config endpoints — always accessible (exempt from feature flag)
+		wc.GET("/config", wcHandler.GetPublicConfig)
 		wc.GET("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.GetConfig)
 		wc.PUT("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.UpdateConfig)
+
+		// Matches — always accessible for score tracking (exempt from feature flag)
+		wc.GET("/matches", wcHandler.ListMatches)
+		wc.GET("/matches/:id", wcHandler.GetMatch)
 
 		// Auth — public (no feature flag, no JWT required)
 		auth := wc.Group("/auth")
@@ -153,37 +158,40 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			auth.POST("/reset-password", wcAuthHandler.ResetPassword)
 		}
 
+		// Admin — always accessible regardless of feature flag
+		wcAdminAlways := wc.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
+		{
+			wcAdminAlways.POST("/sync", wcHandler.SyncMatches)
+		}
+
 		// All remaining WC routes require the feature to be enabled
 		wcFeature := wc.Group("", middleware.WcFeatureMiddleware(wcRepo))
 		{
 			// Public (feature enabled, no auth)
-			wcFeature.GET("/matches", wcHandler.ListMatches)
-			wcFeature.GET("/matches/:id", wcHandler.GetMatch)
-			wcFeature.GET("/matches/:id/score-odds", wcHandler.GetScoreOdds)
-			wcFeature.GET("/matches/:id/bets", wcHandler.GetMatchBets)
+			wcFeature.GET("/matches/:id/score-multipliers", wcHandler.GetScoreMultipliers)
+			wcFeature.GET("/matches/:id/predictions", wcHandler.GetMatchPredictions)
 			wcFeature.GET("/leaderboard", wcHandler.GetLeaderboard)
 
 			// JWT required
 			wcAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService))
 			{
 				wcAuth.GET("/wallet", wcHandler.GetWallet)
-				wcAuth.POST("/bets", wcHandler.PlaceBet)
-				wcAuth.GET("/bets", wcHandler.ListBets)
-				wcAuth.DELETE("/bets/:id", wcHandler.DeleteBet)
-				wcAuth.PUT("/bets/:id", wcHandler.UpdateBet)
+				wcAuth.POST("/predictions", wcHandler.SubmitPrediction)
+				wcAuth.GET("/predictions", wcHandler.ListPredictions)
+				wcAuth.DELETE("/predictions/:id", wcHandler.DeletePrediction)
+				wcAuth.PUT("/predictions/:id", wcHandler.UpdatePrediction)
 			}
 
 			// Admin required
 			wcAdmin := wcFeature.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
 			{
-				wcAdmin.POST("/sync", wcHandler.SyncMatches)
 				wcAdmin.PUT("/matches/:id", wcHandler.UpdateMatch)
 				wcAdmin.POST("/matches/:id/open", wcHandler.OpenMatch)
 				wcAdmin.POST("/matches/:id/close", wcHandler.CloseMatch)
-				wcAdmin.POST("/matches/:id/score-odds", wcHandler.AddScoreOdds)
-				wcAdmin.PUT("/score-odds/:id", wcHandler.UpdateScoreOdds)
-				wcAdmin.DELETE("/score-odds/:id", wcHandler.DeleteScoreOdds)
-				wcAdmin.POST("/matches/:id/settle", wcHandler.SettleMatch)
+				wcAdmin.POST("/matches/:id/score-multipliers", wcHandler.AddScoreMultiplier)
+				wcAdmin.PUT("/score-multipliers/:id", wcHandler.UpdateScoreMultiplier)
+				wcAdmin.DELETE("/score-multipliers/:id", wcHandler.DeleteScoreMultiplier)
+				wcAdmin.POST("/matches/:id/finalize", wcHandler.FinalizeMatch)
 				wcAdmin.GET("/users", wcHandler.ListUsers)
 				wcAdmin.PUT("/users/:wc_user_id/role", wcHandler.SetUserRole)
 				wcAdmin.GET("/wallets", wcHandler.ListAllWallets)

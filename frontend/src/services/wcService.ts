@@ -3,24 +3,28 @@ import type {
   WcConfig,
   WcMatch,
   WcMatchWithOdds,
-  WcScoreOdds,
+  WcScoreMultiplier,
   WcWallet,
   WcWalletWithUser,
   WcWalletLog,
-  WcBet,
-  WcBetWithMatch,
-  WcBetPublic,
+  WcPrediction,
+  WcPredictionWithMatch,
+  WcPredictionPublic,
   WcLeaderboardEntry,
   WcSettlement,
   WcSettlementWithDetails,
   WcSettlementPreviewRow,
   WcUser,
   WcMatchFilter,
-  WcPlaceBetRequest,
+  WcSubmitPredictionRequest,
 } from '@/types/wc'
 
 export const wcService = {
   // --- Config ---
+  async getPublicConfig(): Promise<{ is_enabled: boolean }> {
+    const r = await wcApi.get<{ is_enabled: boolean }>('/config')
+    return r.data
+  },
   async getConfig(): Promise<WcConfig> {
     const r = await wcApi.get<WcConfig>('/admin/config')
     return r.data
@@ -51,29 +55,29 @@ export const wcService = {
   async closeMatch(id: string): Promise<void> {
     await wcApi.post(`/admin/matches/${id}/close`)
   },
-  async settleMatch(id: string): Promise<{ bets_processed: number; total_paid_out: number }> {
-    const r = await wcApi.post(`/admin/matches/${id}/settle`)
+  async finalizeMatch(id: string): Promise<{ predictions_processed: number; total_points_awarded: number }> {
+    const r = await wcApi.post(`/admin/matches/${id}/finalize`)
     return r.data
   },
 
-  // --- Score Odds ---
-  async getScoreOdds(matchId: string): Promise<WcScoreOdds[]> {
-    const r = await wcApi.get<WcScoreOdds[]>(`/matches/${matchId}/score-odds`)
+  // --- Score Multipliers ---
+  async getScoreMultipliers(matchId: string): Promise<WcScoreMultiplier[]> {
+    const r = await wcApi.get<WcScoreMultiplier[]>(`/matches/${matchId}/score-multipliers`)
     return r.data
   },
-  async addScoreOdds(matchId: string, homeScore: number, awayScore: number, odds: number): Promise<WcScoreOdds> {
-    const r = await wcApi.post<WcScoreOdds>(`/admin/matches/${matchId}/score-odds`, {
+  async addScoreMultiplier(matchId: string, homeScore: number, awayScore: number, multiplier: number): Promise<WcScoreMultiplier> {
+    const r = await wcApi.post<WcScoreMultiplier>(`/admin/matches/${matchId}/score-multipliers`, {
       home_score: homeScore,
       away_score: awayScore,
-      odds,
+      multiplier,
     })
     return r.data
   },
-  async updateScoreOdds(id: string, odds: number): Promise<void> {
-    await wcApi.put(`/admin/score-odds/${id}`, { odds })
+  async updateScoreMultiplier(id: string, multiplier: number): Promise<void> {
+    await wcApi.put(`/admin/score-multipliers/${id}`, { multiplier })
   },
-  async deleteScoreOdds(id: string): Promise<void> {
-    await wcApi.delete(`/admin/score-odds/${id}`)
+  async deleteScoreMultiplier(id: string): Promise<void> {
+    await wcApi.delete(`/admin/score-multipliers/${id}`)
   },
 
   // --- Wallet ---
@@ -93,23 +97,23 @@ export const wcService = {
     return r.data
   },
 
-  // --- Bets ---
-  async placeBet(req: WcPlaceBetRequest): Promise<WcBet> {
-    const r = await wcApi.post<WcBet>('/bets', req)
+  // --- Predictions ---
+  async submitPrediction(req: WcSubmitPredictionRequest): Promise<WcPrediction> {
+    const r = await wcApi.post<WcPrediction>('/predictions', req)
     return r.data
   },
-  async listBets(): Promise<WcBetWithMatch[]> {
-    const r = await wcApi.get<WcBetWithMatch[]>('/bets')
+  async listPredictions(): Promise<WcPredictionWithMatch[]> {
+    const r = await wcApi.get<WcPredictionWithMatch[]>('/predictions')
     return r.data
   },
-  async deleteBet(id: string): Promise<void> {
-    await wcApi.delete(`/bets/${id}`)
+  async deletePrediction(id: string): Promise<void> {
+    await wcApi.delete(`/predictions/${id}`)
   },
-  async updateBetStake(id: string, stake: number): Promise<void> {
-    await wcApi.put(`/bets/${id}`, { stake })
+  async updatePredictionPoints(id: string, points: number): Promise<void> {
+    await wcApi.put(`/predictions/${id}`, { points })
   },
-  async getMatchBets(matchId: string): Promise<WcBetPublic[]> {
-    const r = await wcApi.get<WcBetPublic[]>(`/matches/${matchId}/bets`)
+  async getMatchPredictions(matchId: string): Promise<WcPredictionPublic[]> {
+    const r = await wcApi.get<WcPredictionPublic[]>(`/matches/${matchId}/predictions`)
     return r.data
   },
 

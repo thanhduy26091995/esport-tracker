@@ -6,8 +6,8 @@ import type {
   WcMatchWithOdds,
   WcWallet,
   WcWalletWithUser,
-  WcBetWithMatch,
-  WcBetPublic,
+  WcPredictionWithMatch,
+  WcPredictionPublic,
   WcLeaderboardEntry,
   WcConfig,
   WcUser,
@@ -20,11 +20,12 @@ import { ElMessage } from 'element-plus'
 
 export const useWcStore = defineStore('wc', () => {
   const config = ref<WcConfig | null>(null)
+  const isEnabled = ref<boolean>(true)
   const matches = ref<WcMatch[]>([])
   const currentMatch = ref<WcMatchWithOdds | null>(null)
   const wallet = ref<WcWallet | null>(null)
-  const bets = ref<WcBetWithMatch[]>([])
-  const matchBets = ref<WcBetPublic[]>([])
+  const predictions = ref<WcPredictionWithMatch[]>([])
+  const matchPredictions = ref<WcPredictionPublic[]>([])
   const leaderboard = ref<WcLeaderboardEntry[]>([])
   const allWallets = ref<WcWalletWithUser[]>([])
   const allUsers = ref<WcUser[]>([])
@@ -33,6 +34,13 @@ export const useWcStore = defineStore('wc', () => {
   const settlementPreview = ref<WcSettlementPreviewRow[]>([])
 
   const loading = ref(false)
+
+  async function fetchPublicConfig() {
+    try {
+      const res = await wcService.getPublicConfig()
+      isEnabled.value = res.is_enabled
+    } catch { /* silently */ }
+  }
 
   async function fetchConfig() {
     try {
@@ -87,9 +95,9 @@ export const useWcStore = defineStore('wc', () => {
     await fetchMatches()
   }
 
-  async function settleMatch(id: string) {
-    const res = await wcService.settleMatch(id)
-    ElMessage.success(`Đã tính kết quả: ${res.bets_processed} cược, tổng thưởng ${res.total_paid_out}`)
+  async function finalizeMatch(id: string) {
+    const res = await wcService.finalizeMatch(id)
+    ElMessage.success(`Đã tính kết quả: ${res.predictions_processed} dự đoán, tổng điểm ${res.total_points_awarded}`)
     await fetchMatches()
   }
 
@@ -99,30 +107,30 @@ export const useWcStore = defineStore('wc', () => {
     } catch { /* silently */ }
   }
 
-  async function fetchBets() {
+  async function fetchPredictions() {
     loading.value = true
     try {
-      bets.value = (await wcService.listBets()) ?? []
+      predictions.value = (await wcService.listPredictions()) ?? []
     } finally {
       loading.value = false
     }
   }
 
-  async function deleteBet(id: string) {
-    await wcService.deleteBet(id)
-    bets.value = bets.value.filter(b => b.id !== id)
-    ElMessage.success('Đã xoá cược')
+  async function deletePrediction(id: string) {
+    await wcService.deletePrediction(id)
+    predictions.value = predictions.value.filter(p => p.id !== id)
+    ElMessage.success('Đã xoá dự đoán')
   }
 
-  async function updateBetStake(id: string, stake: number) {
-    await wcService.updateBetStake(id, stake)
-    const bet = bets.value.find(b => b.id === id)
-    if (bet) bet.stake = stake
-    ElMessage.success('Đã cập nhật số tiền cược')
+  async function updatePredictionPoints(id: string, points: number) {
+    await wcService.updatePredictionPoints(id, points)
+    const prediction = predictions.value.find(p => p.id === id)
+    if (prediction) prediction.points = points
+    ElMessage.success('Đã cập nhật điểm dự đoán')
   }
 
-  async function fetchMatchBets(matchId: string) {
-    matchBets.value = (await wcService.getMatchBets(matchId)) ?? []
+  async function fetchMatchPredictions(matchId: string) {
+    matchPredictions.value = (await wcService.getMatchPredictions(matchId)) ?? []
   }
 
   async function fetchLeaderboard() {
@@ -183,11 +191,12 @@ export const useWcStore = defineStore('wc', () => {
 
   return {
     config,
+    isEnabled,
     matches,
     currentMatch,
     wallet,
-    bets,
-    matchBets,
+    predictions,
+    matchPredictions,
     leaderboard,
     allWallets,
     allUsers,
@@ -195,6 +204,7 @@ export const useWcStore = defineStore('wc', () => {
     currentSettlement,
     settlementPreview,
     loading,
+    fetchPublicConfig,
     fetchConfig,
     updateConfig,
     fetchMatches,
@@ -202,12 +212,12 @@ export const useWcStore = defineStore('wc', () => {
     syncMatches,
     openMatch,
     closeMatch,
-    settleMatch,
+    finalizeMatch,
     fetchWallet,
-    fetchBets,
-    deleteBet,
-    updateBetStake,
-    fetchMatchBets,
+    fetchPredictions,
+    deletePrediction,
+    updatePredictionPoints,
+    fetchMatchPredictions,
     fetchLeaderboard,
     fetchAllWallets,
     fetchAllUsers,
