@@ -39,7 +39,7 @@
           <div class="match-top">
             <div class="flex items-center gap-2">
               <span class="match-type match-type--bonus">{{ t('matches.bonus.tag') }}</span>
-              <span class="match-date">{{ formatDateTime(item.bonus_date) }}</span>
+              <span class="match-date">{{ formatDateTime(item.bonus_date ?? '') }}</span>
             </div>
             <el-button v-if="showActions" type="danger" size="small" text :icon="Delete" @click="handleDelete(item)">
               {{ t('common.delete') }}
@@ -62,9 +62,9 @@
                 'match-type--2v2': item.match_type === '2v2',
                 'match-type--1v2': item.match_type === '1v2',
               }">
-                {{ getMatchTypeLabel(item.match_type) }}
+                {{ getMatchTypeLabel(item.match_type ?? '1v1') }}
               </span>
-              <span class="match-date">{{ formatDateTime(item.match_date) }}</span>
+              <span class="match-date">{{ formatDateTime(item.match_date ?? '') }}</span>
               <span v-if="item.is_locked" class="match-locked">
                 <el-icon :size="11"><Lock /></el-icon> {{ t('matches.locked') }}
               </span>

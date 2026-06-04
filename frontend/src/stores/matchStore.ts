@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { MatchFeedItem, CreateMatchRequest, MatchStats } from '@/types/match'
+import type { MatchFeedItem, CreateMatchRequest, MatchStats, FeedItemType } from '@/types/match'
 import { matchService } from '@/services/matchService'
 import { scoreBonusService } from '@/services/scoreBonusService'
 import type { CreateScoreBonusRequest } from '@/types/scoreBonus'
@@ -130,7 +130,8 @@ export const useMatchStore = defineStore('match', () => {
     loading.value = true
     error.value = null
     try {
-      matches.value = await matchService.getByUser(userId)
+      const raw = await matchService.getByUser(userId)
+      matches.value = raw.map(m => ({ type: 'match' as FeedItemType, ...m }))
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch user matches'
       if (error.value) ElMessage.error(error.value)

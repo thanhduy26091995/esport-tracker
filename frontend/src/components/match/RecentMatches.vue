@@ -11,7 +11,7 @@
           <div class="rm-top">
             <div class="flex items-center gap-2">
               <span class="rm-type rm-type--bonus">{{ t('matches.bonus.tag') }}</span>
-              <span class="rm-time">{{ formatRelativeTime(item.bonus_date) }}</span>
+              <span class="rm-time">{{ formatRelativeTime(item.bonus_date ?? '') }}</span>
             </div>
           </div>
           <div class="rm-bonus-row">
@@ -30,9 +30,9 @@
                 'rm-type--2v2': item.match_type === '2v2',
                 'rm-type--1v2': item.match_type === '1v2',
               }">
-                {{ getMatchTypeLabel(item.match_type) }}
+                {{ getMatchTypeLabel(item.match_type ?? '1v1') }}
               </span>
-              <span class="rm-time">{{ formatRelativeTime(item.match_date) }}</span>
+              <span class="rm-time">{{ formatRelativeTime(item.match_date ?? '') }}</span>
             </div>
             <span v-if="item.is_locked" class="rm-locked">
               <el-icon :size="10"><Lock /></el-icon> {{ t('matches.locked') }}
