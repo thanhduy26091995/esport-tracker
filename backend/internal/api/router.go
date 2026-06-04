@@ -45,6 +45,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tierService := service.NewTierService(userRepo, configService)
 	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, tierService, db)
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
+	bonusRepo := repository.NewScoreBonusRepository(db)
+	bonusService := service.NewScoreBonusService(bonusRepo, userRepo, tierService, db)
 
 	// Backfill tiers from existing match history on startup.
 	if err := tierService.RecalculateAllTiers(); err != nil {
@@ -53,7 +55,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)
-	matchHandler := NewMatchHandler(matchService)
+	matchHandler := NewMatchHandler(matchService, bonusService)
+	bonusHandler := NewScoreBonusHandler(bonusService)
 	configHandler := NewConfigHandler(configService, tierService)
 	fundHandler := NewFundHandler(fundService)
 	settlementHandler := NewSettlementHandler(settlementService)
@@ -118,6 +121,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 		// User settlement history
 		v1.GET("/users/:id/settlements", settlementHandler.GetByDebtorID) // GET /api/v1/users/:id/settlements
+
+		// Score bonus routes (POST/DELETE only; GET is merged into /matches)
+		bonuses := v1.Group("/score-bonuses")
+		{
+			bonuses.POST("", bonusHandler.Create)      // POST /api/v1/score-bonuses
+			bonuses.DELETE("/:id", bonusHandler.Delete) // DELETE /api/v1/score-bonuses/:id
+		}
 
 		// Tournament routes
 		tournaments := v1.Group("/tournaments")

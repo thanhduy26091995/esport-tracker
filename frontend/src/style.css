@@ -22,6 +22,10 @@
     @apply flex-1 min-w-0;
   }
 
+  .page-header-actions {
+    @apply flex gap-2 flex-shrink-0;
+  }
+
   .page-title {
     @apply text-2xl sm:text-3xl font-extrabold tracking-tight;
     color: var(--text-primary);
@@ -157,6 +161,26 @@
     background: var(--surface-card);
     color: var(--color-primary);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+}
+
+/* ── Page header responsive ── */
+@media (max-width: 540px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .page-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .page-header-actions .el-button {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
   }
 }
 

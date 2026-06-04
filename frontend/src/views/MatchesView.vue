@@ -95,7 +95,7 @@ import { useConfigStore } from '@/stores/configStore'
 import MatchForm from '@/components/match/MatchForm.vue'
 import MatchList from '@/components/match/MatchList.vue'
 import StatCard from '@/components/shared/StatCard.vue'
-import type { CreateMatchRequest, Match } from '@/types/match'
+import type { CreateMatchRequest, MatchFeedItem } from '@/types/match'
 
 const matchStore = useMatchStore()
 const userStore = useUserStore()
@@ -137,10 +137,11 @@ const handleRefreshUsers = async () => {
 
 const handleCancelMatch = () => { showMatchForm.value = false }
 
-const handleDeleteConfirm = (match: Match) => {
+const handleDeleteConfirm = (item: MatchFeedItem) => {
+  const isBonus = item.type === 'bonus'
   ElMessageBox.confirm(
-    t('matches.deleteConfirm'),
-    t('matches.deleteTitle'),
+    isBonus ? t('matches.bonus.deleteConfirm') : t('matches.deleteConfirm'),
+    isBonus ? t('matches.bonus.deleteTitle') : t('matches.deleteTitle'),
     {
       confirmButtonText: t('common.delete'),
       cancelButtonText: t('common.cancel'),
@@ -149,7 +150,11 @@ const handleDeleteConfirm = (match: Match) => {
     }
   )
     .then(async () => {
-      await matchStore.deleteMatch(match.id)
+      if (isBonus) {
+        await matchStore.deleteBonus(item.id)
+      } else {
+        await matchStore.deleteMatch(item.id)
+      }
       await userStore.fetchUsers()
     })
     .catch(() => {})

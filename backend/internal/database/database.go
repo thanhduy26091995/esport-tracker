@@ -41,6 +41,7 @@ func Connect() (*gorm.DB, error) {
 		&model.Tournament{},
 		&model.TournamentParticipant{},
 		&model.TournamentMatch{},
+		&model.ScoreBonus{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}

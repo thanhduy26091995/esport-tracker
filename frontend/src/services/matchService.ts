@@ -1,14 +1,15 @@
 import { api } from './api'
 import type {
   Match,
+  MatchFeedItem,
   CreateMatchRequest,
   MatchStats,
 } from '@/types/match'
 import type { PaginationParams } from '@/types/api'
 
 export const matchService = {
-  async getAll(params?: PaginationParams): Promise<Match[]> {
-    const response = await api.get<Match[]>('/matches', { params })
+  async getAll(params?: PaginationParams): Promise<MatchFeedItem[]> {
+    const response = await api.get<MatchFeedItem[]>('/matches', { params })
     return response.data
   },
 

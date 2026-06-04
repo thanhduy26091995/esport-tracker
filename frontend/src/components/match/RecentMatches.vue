@@ -5,42 +5,60 @@
     </div>
     <div v-else-if="displayMatches.length === 0" class="rm-empty">{{ t('matches.noRecent') }}</div>
     <div v-else class="rm-list">
-      <div
-        v-for="match in displayMatches" :key="match.id"
-        class="rm-card"
-        @click="$emit('matchClick', match)"
-      >
-        <div class="rm-top">
-          <div class="flex items-center gap-2">
-            <span class="rm-type" :class="match.match_type === '1v1' ? 'rm-type--1v1' : 'rm-type--2v2'">
-              {{ getMatchTypeLabel(match.match_type) }}
-            </span>
-            <span class="rm-time">{{ formatRelativeTime(match.match_date) }}</span>
+      <template v-for="item in displayMatches" :key="item.id">
+        <!-- Bonus row -->
+        <div v-if="item.type === 'bonus'" class="rm-card rm-card--bonus">
+          <div class="rm-top">
+            <div class="flex items-center gap-2">
+              <span class="rm-type rm-type--bonus">{{ t('matches.bonus.tag') }}</span>
+              <span class="rm-time">{{ formatRelativeTime(item.bonus_date) }}</span>
+            </div>
           </div>
-          <span v-if="match.is_locked" class="rm-locked">
-            <el-icon :size="10"><Lock /></el-icon> {{ t('matches.locked') }}
-          </span>
-        </div>
-        <div class="rm-teams">
-          <div class="rm-team">
-            <span v-for="p in team1(match)" :key="p.id" class="rm-player" :class="{ 'rm-player--win': match.winner_team === 1 }">
-              {{ p.user.name }}
-              <span class="rm-delta" :class="p.point_change >= 0 ? 'rm-delta--pos' : 'rm-delta--neg'">
-                {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
-              </span>
-            </span>
-          </div>
-          <div class="rm-vs">{{ t('common.vs') }}</div>
-          <div class="rm-team rm-team--right">
-            <span v-for="p in team2(match)" :key="p.id" class="rm-player" :class="{ 'rm-player--win': match.winner_team === 2 }">
-              {{ p.user.name }}
-              <span class="rm-delta" :class="p.point_change >= 0 ? 'rm-delta--pos' : 'rm-delta--neg'">
-                {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
-              </span>
-            </span>
+          <div class="rm-bonus-row">
+            <span class="rm-bonus-player">{{ item.user?.name ?? '—' }}</span>
+            <span class="rm-bonus-pts">+{{ item.points }}</span>
+            <span v-if="item.description" class="rm-bonus-desc">{{ item.description }}</span>
           </div>
         </div>
-      </div>
+
+        <!-- Match row -->
+        <div v-else class="rm-card" @click="$emit('matchClick', item)">
+          <div class="rm-top">
+            <div class="flex items-center gap-2">
+              <span class="rm-type" :class="{
+                'rm-type--1v1': item.match_type === '1v1',
+                'rm-type--2v2': item.match_type === '2v2',
+                'rm-type--1v2': item.match_type === '1v2',
+              }">
+                {{ getMatchTypeLabel(item.match_type) }}
+              </span>
+              <span class="rm-time">{{ formatRelativeTime(item.match_date) }}</span>
+            </div>
+            <span v-if="item.is_locked" class="rm-locked">
+              <el-icon :size="10"><Lock /></el-icon> {{ t('matches.locked') }}
+            </span>
+          </div>
+          <div class="rm-teams">
+            <div class="rm-team">
+              <span v-for="p in team1(item)" :key="p.id" class="rm-player" :class="{ 'rm-player--win': item.winner_team === 1 }">
+                {{ p.user.name }}
+                <span class="rm-delta" :class="p.point_change >= 0 ? 'rm-delta--pos' : 'rm-delta--neg'">
+                  {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
+                </span>
+              </span>
+            </div>
+            <div class="rm-vs">{{ t('common.vs') }}</div>
+            <div class="rm-team rm-team--right">
+              <span v-for="p in team2(item)" :key="p.id" class="rm-player" :class="{ 'rm-player--win': item.winner_team === 2 }">
+                {{ p.user.name }}
+                <span class="rm-delta" :class="p.point_change >= 0 ? 'rm-delta--pos' : 'rm-delta--neg'">
+                  {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -50,17 +68,17 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import { Loading, Lock } from '@element-plus/icons-vue'
-import type { Match, MatchParticipant } from '@/types/match'
+import type { MatchFeedItem, MatchParticipant } from '@/types/match'
 import { formatRelativeTime } from '@/utils/date'
 import { getMatchTypeLabel } from '@/utils/tournamentLabels'
 
-interface Props { matches: Match[]; loading?: boolean; limit?: number }
+interface Props { matches: MatchFeedItem[]; loading?: boolean; limit?: number }
 const props = withDefaults(defineProps<Props>(), { loading: false, limit: 5 })
-defineEmits<{ viewAll: []; matchClick: [match: Match] }>()
+defineEmits<{ viewAll: []; matchClick: [item: MatchFeedItem] }>()
 
 const displayMatches = computed(() => props.matches.slice(0, props.limit))
-const team1 = (m: Match): MatchParticipant[] => m.participants.filter(p => p.team_number === 1)
-const team2 = (m: Match): MatchParticipant[] => m.participants.filter(p => p.team_number === 2)
+const team1 = (m: MatchFeedItem): MatchParticipant[] => (m.participants ?? []).filter(p => p.team_number === 1)
+const team2 = (m: MatchFeedItem): MatchParticipant[] => (m.participants ?? []).filter(p => p.team_number === 2)
 </script>
 
 <style scoped>
@@ -92,6 +110,14 @@ const team2 = (m: Match): MatchParticipant[] => m.participants.filter(p => p.tea
 }
 .rm-type--1v1 { background: var(--color-info-bg); color: var(--color-info); }
 .rm-type--2v2 { background: var(--color-success-bg); color: var(--color-success); }
+.rm-type--1v2 { background: var(--color-warning-bg, #fff7ed); color: var(--color-warning, #d97706); }
+.rm-type--bonus { background: #fdf4ff; color: #9333ea; }
+
+.rm-card--bonus { background: #fdf4ff; border-color: #e9d5ff; cursor: default; }
+.rm-bonus-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.rm-bonus-player { font-weight: 700; color: var(--text-primary); }
+.rm-bonus-pts { font-weight: 800; color: #9333ea; }
+.rm-bonus-desc { color: var(--text-muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .rm-time { font-size: 11px; color: var(--text-muted); }
 

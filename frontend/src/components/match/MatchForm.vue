@@ -21,7 +21,11 @@
         <el-radio-group v-model="formData.match_type" @change="handleMatchTypeChange">
           <el-radio-button value="1v1">{{ t('matches.types.oneVsOne') }}</el-radio-button>
           <el-radio-button value="2v2">{{ t('matches.types.twoVsTwo') }}</el-radio-button>
+          <el-radio-button value="1v2">{{ t('matches.types.oneVsTwo') }}</el-radio-button>
         </el-radio-group>
+        <div v-if="formData.match_type === '1v2'" class="text-xs text-gray-500 mt-1 ml-4">
+          {{ t('matches.types.oneVsTwoHint') }}
+        </div>
       </el-form-item>
 
       <!-- Team 1 -->
@@ -30,7 +34,7 @@
           <el-select
             v-model="formData.team1"
             multiple
-            :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
+            :multiple-limit="team1Limit"
             :placeholder="t('matches.form.selectPlayersPlaceholder')"
             class="flex-1"
             filterable
@@ -64,7 +68,7 @@
           <el-select
             v-model="formData.team2"
             multiple
-            :multiple-limit="formData.match_type === '1v1' ? 1 : 2"
+            :multiple-limit="team2Limit"
             :placeholder="t('matches.form.selectPlayersPlaceholder')"
             class="flex-1"
             filterable
@@ -259,10 +263,11 @@ const availableUsers = computed(() => props.users.filter((u) => u.is_active))
 const availableUsersForTeam1 = computed(() => availableUsers.value)
 const availableUsersForTeam2 = computed(() => availableUsers.value)
 
-const teamSize = computed(() => (formData.value.match_type === '1v1' ? 1 : 2))
+const team1Limit = computed(() => (formData.value.match_type === '2v2' ? 2 : 1))
+const team2Limit = computed(() => (formData.value.match_type === '1v1' ? 1 : 2))
 
-const isTeam1Valid = computed(() => formData.value.team1.length === teamSize.value)
-const isTeam2Valid = computed(() => formData.value.team2.length === teamSize.value)
+const isTeam1Valid = computed(() => formData.value.team1.length === team1Limit.value)
+const isTeam2Valid = computed(() => formData.value.team2.length === team2Limit.value)
 
 const hasDuplicatePlayers = computed(() => {
   const allPlayers = [...formData.value.team1, ...formData.value.team2]
@@ -368,8 +373,8 @@ const handleSubmit = async () => {
     if (valid) {
       const data: CreateMatchRequest = {
         match_type: formData.value.match_type,
-        team1: formData.value.team1.slice(0, teamSize.value),
-        team2: formData.value.team2.slice(0, teamSize.value),
+        team1: formData.value.team1.slice(0, team1Limit.value),
+        team2: formData.value.team2.slice(0, team2Limit.value),
         winner_team: formData.value.winner_team,
         points_per_win: formData.value.points_per_win
       }

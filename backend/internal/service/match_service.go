@@ -42,20 +42,53 @@ type CreateMatchRequest struct {
 	TournamentMatchID *uuid.UUID  `json:"tournament_match_id,omitempty"`
 }
 
+// teamSizes maps match_type to required [team1Size, team2Size].
+var teamSizes = map[string][2]int{
+	"1v1": {1, 1},
+	"2v2": {2, 2},
+	"1v2": {1, 2},
+}
+
+// calcPointChange returns the point delta for one participant.
+// For 1v2: solo (team1) wins → +2×base, loses → -2×base;
+//
+//	each duo (team2) member wins → +base, loses → -base.
+//
+// For symmetric types (1v1, 2v2): winner → +base, loser → -base.
+func calcPointChange(matchType string, teamNumber, winnerTeam, base int) int {
+	if winnerTeam == 0 {
+		return 0
+	}
+	won := teamNumber == winnerTeam
+	if matchType == "1v2" {
+		if teamNumber == 1 {
+			if won {
+				return 2 * base
+			}
+			return -2 * base
+		}
+		if won {
+			return base
+		}
+		return -base
+	}
+	if won {
+		return base
+	}
+	return -base
+}
+
 // CreateMatch creates a new match with participants and updates user scores
 func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error) {
 	// Validate match type
-	if req.MatchType != "1v1" && req.MatchType != "2v2" {
-		return nil, errors.New("match_type must be '1v1' or '2v2'")
+	sz, ok := teamSizes[req.MatchType]
+	if !ok {
+		return nil, errors.New("match_type must be '1v1', '2v2', or '1v2'")
 	}
 
 	// Validate team sizes
-	expectedSize := 1
-	if req.MatchType == "2v2" {
-		expectedSize = 2
-	}
-	if len(req.Team1) != expectedSize || len(req.Team2) != expectedSize {
-		return nil, fmt.Errorf("each team must have exactly %d player(s) for %s", expectedSize, req.MatchType)
+	if len(req.Team1) != sz[0] || len(req.Team2) != sz[1] {
+		return nil, fmt.Errorf("for %s, team1 needs %d player(s) and team2 needs %d player(s)", req.MatchType, sz[0], sz[1])
 	}
 
 	// Validate winner team
@@ -124,14 +157,7 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 	// Create participants and update scores
 	// Team 1 participants
 	for _, userID := range req.Team1 {
-		pointChange := 0
-		if req.WinnerTeam != 0 {
-			if req.WinnerTeam == 1 {
-				pointChange = basePoints
-			} else {
-				pointChange = -basePoints
-			}
-		}
+		pointChange := calcPointChange(req.MatchType, 1, req.WinnerTeam, basePoints)
 
 		participant := &model.MatchParticipant{
 			MatchID:     match.ID,
@@ -157,14 +183,7 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 
 	// Team 2 participants
 	for _, userID := range req.Team2 {
-		pointChange := 0
-		if req.WinnerTeam != 0 {
-			if req.WinnerTeam == 2 {
-				pointChange = basePoints
-			} else {
-				pointChange = -basePoints
-			}
-		}
+		pointChange := calcPointChange(req.MatchType, 2, req.WinnerTeam, basePoints)
 
 		participant := &model.MatchParticipant{
 			MatchID:     match.ID,
