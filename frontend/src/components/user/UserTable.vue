@@ -25,7 +25,12 @@
       <el-table-column prop="name" :label="t('users.colPlayer')" min-width="140">
         <template #default="{ row }">
           <div class="player-cell">
-            <UserAvatar :avatar-url="row.avatar_url" :name="row.name" size="sm" />
+            <div
+              :class="['avatar-wrap', { 'avatar-wrap--clickable': row.avatar_url }]"
+              @click.stop="row.avatar_url && openPreview(row.avatar_url)"
+            >
+              <UserAvatar :avatar-url="row.avatar_url" :name="row.name" size="sm" />
+            </div>
             <span class="player-name">{{ row.name }}</span>
             <el-tag v-if="!row.is_active" type="info" size="small">{{ t('users.inactive') }}</el-tag>
           </div>
@@ -87,12 +92,21 @@
       </el-table>
     </div>
   </div>
+
+  <ElImageViewer
+    v-if="previewUrl"
+    :url-list="[previewUrl]"
+    teleported
+    hide-on-click-modal
+    @close="previewUrl = null"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
+import { ElImageViewer } from 'element-plus'
 import { Edit, Delete, Search, Warning } from '@element-plus/icons-vue'
 import type { UserWithStats } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
@@ -110,6 +124,14 @@ const onResize = () => { windowWidth.value = window.innerWidth }
 onMounted(() => window.addEventListener('resize', onResize))
 onUnmounted(() => window.removeEventListener('resize', onResize))
 
+const previewUrl = ref<string | null>(null)
+
+const API_ORIGIN = ((import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8080/api/v1').replace(/\/api\/v1\/?$/, '')
+
+function openPreview(avatarUrl: string) {
+  previewUrl.value = avatarUrl.startsWith('http') ? avatarUrl : API_ORIGIN + avatarUrl
+}
+
 const searchQuery = ref(''); const scoreFilter = ref('')
 
 const filteredUsers = computed(() => {
@@ -124,6 +146,11 @@ const filteredUsers = computed(() => {
 
 <style scoped>
 .player-cell { display: flex; align-items: center; gap: 10px; }
+
+.avatar-wrap { display: flex; }
+.avatar-wrap--clickable { cursor: zoom-in; }
+.avatar-wrap--clickable:hover :deep(.user-avatar) { box-shadow: 0 0 0 2px var(--el-color-primary); }
+
 
 .player-avatar {
   width: 30px; height: 30px; border-radius: 50%;

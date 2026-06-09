@@ -41,7 +41,6 @@
           <div class="rm-teams">
             <div class="rm-team">
               <span v-for="p in team1(item)" :key="p.id" class="rm-player" :class="{ 'rm-player--win': item.winner_team === 1 }">
-                <UserAvatar :avatar-url="p.user.avatar_url" :name="p.user.name" size="xs" />
                 {{ p.user.name }}
                 <span class="rm-delta" :class="p.point_change >= 0 ? 'rm-delta--pos' : 'rm-delta--neg'">
                   {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
@@ -51,7 +50,6 @@
             <div class="rm-vs">{{ t('common.vs') }}</div>
             <div class="rm-team rm-team--right">
               <span v-for="p in team2(item)" :key="p.id" class="rm-player" :class="{ 'rm-player--win': item.winner_team === 2 }">
-                <UserAvatar :avatar-url="p.user.avatar_url" :name="p.user.name" size="xs" />
                 {{ p.user.name }}
                 <span class="rm-delta" :class="p.point_change >= 0 ? 'rm-delta--pos' : 'rm-delta--neg'">
                   {{ p.point_change > 0 ? '+' : '' }}{{ p.point_change }}
@@ -71,7 +69,6 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import { Loading, Lock } from '@element-plus/icons-vue'
 import type { MatchFeedItem, MatchParticipant } from '@/types/match'
-import UserAvatar from '@/components/shared/UserAvatar.vue'
 import { formatRelativeTime } from '@/utils/date'
 import { getMatchTypeLabel } from '@/utils/tournamentLabels'
 
