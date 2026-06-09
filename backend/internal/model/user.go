@@ -15,6 +15,8 @@ type User struct {
 	IsActive     bool      `gorm:"default:true" json:"is_active"`
 	Tier         string    `gorm:"type:varchar(10);default:'normal'" json:"tier"`
 	HandicapRate float64   `gorm:"default:0.0" json:"handicap_rate"`
+	AvatarURL    *string   `gorm:"type:varchar(255)" json:"avatar_url,omitempty"`
+	FavoriteClub *string   `gorm:"type:varchar(50)" json:"favorite_club,omitempty"`
 }
 
 func (User) TableName() string {

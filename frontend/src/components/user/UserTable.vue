@@ -25,7 +25,7 @@
       <el-table-column prop="name" :label="t('users.colPlayer')" min-width="140">
         <template #default="{ row }">
           <div class="player-cell">
-            <div class="player-avatar">{{ row.name.charAt(0).toUpperCase() }}</div>
+            <UserAvatar :avatar-url="row.avatar_url" :name="row.name" size="sm" />
             <span class="player-name">{{ row.name }}</span>
             <el-tag v-if="!row.is_active" type="info" size="small">{{ t('users.inactive') }}</el-tag>
           </div>
@@ -98,6 +98,7 @@ import type { UserWithStats } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
+import UserAvatar from '@/components/shared/UserAvatar.vue'
 
 interface Props { users: UserWithStats[]; loading?: boolean; conversionRate?: number; debtThreshold?: number; showTotalPaid?: boolean; showFilterBar?: boolean; showActions?: boolean; minMatchesForTier?: number }
 const props = withDefaults(defineProps<Props>(), { loading: false, conversionRate: 22000, debtThreshold: -6, showTotalPaid: false, showFilterBar: true, showActions: true, minMatchesForTier: 5 })

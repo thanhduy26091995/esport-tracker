@@ -1,5 +1,13 @@
 <template>
   <div>
+    <!-- Rank #1 theme banner -->
+    <div v-if="rank1Club" class="lb-theme-banner">
+      <span class="lb-theme-icon">🏆</span>
+      <span class="lb-theme-text">
+        <strong>{{ displayUsers[0]?.name }}</strong> đang dẫn đầu với
+        <strong>{{ rank1ClubName }}</strong>
+      </span>
+    </div>
     <div v-if="loading" class="lb-loading">
       <el-icon class="animate-spin" :size="24" style="color:var(--text-muted)"><Loading /></el-icon>
     </div>
@@ -25,11 +33,12 @@
         <el-table-column :label="t('users.colPlayer')" min-width="160">
           <template #default="{ row, $index }">
             <div class="player-cell">
-              <div
-                class="lb-avatar"
-                :class="`lb-avatar--${$index < 3 ? ['gold','silver','bronze'][$index] : 'default'} ${$index < 3 ? 'lb-avatar--lg' : ''}`"
-              >
-                {{ row.name.charAt(0).toUpperCase() }}
+              <div :class="`lb-avatar-ring lb-avatar-ring--${$index < 3 ? ['gold','silver','bronze'][$index] : 'default'}`">
+                <UserAvatar
+                  :avatar-url="row.avatar_url"
+                  :name="row.name"
+                  :size="$index < 3 ? 'md' : 'sm'"
+                />
               </div>
               <div class="lb-name-group">
                 <div class="lb-name-row">
@@ -81,6 +90,8 @@ import { Loading, Warning } from '@element-plus/icons-vue'
 import type { User, UserWithPaymentTotal } from '@/types/user'
 import { formatVND, pointsToVND } from '@/utils/formatters'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
+import UserAvatar from '@/components/shared/UserAvatar.vue'
+import { CLUBS } from '@/config/clubs'
 
 interface Props {
   users: User[]
@@ -107,6 +118,15 @@ defineEmits<{ viewAll: [] }>()
 
 const displayUsers = computed(() =>
   props.limit ? props.users.slice(0, props.limit) : props.users
+)
+
+const rank1Club = computed(() => {
+  const club = props.users[0]?.favorite_club
+  return club && club !== 'none' ? club : null
+})
+
+const rank1ClubName = computed(() =>
+  CLUBS.find(c => c.slug === rank1Club.value)?.name ?? ''
 )
 
 const maxAbsScore = computed(() =>
@@ -140,6 +160,23 @@ function getTotalDebtPoints(user: User): number {
 </script>
 
 <style scoped>
+.lb-theme-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--theme-gradient);
+  color: var(--theme-text-on-primary);
+  font-size: 12px;
+  box-shadow: 0 2px 12px var(--theme-glow);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+.lb-theme-icon { font-size: 16px; }
+.lb-theme-text { opacity: 0.95; }
+
 .lb-loading, .lb-empty {
   display: flex;
   justify-content: center;
@@ -172,18 +209,16 @@ function getTotalDebtPoints(user: User): number {
   gap: 10px;
 }
 
-.lb-avatar {
-  width: 28px; height: 28px;
+/* Medal ring wrapper — separate from UserAvatar so scoped CSS doesn't clash */
+.lb-avatar-ring {
   border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
   flex-shrink: 0;
+  padding: 2px;
 }
-.lb-avatar--lg    { width: 32px; height: 32px; font-size: 13px; }
-.lb-avatar--gold   { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #fff; box-shadow: 0 2px 6px rgba(245,158,11,0.35); }
-.lb-avatar--silver { background: linear-gradient(135deg, #cbd5e1, #94a3b8); color: #fff; box-shadow: 0 2px 6px rgba(148,163,184,0.35); }
-.lb-avatar--bronze { background: linear-gradient(135deg, #fb923c, #ea580c); color: #fff; box-shadow: 0 2px 6px rgba(234,88,12,0.3); }
-.lb-avatar--default { background: #f1f5f9; color: #64748b; }
+.lb-avatar-ring--gold   { background: linear-gradient(135deg, #fbbf24, #f59e0b); box-shadow: 0 2px 8px rgba(245,158,11,0.45); }
+.lb-avatar-ring--silver { background: linear-gradient(135deg, #cbd5e1, #94a3b8); box-shadow: 0 2px 6px rgba(148,163,184,0.35); }
+.lb-avatar-ring--bronze { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 2px 6px rgba(234,88,12,0.3); }
+.lb-avatar-ring--default { background: transparent; padding: 0; }
 
 .lb-name-group {
   flex: 1;

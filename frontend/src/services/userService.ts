@@ -42,4 +42,21 @@ export const userService = {
     const response = await api.get<UserWithPaymentTotal[]>('/users/payment-ranking')
     return response.data
   },
+
+  async uploadAvatar(userId: string, file: File): Promise<string> {
+    const form = new FormData()
+    form.append('avatar', file)
+    const response = await api.put<{ avatar_url: string }>(`/users/${userId}/avatar`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data.avatar_url
+  },
+
+  async deleteAvatar(userId: string): Promise<void> {
+    await api.delete(`/users/${userId}/avatar`)
+  },
+
+  async updateClub(userId: string, club: string): Promise<void> {
+    await api.put(`/users/${userId}/club`, { favorite_club: club })
+  },
 }

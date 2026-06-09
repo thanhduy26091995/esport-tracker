@@ -59,6 +59,15 @@
         --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
         --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
         --shadow-elevated: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.06);
+
+        /* Club theme — defaults to green (no club selected), overridden by useGlobalTheme */
+        --theme-primary: #16a34a;
+        --theme-secondary: #14532d;
+        --theme-accent: #4ade80;
+        --theme-bg: rgba(22,163,74,0.06);
+        --theme-gradient: linear-gradient(135deg, #14532d 0%, #16a34a 100%);
+        --theme-glow: rgba(22,163,74,0.35);
+        --theme-text-on-primary: #fff;
       }
 
       * { box-sizing: border-box; }
@@ -66,6 +75,7 @@
       html {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        transition: background-color 0.5s ease;
       }
 
       body {

@@ -3,6 +3,11 @@ package service
 import (
 	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/duyb/esport-score-tracker/internal/model"
@@ -168,6 +173,112 @@ func (s *UserService) UpdateUser(id uuid.UUID, name string, tier string, handica
 	}
 
 	return user, nil
+}
+
+var validClubSlugs = map[string]bool{
+	// Premier League
+	"man-city": true, "liverpool": true, "man-utd": true, "chelsea": true,
+	"arsenal": true, "spurs": true, "newcastle": true, "aston-villa": true,
+	"west-ham": true, "everton": true,
+	// La Liga
+	"real-madrid": true, "barcelona": true, "atletico": true, "sevilla": true,
+	"betis": true, "valencia": true, "villarreal": true,
+	// Bundesliga
+	"bayern": true, "dortmund": true, "rb-leipzig": true, "leverkusen": true,
+	"frankfurt": true, "gladbach": true,
+	// Serie A
+	"juventus": true, "inter": true, "ac-milan": true, "napoli": true,
+	"roma": true, "lazio": true, "atalanta": true, "fiorentina": true,
+	// Ligue 1
+	"psg": true, "marseille": true, "lyon": true, "monaco": true, "lille": true,
+	// Others
+	"porto": true, "benfica": true, "ajax": true, "flamengo": true,
+	// Default
+	"none": true,
+}
+
+var allowedAvatarMIME = map[string]string{
+	"image/jpeg": "jpg",
+	"image/png":  "png",
+	"image/gif":  "gif",
+	"image/webp": "webp",
+}
+
+const avatarDir = "uploads/avatars"
+
+// UploadAvatar validates and stores an avatar file, returning the public URL.
+func (s *UserService) UploadAvatar(userID uuid.UUID, file multipart.File, header *multipart.FileHeader) (string, error) {
+	if header.Size > 2<<20 {
+		return "", fmt.Errorf("file too large (max 2 MB)")
+	}
+
+	buf := make([]byte, 512)
+	n, _ := file.Read(buf)
+	mimeType := http.DetectContentType(buf[:n])
+	ext, ok := allowedAvatarMIME[mimeType]
+	if !ok {
+		return "", fmt.Errorf("unsupported file type: %s", mimeType)
+	}
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("failed to read file")
+	}
+
+	if err := os.MkdirAll(avatarDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to prepare storage")
+	}
+
+	filename := uuid.New().String() + "." + ext
+	dst := filepath.Join(avatarDir, filename)
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return "", fmt.Errorf("failed to save file")
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, file); err != nil {
+		os.Remove(dst)
+		return "", fmt.Errorf("failed to write file")
+	}
+
+	// Delete previous avatar file
+	existing, _ := s.repo.GetByID(userID)
+	if existing != nil && existing.AvatarURL != nil {
+		oldPath := strings.TrimPrefix(*existing.AvatarURL, "/")
+		os.Remove(oldPath)
+	}
+
+	avatarURL := "/" + dst
+	if err := s.repo.UpdateAvatarURL(userID, avatarURL); err != nil {
+		os.Remove(dst)
+		return "", fmt.Errorf("failed to persist avatar URL")
+	}
+	return avatarURL, nil
+}
+
+// DeleteAvatar removes the avatar file and clears the URL.
+func (s *UserService) DeleteAvatar(userID uuid.UUID) error {
+	existing, err := s.repo.GetByID(userID)
+	if err != nil {
+		return fmt.Errorf("user not found")
+	}
+	if existing.AvatarURL != nil {
+		oldPath := strings.TrimPrefix(*existing.AvatarURL, "/")
+		os.Remove(oldPath)
+	}
+	return s.repo.ClearAvatarURL(userID)
+}
+
+// UpdateClub sets the favorite club for a user. Empty string clears it.
+func (s *UserService) UpdateClub(userID uuid.UUID, club string) error {
+	if club != "" && !validClubSlugs[club] {
+		return fmt.Errorf("unknown club slug: %s", club)
+	}
+	_, err := s.repo.GetByID(userID)
+	if err != nil {
+		return fmt.Errorf("user not found")
+	}
+	return s.repo.UpdateFavoriteClub(userID, club)
 }
 
 // DeleteUser soft deletes a user

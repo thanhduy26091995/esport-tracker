@@ -98,6 +98,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/userStore'
 import { useConfigStore } from '@/stores/configStore'
 import { useSettlementStore } from '@/stores/settlementStore'
+import { userService } from '@/services/userService'
 import UserTable from '@/components/user/UserTable.vue'
 import UserForm from '@/components/user/UserForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
@@ -161,13 +162,15 @@ const handleEdit = (user: UserWithStats) => {
   showDialog.value = true
 }
 
-const handleSubmit = async (data: { name: string; tier: string; handicap_rate: number }) => {
+const handleSubmit = async (data: { name: string; tier: string; handicap_rate: number; favorite_club: string }) => {
   try {
     if (selectedUser.value) {
       await userStore.updateUser(selectedUser.value.id, data.name, data.tier, data.handicap_rate)
+      await userService.updateClub(selectedUser.value.id, data.favorite_club)
     } else {
       await userStore.createUser(data.name, data.tier, data.handicap_rate)
     }
+    await userStore.fetchUsers()
     showDialog.value = false
   } catch {}
 }

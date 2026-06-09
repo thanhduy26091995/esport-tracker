@@ -130,6 +130,24 @@ func (r *UserRepository) GetAllIDs() ([]uuid.UUID, error) {
 	return ids, err
 }
 
+// UpdateAvatarURL persists the avatar URL for a user.
+func (r *UserRepository) UpdateAvatarURL(id uuid.UUID, url string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("avatar_url", url).Error
+}
+
+// ClearAvatarURL sets avatar_url to NULL.
+func (r *UserRepository) ClearAvatarURL(id uuid.UUID) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("avatar_url", nil).Error
+}
+
+// UpdateFavoriteClub persists the favorite club slug for a user.
+func (r *UserRepository) UpdateFavoriteClub(id uuid.UUID, club string) error {
+	if club == "" {
+		return r.db.Model(&model.User{}).Where("id = ?", id).Update("favorite_club", nil).Error
+	}
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("favorite_club", club).Error
+}
+
 // UpdateScore updates a user's current score
 func (r *UserRepository) UpdateScore(id uuid.UUID, scoreChange int) error {
 	return r.db.Model(&model.User{}).

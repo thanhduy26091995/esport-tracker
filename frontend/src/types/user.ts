@@ -7,6 +7,8 @@ export interface User {
   is_active: boolean
   tier: string
   handicap_rate: number
+  avatar_url?: string | null
+  favorite_club?: string | null
 }
 
 export interface UserWithStats extends User {

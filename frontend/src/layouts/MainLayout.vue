@@ -83,6 +83,13 @@
           </div>
         </div>
         <div class="topbar-right">
+          <div v-if="reigningClub" class="topbar-champion">
+            <span class="topbar-champion-icon">🏆</span>
+            <span class="topbar-champion-info">
+              <span class="topbar-champion-club">{{ reigningClub.name }}</span>
+              <span class="topbar-champion-player">{{ reigningPlayerName }}</span>
+            </span>
+          </div>
           <span class="topbar-date">{{ todayLabel }}</span>
           <div class="topbar-lang">
             <LanguageSwitcher />
@@ -104,10 +111,21 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Menu, Trophy, HomeFilled, UserFilled, TrendCharts, DocumentCopy, Wallet, Setting, Grid, Promotion } from '@element-plus/icons-vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
+import { useUserStore } from '@/stores/userStore'
+import { CLUBS } from '@/config/clubs'
 
 const { t } = useI18n()
 const route = useRoute()
 const mobileMenuOpen = ref(false)
+const userStore = useUserStore()
+
+const reigningClub = computed(() => {
+  const slug = userStore.users[0]?.favorite_club
+  if (!slug || slug === 'none') return null
+  return CLUBS.find(c => c.slug === slug) ?? null
+})
+
+const reigningPlayerName = computed(() => userStore.users[0]?.name ?? '')
 
 const navigation = [
   { navKey: 'nav.dashboard', href: '/', icon: HomeFilled },
@@ -173,13 +191,14 @@ const todayLabel = computed(() => {
 .logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  background: var(--theme-gradient);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 4px 12px var(--theme-glow);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 
 .logo-icon--sm {
@@ -230,9 +249,10 @@ const todayLabel = computed(() => {
 }
 
 .nav-item--active {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-  box-shadow: inset 3px 0 0 #3b82f6;
+  background: var(--theme-bg);
+  color: var(--theme-accent);
+  box-shadow: inset 3px 0 0 var(--theme-primary);
+  transition: background 0.5s ease, color 0.5s ease, box-shadow 0.5s ease;
 }
 
 .nav-icon {
@@ -274,9 +294,10 @@ const todayLabel = computed(() => {
   padding: 0 20px;
   height: 52px;
   background: var(--surface-card);
-  border-bottom: 1px solid var(--border-default);
+  border-bottom: 3px solid var(--theme-primary);
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   flex-shrink: 0;
+  transition: border-color 0.5s ease;
 }
 
 .topbar-left {
@@ -294,9 +315,10 @@ const todayLabel = computed(() => {
 }
 
 .topbar-page-icon {
-  color: var(--color-primary);
+  color: var(--theme-primary);
   flex-shrink: 0;
-  opacity: 0.8;
+  opacity: 0.9;
+  transition: color 0.5s ease;
 }
 
 .topbar-page-title {
@@ -325,6 +347,46 @@ const todayLabel = computed(() => {
 
 .topbar-lang :deep(.language-label) {
   display: none;
+}
+
+/* ── Champion pill ── */
+.topbar-champion {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 8px;
+  border-radius: 20px;
+  background: var(--theme-gradient);
+  box-shadow: 0 2px 10px var(--theme-glow);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.topbar-champion-icon {
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.topbar-champion-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.topbar-champion-club {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--theme-text-on-primary);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.topbar-champion-player {
+  font-size: 10px;
+  color: var(--theme-text-on-primary);
+  opacity: 0.8;
 }
 
 .mobile-menu-btn {
@@ -356,6 +418,12 @@ const todayLabel = computed(() => {
 
 @media (max-width: 1023px) {
   .topbar-date {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-champion-player {
     display: none;
   }
 }

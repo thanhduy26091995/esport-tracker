@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/duyb/esport-score-tracker/internal/service"
 	"github.com/gin-gonic/gin"
@@ -256,6 +257,80 @@ func (h *UserHandler) GetPaymentRanking(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, users)
+}
+
+// UploadAvatar handles PUT /users/:id/avatar
+func (h *UserHandler) UploadAvatar(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid user ID"}})
+		return
+	}
+
+	file, header, err := c.Request.FormFile("avatar")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "Missing avatar file"}})
+		return
+	}
+	defer file.Close()
+
+	avatarURL, err := h.userService.UploadAvatar(id, file, header)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "user not found" {
+			status = http.StatusNotFound
+		} else if strings.HasPrefix(err.Error(), "file") || strings.HasPrefix(err.Error(), "unsupported") {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": gin.H{"code": "UPLOAD_ERROR", "message": err.Error()}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"avatar_url": avatarURL})
+}
+
+// DeleteAvatar handles DELETE /users/:id/avatar
+func (h *UserHandler) DeleteAvatar(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid user ID"}})
+		return
+	}
+	if err := h.userService.DeleteAvatar(id); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "user not found" {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": gin.H{"code": "DELETE_ERROR", "message": err.Error()}})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// UpdateClub handles PUT /users/:id/club
+func (h *UserHandler) UpdateClub(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid user ID"}})
+		return
+	}
+	var req struct {
+		FavoriteClub string `json:"favorite_club"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid request body"}})
+		return
+	}
+	if err := h.userService.UpdateClub(id, req.FavoriteClub); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "user not found" {
+			status = http.StatusNotFound
+		} else if strings.HasPrefix(err.Error(), "unknown") {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": gin.H{"code": "UPDATE_ERROR", "message": err.Error()}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"favorite_club": req.FavoriteClub})
 }
 
 // GetLeaderboard handles GET /users/leaderboard

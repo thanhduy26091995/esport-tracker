@@ -15,8 +15,9 @@ import (
 
 func SetupRouter(db *gorm.DB) *gin.Engine {
 	router := gin.Default()
+	router.MaxMultipartMemory = 2 << 20 // 2 MB limit for avatar uploads
 
-	// CORS middleware
+	// CORS middleware — must be registered before any routes (including Static)
 	corsConfig := cors.Config{
 		AllowOrigins:     strings.Split(os.Getenv("CORS_ORIGINS"), ","),
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -24,6 +25,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		AllowCredentials: true,
 	}
 	router.Use(cors.New(corsConfig))
+
+	// Serve uploaded avatar files (after CORS so browser can fetch cross-origin)
+	router.Static("/uploads", "./uploads")
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -81,8 +85,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			users.GET("/payment-ranking", userHandler.GetPaymentRanking) // GET /api/v1/users/payment-ranking
 			users.GET("/:id", userHandler.GetByID)                       // GET /api/v1/users/:id
 			users.GET("/:id/matches", matchHandler.GetByUserID) // GET /api/v1/users/:id/matches
-			users.PUT("/:id", userHandler.Update)          // PUT /api/v1/users/:id
-			users.DELETE("/:id", userHandler.Delete)       // DELETE /api/v1/users/:id
+			users.PUT("/:id", userHandler.Update)                    // PUT /api/v1/users/:id
+			users.DELETE("/:id", userHandler.Delete)                 // DELETE /api/v1/users/:id
+			users.PUT("/:id/avatar", userHandler.UploadAvatar)       // PUT /api/v1/users/:id/avatar
+			users.DELETE("/:id/avatar", userHandler.DeleteAvatar)    // DELETE /api/v1/users/:id/avatar
+			users.PUT("/:id/club", userHandler.UpdateClub)           // PUT /api/v1/users/:id/club
 		}
 
 		// Match routes

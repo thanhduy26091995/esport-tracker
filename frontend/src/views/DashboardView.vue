@@ -34,19 +34,36 @@
         {{ t('dashboard.needMorePlayers') }}
       </div>
 
-      <!-- Stats grid -->
-      <div class="stats-grid">
+      <!-- Unified dashboard grid: 2 cols mobile / 4 cols desktop, gap 16px -->
+      <!-- Stat cards: 1 col each · Champion banner: all cols · Content cards: 2 cols each -->
+      <div class="dashboard-grid">
+
         <StatCard :title="t('dashboard.statTotalPlayers')"   :value="userStore.users.length"       :icon="User"       :loading="userStore.loading"                          type="info"    />
         <StatCard :title="t('dashboard.statTodayMatches')" :value="getTodayMatchesCount()"        :icon="Trophy"     :loading="matchStore.loading"                         type="success" />
         <StatCard :title="t('dashboard.statFundBalance')"    :value="formatVND(fundStore.balance)"  :icon="Wallet"     :loading="fundStore.loading"                          type="warning" />
         <StatCard :title="t('dashboard.statPlayersInDebt')" :value="getDebtorsCount()"             :icon="TrendCharts" :loading="userStore.loading || configStore.loading"  type="danger"  />
-      </div>
 
-      <!-- Content grid -->
-      <div class="content-grid">
+        <!-- Champion banner: spans all columns -->
+        <div v-if="championClub" class="champion-banner">
+          <div class="champion-bg-text" aria-hidden="true">{{ championClub.name }}</div>
+          <div class="champion-left">
+            <div class="champion-avatar-wrap">
+              <UserAvatar :avatar-url="champion?.avatar_url" :name="champion?.name || ''" size="lg" />
+            </div>
+            <div class="champion-info">
+              <span class="champion-league">{{ championClub.league }}</span>
+              <span class="champion-club">{{ championClub.name }}</span>
+              <span class="champion-player">👑 {{ champion?.name }}</span>
+            </div>
+          </div>
+          <div class="champion-score">
+            <span class="champion-score-value">{{ (champion?.current_score ?? 0) > 0 ? '+' : '' }}{{ champion?.current_score ?? 0 }}</span>
+            <span class="champion-score-label">điểm</span>
+          </div>
+        </div>
 
-        <!-- Leaderboard -->
-        <div class="card">
+        <!-- Content cards: each spans 2 columns -->
+        <div class="card content-card">
           <div class="card-header">
             <span class="card-title">{{ t('dashboard.topPlayers') }}</span>
             <router-link to="/users" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
@@ -64,8 +81,7 @@
           </div>
         </div>
 
-        <!-- Recent Matches -->
-        <div class="card">
+        <div class="card content-card">
           <div class="card-header">
             <span class="card-title">{{ t('dashboard.recentMatches') }}</span>
             <router-link to="/matches" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
@@ -75,8 +91,7 @@
           </div>
         </div>
 
-        <!-- Recent Settlements -->
-        <div class="card">
+        <div class="card content-card">
           <div class="card-header">
             <span class="card-title">{{ t('dashboard.recentSettlements') }}</span>
             <router-link to="/settlements" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
@@ -108,8 +123,7 @@
           </div>
         </div>
 
-        <!-- Fund Activity -->
-        <div class="card">
+        <div class="card content-card">
           <div class="card-header">
             <span class="card-title">{{ t('dashboard.recentFundActivity') }}</span>
             <router-link to="/fund" class="view-all-link">{{ t('dashboard.viewAll') }}</router-link>
@@ -143,8 +157,7 @@
           </div>
         </div>
 
-        <!-- Fund Contributors (debtors) -->
-        <div class="card">
+        <div class="card content-card">
           <div class="card-header">
             <span class="card-title">{{ t('dashboard.fundContributors') }}</span>
           </div>
@@ -157,8 +170,7 @@
           </div>
         </div>
 
-        <!-- Winner Contributors (winners who had points deducted) -->
-        <div class="card">
+        <div class="card content-card">
           <div class="card-header">
             <span class="card-title">{{ t('dashboard.winnerContributors') }}</span>
           </div>
@@ -210,6 +222,8 @@ import { formatDate } from '@/utils/date'
 import type { CreateMatchRequest } from '@/types/match'
 import type { CreateScoreBonusRequest } from '@/types/scoreBonus'
 import { sortByStrategy } from '@/utils/sort'
+import { CLUBS } from '@/config/clubs'
+import UserAvatar from '@/components/shared/UserAvatar.vue'
 
 const userStore = useUserStore()
 const matchStore = useMatchStore()
@@ -221,6 +235,15 @@ const showBonusForm = ref(false)
 const activeUsers = computed(() => userStore.users.filter(u => u.is_active))
 
 const leaderboardUsers = computed(() => sortByStrategy(userStore.users, 'default'))
+
+const champion = computed(() =>
+  [...userStore.users].sort((a, b) => b.current_score - a.current_score)[0]
+)
+const championClub = computed(() => {
+  const slug = champion.value?.favorite_club
+  if (!slug || slug === 'none') return null
+  return CLUBS.find(c => c.slug === slug) ?? null
+})
 
 onMounted(async () => {
   await Promise.all([
@@ -264,23 +287,25 @@ const handleRefreshUsers = async () => {
 </script>
 
 <style scoped>
-.stats-grid {
+.dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-  margin-bottom: 20px;
-}
-@media (min-width: 1024px) {
-  .stats-grid { grid-template-columns: repeat(4, 1fr); }
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 16px;
 }
 @media (min-width: 1024px) {
-  .content-grid { grid-template-columns: repeat(2, 1fr); }
+  .dashboard-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Champion banner + content cards span 2 cols on mobile (full width) */
+/* and 2 of 4 cols on desktop — same track widths as stat cards */
+.champion-banner,
+.content-card {
+  grid-column: span 2;
+}
+
+/* Champion banner always fills all 4 columns */
+.champion-banner {
+  grid-column: 1 / -1;
 }
 
 .view-all-link {
@@ -339,4 +364,112 @@ const handleRefreshUsers = async () => {
 .item-amount { font-size: 13px; font-weight: 700; flex-shrink: 0; }
 .item-amount--green { color: var(--color-success); }
 .item-amount--red   { color: var(--color-danger);  }
+
+/* ── Champion banner ── */
+.champion-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 20px 24px;
+  background: var(--theme-gradient);
+  box-shadow: 0 8px 32px var(--theme-glow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+.champion-bg-text {
+  position: absolute;
+  right: -12px;
+  bottom: -8px;
+  font-size: 80px;
+  font-weight: 900;
+  color: var(--theme-text-on-primary);
+  opacity: 0.07;
+  text-transform: uppercase;
+  letter-spacing: -3px;
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.champion-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.champion-avatar-wrap {
+  flex-shrink: 0;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+}
+
+.champion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.champion-league {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--theme-text-on-primary);
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.champion-club {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--theme-text-on-primary);
+  line-height: 1.1;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.champion-player {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-on-primary);
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.champion-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.champion-score-value {
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--theme-text-on-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.champion-score-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--theme-text-on-primary);
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 480px) {
+  .champion-club { font-size: 18px; }
+  .champion-score-value { font-size: 28px; }
+  .champion-bg-text { font-size: 56px; }
+}
 </style>
