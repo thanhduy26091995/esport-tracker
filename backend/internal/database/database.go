@@ -47,11 +47,14 @@ func Connect() (*gorm.DB, error) {
 		&model.WcConfig{},
 		&model.WcMatch{},
 		&model.WcScoreMultiplier{},
+		&model.WcScoreOdds{},
 		&model.WcWallet{},
 		&model.WcWalletLog{},
 		&model.WcPrediction{},
+		&model.WcBet{},
 		&model.WcSettlement{},
 		&model.WcSettlementDetail{},
+		&model.ScoreBonus{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}

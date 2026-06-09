@@ -15,6 +15,8 @@ import type {
   WcSettlementWithDetails,
   WcSettlementPreviewRow,
   WcMatchFilter,
+  WcBetWithMatch,
+  WcBetPublic,
 } from '@/types/wc'
 import { ElMessage } from 'element-plus'
 
@@ -32,6 +34,9 @@ export const useWcStore = defineStore('wc', () => {
   const settlements = ref<WcSettlement[]>([])
   const currentSettlement = ref<WcSettlementWithDetails | null>(null)
   const settlementPreview = ref<WcSettlementPreviewRow[]>([])
+
+  const bets = ref<WcBetWithMatch[]>([])
+  const matchBets = ref<WcBetPublic[]>([])
 
   const loading = ref(false)
 
@@ -99,6 +104,28 @@ export const useWcStore = defineStore('wc', () => {
     const res = await wcService.finalizeMatch(id)
     ElMessage.success(`Đã tính kết quả: ${res.predictions_processed} dự đoán, tổng điểm ${res.total_points_awarded}`)
     await fetchMatches()
+  }
+
+  async function fetchBets() {
+    try {
+      bets.value = (await wcService.listBets()) ?? []
+    } catch { /* silently */ }
+  }
+
+  async function fetchMatchBets(matchId: string) {
+    try {
+      matchBets.value = (await wcService.getMatchBets(matchId)) ?? []
+    } catch { /* silently */ }
+  }
+
+  async function updateBetStake(id: string, stake: number) {
+    await wcService.updateBetStake(id, stake)
+    await fetchBets()
+  }
+
+  async function deleteBet(id: string) {
+    await wcService.deleteBet(id)
+    bets.value = bets.value.filter(b => b.id !== id)
   }
 
   async function fetchWallet() {
@@ -197,6 +224,8 @@ export const useWcStore = defineStore('wc', () => {
     wallet,
     predictions,
     matchPredictions,
+    bets,
+    matchBets,
     leaderboard,
     allWallets,
     allUsers,
@@ -213,6 +242,10 @@ export const useWcStore = defineStore('wc', () => {
     openMatch,
     closeMatch,
     finalizeMatch,
+    fetchBets,
+    fetchMatchBets,
+    updateBetStake,
+    deleteBet,
     fetchWallet,
     fetchPredictions,
     deletePrediction,

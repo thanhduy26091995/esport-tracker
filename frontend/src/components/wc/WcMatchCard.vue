@@ -90,10 +90,10 @@ const isLocked = computed(() => {
 
 const matchDate = computed(() => new Date(props.match.match_date))
 const matchDateStr = computed(() =>
-  matchDate.value.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+  matchDate.value.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }),
 )
 const matchTimeStr = computed(() =>
-  matchDate.value.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+  matchDate.value.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }),
 )
 
 const handicapTeamName = computed(() =>
@@ -138,8 +138,14 @@ const awayFlag = computed(() => teamFlag(props.match.away_team_code))
 }
 
 .wc-match-card--live {
-  border-color: #16a34a60;
-  background: linear-gradient(135deg, rgba(22, 163, 74, 0.03), var(--surface-card));
+  border-color: #16a34a;
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.05), var(--surface-card));
+  animation: glow-live 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow-live {
+  from { box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.20), 0 0 8px  rgba(22, 163, 74, 0.12); }
+  to   { box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.40), 0 0 20px rgba(22, 163, 74, 0.28); }
 }
 
 .wc-match-stage-row {

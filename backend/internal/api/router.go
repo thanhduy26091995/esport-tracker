@@ -50,6 +50,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 	wcAuthService := service.NewWcAuthService(wcUserRepo, wcRepo)
 	wcService := service.NewWcService(wcRepo, wcUserRepo)
+	bonusRepo := repository.NewScoreBonusRepository(db)
+	bonusService := service.NewScoreBonusService(bonusRepo, userRepo, tierService, db)
 
 	// Backfill tiers from existing match history on startup.
 	if err := tierService.RecalculateAllTiers(); err != nil {
@@ -58,7 +60,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)
-	matchHandler := NewMatchHandler(matchService)
+	matchHandler := NewMatchHandler(matchService, bonusService)
+	bonusHandler := NewScoreBonusHandler(bonusService)
 	configHandler := NewConfigHandler(configService, tierService)
 	fundHandler := NewFundHandler(fundService)
 	settlementHandler := NewSettlementHandler(settlementService)
@@ -126,6 +129,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		// User settlement history
 		v1.GET("/users/:id/settlements", settlementHandler.GetByDebtorID) // GET /api/v1/users/:id/settlements
 
+		// Score bonus routes (POST/DELETE only; GET is merged into /matches)
+		bonuses := v1.Group("/score-bonuses")
+		{
+			bonuses.POST("", bonusHandler.Create)      // POST /api/v1/score-bonuses
+			bonuses.DELETE("/:id", bonusHandler.Delete) // DELETE /api/v1/score-bonuses/:id
+		}
+
 		// Tournament routes
 		tournaments := v1.Group("/tournaments")
 		{
@@ -170,6 +180,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			// Public (feature enabled, no auth)
 			wcFeature.GET("/matches/:id/score-multipliers", wcHandler.GetScoreMultipliers)
 			wcFeature.GET("/matches/:id/predictions", wcHandler.GetMatchPredictions)
+			wcFeature.GET("/matches/:id/bets", wcHandler.GetMatchBets)
 			wcFeature.GET("/leaderboard", wcHandler.GetLeaderboard)
 
 			// JWT required
@@ -180,6 +191,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAuth.GET("/predictions", wcHandler.ListPredictions)
 				wcAuth.DELETE("/predictions/:id", wcHandler.DeletePrediction)
 				wcAuth.PUT("/predictions/:id", wcHandler.UpdatePrediction)
+				wcAuth.GET("/bets", wcHandler.ListBets)
+				wcAuth.POST("/bets", wcHandler.PlaceBet)
+				wcAuth.PUT("/bets/:id", wcHandler.UpdateBet)
+				wcAuth.DELETE("/bets/:id", wcHandler.DeleteBet)
 			}
 
 			// Admin required
@@ -192,6 +207,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAdmin.PUT("/score-multipliers/:id", wcHandler.UpdateScoreMultiplier)
 				wcAdmin.DELETE("/score-multipliers/:id", wcHandler.DeleteScoreMultiplier)
 				wcAdmin.POST("/matches/:id/finalize", wcHandler.FinalizeMatch)
+				wcAdmin.POST("/matches/:id/settle", wcHandler.SettleMatch)
+				wcAdmin.POST("/matches/:id/score-odds", wcHandler.AddScoreOdds)
+				wcAdmin.PUT("/score-odds/:id", wcHandler.UpdateScoreOdds)
+				wcAdmin.DELETE("/score-odds/:id", wcHandler.DeleteScoreOdds)
 				wcAdmin.GET("/users", wcHandler.ListUsers)
 				wcAdmin.PUT("/users/:wc_user_id/role", wcHandler.SetUserRole)
 				wcAdmin.GET("/wallets", wcHandler.ListAllWallets)

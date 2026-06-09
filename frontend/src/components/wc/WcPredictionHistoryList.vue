@@ -38,12 +38,12 @@
             <template v-else>
               <span class="wc-bet-stake">{{ pred.points }} × {{ pred.multiplier_snapshot.toFixed(2) }}</span>
               <template v-if="isEditable(pred)">
-                <el-button
+                <!-- <el-button
                   size="small"
                   text
                   class="wc-bet-action-btn"
                   @click="startEdit(pred)"
-                >Sửa</el-button>
+                >Sửa</el-button> -->
                 <el-button
                   size="small"
                   text

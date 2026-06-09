@@ -156,6 +156,24 @@
     "allPredictions": "Tất cả dự đoán",
     "predictorsOnMatch": "Người dự đoán",
     "noPredictions": "Chưa có dự đoán",
+    "betting": "Đặt cược",
+    "tabBetting": "Đặt cược",
+    "tabOpenBets": "Cược đang mở",
+    "noBettableMatches": "Không có trận nào có thể đặt cược",
+    "placeBet": "Đặt cược",
+    "allBets": "Tất cả cược",
+    "betForm": "Đặt cược",
+    "betTypeHandicap": "Chấp",
+    "betTypeExactScore": "Tỉ số",
+    "stake": "Số tiền cược",
+    "payout": "Tiền thắng",
+    "submitBet": "Xác nhận cược",
+    "betSuccess": "Đặt cược thành công!",
+    "noBets": "Chưa có cược nào",
+    "bettorsOnMatch": "Người đặt cược",
+    "resultWin": "Thắng",
+    "resultLose": "Thua",
+    "resultPush": "Hoà vốn",
     "logout": "Đăng xuất"
   },
   "dashboard": {
@@ -273,7 +291,27 @@
     "noRecent": "Chưa có trận gần đây",
     "types": {
       "oneVsOne": "1v1",
-      "twoVsTwo": "2v2"
+      "twoVsTwo": "2v2",
+      "oneVsTwo": "1v2",
+      "oneVsTwoHint": "Solo vs Duo — solo thắng: +2đ, duo thắng: +1đ mỗi người"
+    },
+    "bonus": {
+      "dialogTitle": "Cộng điểm cá cược",
+      "player": "Người chơi",
+      "playerPlaceholder": "Chọn người chơi",
+      "points": "Điểm cộng",
+      "description": "Ghi chú",
+      "descriptionPlaceholder": "Mô tả cược (vd: Cookie thua cược 3 điểm)",
+      "date": "Thời gian",
+      "datePlaceholder": "Mặc định: hiện tại",
+      "hint": "Điểm sẽ được cộng trực tiếp vào người chơi. Quỹ được quản lý thủ công riêng.",
+      "submit": "Cộng điểm",
+      "playerRequired": "Vui lòng chọn người chơi",
+      "pointsRequired": "Điểm cộng tối thiểu là 1",
+      "tag": "[Cược]",
+      "filterLabel": "Cá cược",
+      "deleteTitle": "Xóa điểm cá cược",
+      "deleteConfirm": "Bạn có chắc chắn muốn xóa điểm cá cược này? Điểm sẽ bị trừ lại."
     },
     "form": {
       "recordTitle": "Ghi nhận trận đấu",
@@ -292,7 +330,9 @@
       "duplicatePlayers": "Một người chơi không thể ở cả hai đội",
       "ready": "Sẵn sàng ghi nhận",
       "submit": "Ghi nhận trận"
-    }
+    },
+    "filterPlayer": "Lọc theo người chơi",
+    "allPlayers": "Tất cả người chơi"
   },
   "tournaments": {
     "title": "Quản lý giải đấu",
@@ -559,6 +599,8 @@
     "userDeleted": "Đã xóa người chơi \"{name}\"",
     "matchCreated": "Ghi nhận trận thành công",
     "matchDeleted": "Đã xóa trận đấu",
+    "bonusCreated": "Đã cộng điểm cá cược",
+    "bonusDeleted": "Đã xóa điểm cá cược",
     "settlementTriggered": "Đã thanh toán thành công",
     "depositSuccess": "Đã nạp {amount} VND",
     "withdrawSuccess": "Đã rút {amount} VND",

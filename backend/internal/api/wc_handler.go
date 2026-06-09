@@ -222,6 +222,178 @@ func (h *WcHandler) UpdatePrediction(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// ListBets handles GET /api/v1/wc/bets
+func (h *WcHandler) ListBets(c *gin.Context) {
+	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	bets, err := h.svc.ListBets(wcUserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bets"})
+		return
+	}
+	c.JSON(http.StatusOK, bets)
+}
+
+// PlaceBet handles POST /api/v1/wc/bets
+func (h *WcHandler) PlaceBet(c *gin.Context) {
+	var req struct {
+		MatchID            string  `json:"match_id" binding:"required"`
+		BetType            string  `json:"bet_type" binding:"required"`
+		BetChoice          *string `json:"bet_choice"`
+		Stake              int     `json:"stake" binding:"required,min=1"`
+		PredictedHomeScore *int    `json:"predicted_home_score"`
+		PredictedAwayScore *int    `json:"predicted_away_score"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	matchID, err := uuid.Parse(req.MatchID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match_id"})
+		return
+	}
+	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	bet, err := h.svc.PlaceBet(wcUserID, service.PlaceBetRequest{
+		MatchID:            matchID,
+		BetType:            req.BetType,
+		BetChoice:          req.BetChoice,
+		Stake:              req.Stake,
+		PredictedHomeScore: req.PredictedHomeScore,
+		PredictedAwayScore: req.PredictedAwayScore,
+	})
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, bet)
+}
+
+// UpdateBet handles PUT /api/v1/wc/bets/:id
+func (h *WcHandler) UpdateBet(c *gin.Context) {
+	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	betID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bet ID"})
+		return
+	}
+	var body struct {
+		Stake int `json:"stake"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.svc.UpdateBetStake(wcUserID, betID, body.Stake); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// DeleteBet handles DELETE /api/v1/wc/bets/:id
+func (h *WcHandler) DeleteBet(c *gin.Context) {
+	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	betID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bet ID"})
+		return
+	}
+	if err := h.svc.DeleteBet(wcUserID, betID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// GetMatchBets handles GET /api/v1/wc/matches/:id/bets
+func (h *WcHandler) GetMatchBets(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID"})
+		return
+	}
+	bets, err := h.svc.ListBetsForMatch(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bets"})
+		return
+	}
+	c.JSON(http.StatusOK, bets)
+}
+
+// SettleMatch handles POST /api/v1/wc/admin/matches/:id/settle
+func (h *WcHandler) SettleMatch(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID"})
+		return
+	}
+	processed, totalPayout, err := h.svc.SettleMatch(id)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"bets_processed": processed, "total_payout": totalPayout})
+}
+
+// AddScoreOdds handles POST /api/v1/wc/admin/matches/:id/score-odds
+func (h *WcHandler) AddScoreOdds(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID"})
+		return
+	}
+	var req struct {
+		HomeScore int     `json:"home_score" binding:"min=0"`
+		AwayScore int     `json:"away_score" binding:"min=0"`
+		Odds      float64 `json:"odds" binding:"required,gt=0"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	so, err := h.svc.AddScoreOdds(id, req.HomeScore, req.AwayScore, req.Odds)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, so)
+}
+
+// UpdateScoreOdds handles PUT /api/v1/wc/admin/score-odds/:id
+func (h *WcHandler) UpdateScoreOdds(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid score odds ID"})
+		return
+	}
+	var req struct {
+		Odds float64 `json:"odds" binding:"required,gt=0"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.svc.UpdateScoreOdds(id, req.Odds); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update score odds"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// DeleteScoreOdds handles DELETE /api/v1/wc/admin/score-odds/:id
+func (h *WcHandler) DeleteScoreOdds(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid score odds ID"})
+		return
+	}
+	if err := h.svc.DeleteScoreOdds(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete score odds"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // SyncMatches handles POST /api/v1/wc/admin/sync
 func (h *WcHandler) SyncMatches(c *gin.Context) {
 	count, err := h.svc.SyncMatches()

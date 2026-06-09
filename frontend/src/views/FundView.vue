@@ -7,9 +7,10 @@
           <h1 class="page-title">{{ t('fund.pageTitle') }}</h1>
           <p class="page-subtitle">{{ t('fund.pageSubtitle') }}</p>
         </div>
-        <div class="flex gap-2">
+        <div class="page-header-actions">
           <el-button type="success" plain @click="handleDeposit" :icon="Plus">{{ t('fund.deposit') }}</el-button>
           <el-button type="danger" plain @click="handleWithdraw" :icon="Minus" :disabled="fundStore.balance === 0">{{ t('fund.withdraw') }}</el-button>
+          <el-button type="warning" plain @click="handleAddBonus" :icon="Star">{{ t('matches.bonus.dialogTitle') }}</el-button>
         </div>
       </div>
 
@@ -62,6 +63,9 @@
       <FundForm v-model="showFundForm" :type="fundFormType" :current-balance="fundStore.balance"
         :loading="fundStore.loading" @submit="handleSubmitTransaction" @cancel="() => showFundForm = false" />
 
+      <ScoreBonusForm v-model="showBonusForm" :users="activeUsers" :loading="matchStore.loading"
+        @submit="handleSubmitBonus" />
+
       <!-- Full Screen QR Modal -->
       <el-dialog v-model="showQrFullScreen" :title="t('fund.momoQrTitle')" width="90%" :close-on-click-modal="true" :show-close="true">
         <div class="qr-fullscreen-content">
@@ -74,30 +78,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Plus, Minus, Wallet, TrendCharts, Document } from '@element-plus/icons-vue'
+import { Plus, Minus, Wallet, TrendCharts, Document, Star } from '@element-plus/icons-vue'
 import { useFundStore } from '@/stores/fundStore'
+import { useMatchStore } from '@/stores/matchStore'
+import { useUserStore } from '@/stores/userStore'
 import FundTransactionList from '@/components/fund/FundTransactionList.vue'
 import FundForm from '@/components/fund/FundForm.vue'
+import ScoreBonusForm from '@/components/match/ScoreBonusForm.vue'
 import StatCard from '@/components/shared/StatCard.vue'
 import { formatVND } from '@/utils/formatters'
 import momoQr from '@/assets/momo-qr.jpg'
+import type { CreateScoreBonusRequest } from '@/types/scoreBonus'
 
 const { t } = useI18n()
 const fundStore = useFundStore()
+const matchStore = useMatchStore()
+const userStore = useUserStore()
 const showFundForm = ref(false)
 const fundFormType = ref<'deposit' | 'withdrawal'>('deposit')
+const showBonusForm = ref(false)
 const showQrFullScreen = ref(false)
+const activeUsers = computed(() => userStore.users.filter(u => u.is_active))
 
-onMounted(async () => { await Promise.all([fundStore.fetchStats(), fundStore.fetchTransactions()]) })
+onMounted(async () => {
+  await Promise.all([fundStore.fetchStats(), fundStore.fetchTransactions(), userStore.fetchUsers()])
+})
 
 const handleDeposit = () => { fundFormType.value = 'deposit'; showFundForm.value = true }
 const handleWithdraw = () => { fundFormType.value = 'withdrawal'; showFundForm.value = true }
+const handleAddBonus = () => { showBonusForm.value = true }
 const handleSubmitTransaction = async (data: { amount: number; description: string; date?: string }) => {
   try {
     fundFormType.value === 'deposit' ? await fundStore.deposit(data) : await fundStore.withdraw(data)
     showFundForm.value = false
+  } catch {}
+}
+const handleSubmitBonus = async (req: CreateScoreBonusRequest) => {
+  try {
+    await matchStore.createBonus(req)
+    showBonusForm.value = false
+    await userStore.fetchUsers()
   } catch {}
 }
 </script>

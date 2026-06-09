@@ -8,15 +8,25 @@
           <h1 class="page-title">{{ t('dashboard.pageTitle') }}</h1>
           <p class="page-subtitle">{{ t('dashboard.pageSubtitle') }}</p>
         </div>
-        <el-button
-          type="primary"
-          :icon="Trophy"
-          @click="handleRecordMatch"
-          :disabled="userStore.users.length < 2"
-          size="large"
-        >
-          {{ t('dashboard.recordMatch') }}
-        </el-button>
+        <div class="page-header-actions">
+          <el-button
+            type="warning"
+            plain
+            :icon="Star"
+            @click="handleAddBonus"
+            :disabled="userStore.users.length === 0"
+          >
+            {{ t('matches.bonus.dialogTitle') }}
+          </el-button>
+          <el-button
+            type="primary"
+            :icon="Trophy"
+            @click="handleRecordMatch"
+            :disabled="userStore.users.length < 2"
+          >
+            {{ t('dashboard.recordMatch') }}
+          </el-button>
+        </div>
       </div>
 
       <div v-if="userStore.users.length < 2" class="info-banner info-banner--warning mb-6">
@@ -173,6 +183,8 @@
       @cancel="() => showMatchForm = false"
       @request-users-refresh="handleRefreshUsers"
     />
+    <ScoreBonusForm v-model="showBonusForm" :users="activeUsers" :loading="matchStore.loading"
+      @submit="handleSubmitBonus" />
   </div>
 </template>
 
@@ -180,7 +192,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
-import { Trophy, User, Plus, Minus, Warning, Wallet, TrendCharts, Document, Loading } from '@element-plus/icons-vue'
+import { Trophy, User, Plus, Minus, Warning, Wallet, TrendCharts, Document, Loading, Star } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { useMatchStore } from '@/stores/matchStore'
 import { useSettlementStore } from '@/stores/settlementStore'
@@ -190,11 +202,13 @@ import StatCard from '@/components/shared/StatCard.vue'
 import UserTable from '@/components/user/UserTable.vue'
 import RecentMatches from '@/components/match/RecentMatches.vue'
 import MatchForm from '@/components/match/MatchForm.vue'
+import ScoreBonusForm from '@/components/match/ScoreBonusForm.vue'
 import FundContributors from '@/components/settlement/FundContributors.vue'
 import WinnerContributors from '@/components/settlement/WinnerContributors.vue'
 import { formatVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import type { CreateMatchRequest } from '@/types/match'
+import type { CreateScoreBonusRequest } from '@/types/scoreBonus'
 import { sortByStrategy } from '@/utils/sort'
 
 const userStore = useUserStore()
@@ -203,6 +217,8 @@ const settlementStore = useSettlementStore()
 const fundStore = useFundStore()
 const configStore = useConfigStore()
 const showMatchForm = ref(false)
+const showBonusForm = ref(false)
+const activeUsers = computed(() => userStore.users.filter(u => u.is_active))
 
 const leaderboardUsers = computed(() => sortByStrategy(userStore.users, 'default'))
 
@@ -235,6 +251,10 @@ const getDebtorsCount = () => userStore.users.filter(u => u.current_score < conf
 const getUserName = (id: string) => userStore.users.find(u => u.id === id)?.name || t('common.unknown')
 
 const handleRecordMatch = () => { showMatchForm.value = true }
+const handleAddBonus = () => { showBonusForm.value = true }
+const handleSubmitBonus = async (req: CreateScoreBonusRequest) => {
+  try { await matchStore.createBonus(req); showBonusForm.value = false; await userStore.fetchUsers() } catch {}
+}
 const handleSubmitMatch = async (data: CreateMatchRequest) => {
   try { await matchStore.createMatch(data); showMatchForm.value = false; await userStore.fetchUsers() } catch {}
 }

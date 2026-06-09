@@ -13,6 +13,10 @@ export interface PaginationParams {
   limit?: number
 }
 
+export interface MatchFilterParams extends PaginationParams {
+  player_id?: string
+}
+
 export interface PaginatedResponse<T> {
   data: T[]
   total: number

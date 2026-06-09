@@ -18,8 +18,8 @@
         </el-button>
       </div>
 
-      <!-- Stats -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <!-- Stats (hidden when player filter is active) -->
+      <div v-if="!selectedPlayerID" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard
           :title="t('matches.statTotal')"
           :value="matchStore.stats.total"
@@ -56,6 +56,26 @@
           <router-link to="/users" class="text-blue-600 hover:underline ml-1">{{ t('users.addPlayers') }}</router-link>
         </template>
       </el-alert>
+
+      <!-- Player filter -->
+      <div class="matches-filter-bar mb-4">
+        <el-select
+          v-model="selectedPlayerID"
+          :placeholder="t('matches.filterPlayer')"
+          clearable
+          size="default"
+          class="matches-player-select"
+          @change="handlePlayerFilterChange"
+          @clear="handlePlayerFilterChange"
+        >
+          <el-option
+            v-for="player in activePlayers"
+            :key="player.id"
+            :label="player.name"
+            :value="player.id"
+          />
+        </el-select>
+      </div>
 
       <!-- Match List -->
       <div class="card">
@@ -95,16 +115,17 @@ import { useConfigStore } from '@/stores/configStore'
 import MatchForm from '@/components/match/MatchForm.vue'
 import MatchList from '@/components/match/MatchList.vue'
 import StatCard from '@/components/shared/StatCard.vue'
-import type { CreateMatchRequest, Match } from '@/types/match'
+import type { CreateMatchRequest, MatchFeedItem } from '@/types/match'
 
 const matchStore = useMatchStore()
 const userStore = useUserStore()
 const configStore = useConfigStore()
 const showMatchForm = ref(false)
+const selectedPlayerID = ref<string | null>(null)
 
-const hasEnoughPlayers = computed(() =>
-  userStore.users.filter(u => u.is_active).length >= 2
-)
+const activePlayers = computed(() => userStore.users.filter(u => u.is_active))
+
+const hasEnoughPlayers = computed(() => activePlayers.value.length >= 2)
 
 const lockedMatchCount = computed(() =>
   matchStore.matches.filter(m => m.is_locked).length
@@ -118,6 +139,12 @@ onMounted(async () => {
     configStore.fetchConfigs()
   ])
 })
+
+const handlePlayerFilterChange = async () => {
+  await matchStore.fetchMatches(
+    selectedPlayerID.value ? { player_id: selectedPlayerID.value } : undefined
+  )
+}
 
 const handleRecordMatch = () => {
   if (hasEnoughPlayers.value) showMatchForm.value = true
@@ -137,10 +164,11 @@ const handleRefreshUsers = async () => {
 
 const handleCancelMatch = () => { showMatchForm.value = false }
 
-const handleDeleteConfirm = (match: Match) => {
+const handleDeleteConfirm = (item: MatchFeedItem) => {
+  const isBonus = item.type === 'bonus'
   ElMessageBox.confirm(
-    t('matches.deleteConfirm'),
-    t('matches.deleteTitle'),
+    isBonus ? t('matches.bonus.deleteConfirm') : t('matches.deleteConfirm'),
+    isBonus ? t('matches.bonus.deleteTitle') : t('matches.deleteTitle'),
     {
       confirmButtonText: t('common.delete'),
       cancelButtonText: t('common.cancel'),
@@ -149,7 +177,11 @@ const handleDeleteConfirm = (match: Match) => {
     }
   )
     .then(async () => {
-      await matchStore.deleteMatch(match.id)
+      if (isBonus) {
+        await matchStore.deleteBonus(item.id)
+      } else {
+        await matchStore.deleteMatch(item.id)
+      }
       await userStore.fetchUsers()
     })
     .catch(() => {})

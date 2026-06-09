@@ -31,7 +31,8 @@
       "Bash(tasklist)",
       "PowerShell($pid8080 = \\(Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; if \\($pid8080\\) { Stop-Process -Id $pid8080 -Force; \"Killed PID $pid8080\" } else { \"Nothing on port 8080\" })",
       "Read(//Users/duyb/Documents/Growth/joblogic-agentic-development/.claude/**)",
-      "Bash(PGPASSWORD=postgres psql *)"
+      "Bash(PGPASSWORD=postgres psql *)",
+      "Bash(npx ai-devkit@latest memory search --query \"world-cup world cup wc2026 tournament filter admin\")"
     ]
   }
 }

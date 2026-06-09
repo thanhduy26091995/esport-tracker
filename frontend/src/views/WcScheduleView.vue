@@ -8,6 +8,22 @@
           </h1>
           <p class="page-subtitle">{{ t('wc.schedule') }}</p>
         </div>
+        <div class="wc-schedule-header-right">
+          <!-- <router-link
+            v-if="wcAuthStore.isLoggedIn && wcAuthStore.isAdmin"
+            :to="{ name: 'wc-admin' }"
+            class="wc-admin-link"
+          >
+            {{ t('wc.adminPanel') }}
+          </router-link>
+          <router-link
+            v-else-if="!wcAuthStore.isLoggedIn"
+            :to="{ name: 'wc-login' }"
+            class="wc-login-link"
+          >
+            {{ t('wc.login') }}
+          </router-link> -->
+        </div>
       </div>
 
       <WcGroupFilter v-model="selectedFilter" />
@@ -42,12 +58,14 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWcStore } from '@/stores/wcStore'
+import { useWcAuthStore } from '@/stores/wcAuthStore'
 import WcGroupFilter from '@/components/wc/WcGroupFilter.vue'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import type { WcMatch } from '@/types/wc'
 
 const { t } = useI18n()
 const store = useWcStore()
+const wcAuthStore = useWcAuthStore()
 
 const selectedFilter = ref('')
 
@@ -98,6 +116,43 @@ onMounted(() => store.fetchMatches())
 <style scoped>
 .wc-page-title {
   color: #16a34a;
+}
+
+.wc-schedule-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.wc-admin-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.wc-admin-link:hover {
+  background: rgba(239, 68, 68, 0.14);
+}
+
+.wc-login-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.wc-login-link:hover {
+  background: rgba(22, 163, 74, 0.14);
 }
 
 .wc-loading {

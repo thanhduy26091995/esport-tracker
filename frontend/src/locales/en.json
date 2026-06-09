@@ -156,6 +156,24 @@
     "allPredictions": "All Predictions",
     "predictorsOnMatch": "Predictors",
     "noPredictions": "No predictions yet",
+    "betting": "Betting",
+    "tabBetting": "Betting",
+    "tabOpenBets": "Open Bets",
+    "noBettableMatches": "No bettable matches available",
+    "placeBet": "Place Bet",
+    "allBets": "All Bets",
+    "betForm": "Place a Bet",
+    "betTypeHandicap": "Handicap",
+    "betTypeExactScore": "Exact Score",
+    "stake": "Stake",
+    "payout": "Payout",
+    "submitBet": "Confirm Bet",
+    "betSuccess": "Bet placed successfully!",
+    "noBets": "No bets yet",
+    "bettorsOnMatch": "Bettors",
+    "resultWin": "Win",
+    "resultLose": "Lose",
+    "resultPush": "Push",
     "logout": "Sign Out"
   },
   "dashboard": {
@@ -273,7 +291,27 @@
     "noRecent": "No recent matches",
     "types": {
       "oneVsOne": "1v1",
-      "twoVsTwo": "2v2"
+      "twoVsTwo": "2v2",
+      "oneVsTwo": "1v2",
+      "oneVsTwoHint": "Solo vs Duo — solo wins: +2pts, duo wins: +1pt each"
+    },
+    "bonus": {
+      "dialogTitle": "Award Bet Bonus Points",
+      "player": "Player",
+      "playerPlaceholder": "Select player",
+      "points": "Points",
+      "description": "Note",
+      "descriptionPlaceholder": "Describe the bet (e.g. Cookie lost 3pts bet)",
+      "date": "Date",
+      "datePlaceholder": "Default: Now",
+      "hint": "Points are credited directly to the player. The fund is managed separately.",
+      "submit": "Award Points",
+      "playerRequired": "Please select a player",
+      "pointsRequired": "Minimum 1 point required",
+      "tag": "[Bet]",
+      "filterLabel": "Bets",
+      "deleteTitle": "Delete Bet Bonus",
+      "deleteConfirm": "Are you sure you want to delete this bet bonus? The points will be deducted."
     },
     "form": {
       "recordTitle": "Record Match",
@@ -292,7 +330,9 @@
       "duplicatePlayers": "Players cannot be on both teams",
       "ready": "Ready to record",
       "submit": "Record Match"
-    }
+    },
+    "filterPlayer": "Filter by player",
+    "allPlayers": "All players"
   },
   "tournaments": {
     "title": "Tournament Management",
@@ -559,6 +599,8 @@
     "userDeleted": "User \"{name}\" deleted successfully",
     "matchCreated": "Match recorded successfully",
     "matchDeleted": "Match deleted successfully",
+    "bonusCreated": "Bet bonus points awarded",
+    "bonusDeleted": "Bet bonus deleted",
     "settlementTriggered": "Settlement triggered successfully",
     "depositSuccess": "Deposited {amount} VND",
     "withdrawSuccess": "Withdrew {amount} VND",

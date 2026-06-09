@@ -101,10 +101,6 @@
           <WcLeaderboard :entries="store.leaderboard" />
         </el-tab-pane>
 
-        <!-- ADMIN TAB -->
-        <el-tab-pane v-if="authStore.isAdmin" :label="t('wc.tabAdmin')" name="admin">
-          <WcAdminPanel />
-        </el-tab-pane>
       </el-tabs>
     </div>
 
@@ -131,7 +127,6 @@ import WcPredictionForm from '@/components/wc/WcPredictionForm.vue'
 import WcPredictionHistoryList from '@/components/wc/WcPredictionHistoryList.vue'
 import WcMatchPredictionList from '@/components/wc/WcMatchPredictionList.vue'
 import WcLeaderboard from '@/components/wc/WcLeaderboard.vue'
-import WcAdminPanel from '@/components/wc/WcAdminPanel.vue'
 import type { WcMatchWithOdds, WcScoreMultiplier, WcMatch } from '@/types/wc'
 import { wcService } from '@/services/wcService'
 

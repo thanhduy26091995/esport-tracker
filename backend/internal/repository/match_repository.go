@@ -33,13 +33,25 @@ func (r *MatchRepository) GetByID(id uuid.UUID) (*model.Match, error) {
 
 // GetAll returns all matches with pagination, ordered by match_date DESC
 func (r *MatchRepository) GetAll(limit, offset int) ([]*model.Match, error) {
+	return r.GetAllFiltered(limit, offset, nil)
+}
+
+// GetAllFiltered returns matches with optional participant filter, ordered by match_date DESC
+func (r *MatchRepository) GetAllFiltered(limit, offset int, playerID *uuid.UUID) ([]*model.Match, error) {
 	var matches []*model.Match
 	query := r.db.Preload("Participants.User").Order("match_date DESC, created_at DESC")
-	
+
+	if playerID != nil {
+		query = query.
+			Joins("JOIN match_participants mp ON mp.match_id = matches.id").
+			Where("mp.user_id = ?", *playerID).
+			Distinct()
+	}
+
 	if limit > 0 {
 		query = query.Limit(limit).Offset(offset)
 	}
-	
+
 	err := query.Find(&matches).Error
 	return matches, err
 }

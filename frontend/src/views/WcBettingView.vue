@@ -102,8 +102,8 @@
         </el-tab-pane>
 
         <!-- ADMIN TAB -->
-        <el-tab-pane v-if="authStore.isAdmin" :label="t('wc.tabAdmin')" name="admin">
-          <WcAdminPanel />
+        <el-tab-pane :label="t('wc.tabAdmin')" name="admin" :disabled="!authStore.isAdmin">
+          <WcAdminPanel v-if="authStore.isAdmin" />
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -173,7 +173,6 @@ const betFilterOptions = computed(() => [
 
 function isBettable(m: WcMatch): boolean {
   if (m.status === 'completed' || m.status === 'cancelled') return false
-  if (!m.betting_open) return false
   if (m.bets_locked_at && new Date(m.bets_locked_at) <= new Date()) return false
   return true
 }

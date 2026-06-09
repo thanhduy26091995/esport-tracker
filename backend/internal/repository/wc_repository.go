@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"math"
 	"time"
 
@@ -100,9 +101,14 @@ func (r *WcRepository) GetMatchWithOdds(id uuid.UUID) (*model.WcMatchWithOdds, e
 	if err != nil {
 		return nil, err
 	}
+	if err = r.db.Where("match_id = ?", id).
+		Order("home_score ASC, away_score ASC").
+		Find(&m.ScoreMultipliers).Error; err != nil {
+		return nil, err
+	}
 	err = r.db.Where("match_id = ?", id).
 		Order("home_score ASC, away_score ASC").
-		Find(&m.ScoreMultipliers).Error
+		Find(&m.ScoreOdds).Error
 	return &m, err
 }
 
@@ -352,6 +358,121 @@ func (r *WcRepository) UpdateSettlementDetailStatus(settlementID, wcUserID uuid.
 	return r.db.Model(&model.WcSettlementDetail{}).
 		Where("settlement_id = ? AND wc_user_id = ?", settlementID, wcUserID).
 		Updates(updates).Error
+}
+
+// --- Score odds (for betting system) ---
+
+func (r *WcRepository) GetScoreOdds(matchID uuid.UUID, homeScore, awayScore int) (*model.WcScoreOdds, error) {
+	var so model.WcScoreOdds
+	err := r.db.Where("match_id = ? AND home_score = ? AND away_score = ?", matchID, homeScore, awayScore).
+		First(&so).Error
+	if err != nil {
+		return nil, err
+	}
+	return &so, nil
+}
+
+func (r *WcRepository) CreateScoreOdds(so *model.WcScoreOdds) error {
+	return r.db.Create(so).Error
+}
+
+func (r *WcRepository) UpdateScoreOdds(id uuid.UUID, odds float64) error {
+	return r.db.Model(&model.WcScoreOdds{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"odds": odds, "updated_at": time.Now()}).Error
+}
+
+func (r *WcRepository) DeleteScoreOdds(id uuid.UUID) error {
+	return r.db.Delete(&model.WcScoreOdds{}, "id = ?", id).Error
+}
+
+func (r *WcRepository) ListScoreOdds(matchID uuid.UUID) ([]*model.WcScoreOdds, error) {
+	var odds []*model.WcScoreOdds
+	err := r.db.Where("match_id = ?", matchID).
+		Order("home_score ASC, away_score ASC").
+		Find(&odds).Error
+	return odds, err
+}
+
+// --- Bets ---
+
+func (r *WcRepository) CreateBet(bet *model.WcBet) error {
+	return r.db.Create(bet).Error
+}
+
+func (r *WcRepository) GetBet(id uuid.UUID) (*model.WcBet, error) {
+	var bet model.WcBet
+	err := r.db.First(&bet, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &bet, nil
+}
+
+func (r *WcRepository) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
+	var bets []*model.WcBetWithMatch
+	err := r.db.Table("wc_bets b").
+		Select(`b.*,
+			m.home_team, m.away_team, m.match_date, m.status AS match_status, m.bets_locked_at,
+			(m.bets_locked_at IS NULL OR m.bets_locked_at > NOW()) AND m.status NOT IN ('completed','cancelled') AS betting_open`).
+		Joins("JOIN wc_matches m ON m.id = b.match_id").
+		Where("b.wc_user_id = ?", wcUserID).
+		Order("b.created_at DESC").
+		Scan(&bets).Error
+	if err != nil {
+		return nil, err
+	}
+	if bets == nil {
+		bets = []*model.WcBetWithMatch{}
+	}
+	return bets, nil
+}
+
+func (r *WcRepository) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic, error) {
+	var bets []*model.WcBetPublic
+	err := r.db.Table("wc_bets b").
+		Select("b.id, b.wc_user_id, u.name, b.bet_type, b.bet_choice, b.stake, b.odds_snapshot, b.predicted_home_score, b.predicted_away_score, b.result, b.payout, b.created_at").
+		Joins("JOIN wc_users u ON u.id = b.wc_user_id").
+		Where("b.match_id = ?", matchID).
+		Order("b.created_at ASC").
+		Scan(&bets).Error
+	if err != nil {
+		return nil, err
+	}
+	if bets == nil {
+		bets = []*model.WcBetPublic{}
+	}
+	return bets, nil
+}
+
+func (r *WcRepository) ListBetsForSettlement(matchID uuid.UUID) ([]*model.WcBet, error) {
+	var bets []*model.WcBet
+	err := r.db.Where("match_id = ?", matchID).Find(&bets).Error
+	return bets, err
+}
+
+func (r *WcRepository) UpdateBetStake(id uuid.UUID, stake int) error {
+	return r.db.Model(&model.WcBet{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"stake": stake, "updated_at": time.Now()}).Error
+}
+
+func (r *WcRepository) UpdateBetResult(tx *gorm.DB, id uuid.UUID, result string, payout int) error {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	return db.Model(&model.WcBet{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"result": result, "payout": payout}).Error
+}
+
+func (r *WcRepository) DeleteBet(id, wcUserID uuid.UUID) error {
+	result := r.db.Where("id = ? AND wc_user_id = ?", id, wcUserID).Delete(&model.WcBet{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("bet not found or not authorized")
+	}
+	return nil
 }
 
 // PreviewSettlement reads all wallet balances and computes direction + amount for each user.

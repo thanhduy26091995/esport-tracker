@@ -4,6 +4,8 @@ export type WcPredictionType = 'handicap' | 'exact_score'
 export type WcPredictionResult = 'correct' | 'incorrect' | 'void'
 export type WcSettlementDirection = 'pay' | 'collect' | 'even'
 export type WcSettlementStatus = 'pending' | 'done'
+export type WcBetType = 'handicap' | 'exact_score'
+export type WcBetResult = 'win' | 'lose' | 'push'
 
 export interface WcUser {
   id: string
@@ -39,6 +41,7 @@ export interface WcMatch {
   odds_handicap_away?: number
   predictions_open: boolean
   predictions_locked_at?: string
+  bets_locked_at?: string
   settled_at?: string
   created_at: string
   updated_at: string
@@ -54,8 +57,16 @@ export interface WcScoreMultiplier {
   updated_at: string
 }
 
+export interface WcScoreOdds {
+  id: string
+  home_score: number
+  away_score: number
+  odds: number
+}
+
 export interface WcMatchWithOdds extends WcMatch {
   score_multipliers: WcScoreMultiplier[]
+  score_odds?: WcScoreOdds[]
 }
 
 export interface WcWallet {
@@ -165,6 +176,55 @@ export interface WcSettlementPreviewRow {
   balance: number
   direction: WcSettlementDirection
   amount: number
+}
+
+export interface WcBet {
+  id: string
+  wc_user_id: string
+  match_id: string
+  bet_type: WcBetType
+  bet_choice?: string
+  stake: number
+  odds_snapshot: number
+  predicted_home_score?: number
+  predicted_away_score?: number
+  result?: WcBetResult
+  payout?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface WcBetWithMatch extends WcBet {
+  home_team: string
+  away_team: string
+  match_date: string
+  match_status: WcMatchStatus
+  betting_open: boolean  // computed server-side from bets_locked_at
+  bets_locked_at?: string
+}
+
+export interface WcBetPublic {
+  id: string
+  wc_user_id: string
+  name: string
+  bet_type: WcBetType
+  bet_choice?: string
+  stake: number
+  odds_snapshot: number
+  predicted_home_score?: number
+  predicted_away_score?: number
+  result?: WcBetResult
+  payout?: number
+  created_at: string
+}
+
+export interface WcPlaceBetRequest {
+  match_id: string
+  bet_type: WcBetType
+  bet_choice?: string
+  stake: number
+  predicted_home_score?: number
+  predicted_away_score?: number
 }
 
 export interface WcAuthUser {

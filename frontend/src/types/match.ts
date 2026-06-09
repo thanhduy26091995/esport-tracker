@@ -1,6 +1,6 @@
 import type { User } from './user'
 
-export type MatchType = '1v1' | '2v2'
+export type MatchType = '1v1' | '2v2' | '1v2'
 export type TeamNumber = 1 | 2
 
 export interface Match {
@@ -35,4 +35,24 @@ export interface CreateMatchRequest {
 export interface MatchStats {
   total: number
   today: number
+}
+
+export type FeedItemType = 'match' | 'bonus'
+
+export interface MatchFeedItem {
+  type: FeedItemType
+  id: string
+  created_at: string
+  description?: string
+  // match-specific fields
+  match_type?: MatchType
+  participants?: MatchParticipant[]
+  winner_team?: number
+  match_date?: string
+  is_locked?: boolean
+  recorded_by?: string
+  // bonus-specific fields
+  points?: number
+  bonus_date?: string
+  user?: User
 }

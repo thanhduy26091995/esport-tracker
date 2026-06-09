@@ -42,6 +42,18 @@ const router = createRouter({
       meta: { requiresWcAuth: true, requiresWcFeature: true }
     },
     {
+      path: '/world-cup/bet',
+      name: 'wc-bet',
+      component: () => import('../views/WcBettingView.vue'),
+      meta: { requiresWcAuth: true, requiresWcFeature: true }
+    },
+    {
+      path: '/world-cup/admin',
+      name: 'wc-admin',
+      component: () => import('../views/WcAdminView.vue'),
+      meta: { requiresWcAuth: true, requiresWcAdmin: true }
+    },
+    {
       path: '/users',
       name: 'users',
       component: () => import('../views/UsersView.vue')
@@ -97,6 +109,15 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresWcAuth) {
     const token = localStorage.getItem('wc_token')
     if (!token) return { name: 'wc-login' }
+  }
+  if (to.meta.requiresWcAdmin) {
+    try {
+      const raw = localStorage.getItem('wc_user')
+      const user = raw ? JSON.parse(raw) : null
+      if (!user?.isAdmin) return { name: 'wc-schedule' }
+    } catch {
+      return { name: 'wc-schedule' }
+    }
   }
 })
 

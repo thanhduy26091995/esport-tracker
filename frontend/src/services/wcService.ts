@@ -17,6 +17,10 @@ import type {
   WcUser,
   WcMatchFilter,
   WcSubmitPredictionRequest,
+  WcBet,
+  WcBetWithMatch,
+  WcBetPublic,
+  WcPlaceBetRequest,
 } from '@/types/wc'
 
 export const wcService = {
@@ -40,7 +44,16 @@ export const wcService = {
   },
   async getMatch(id: string): Promise<WcMatchWithOdds> {
     const r = await wcApi.get<WcMatchWithOdds>(`/matches/${id}`)
-    return r.data
+    const match = r.data
+    if (!match.score_odds) {
+      match.score_odds = (match.score_multipliers ?? []).map(sm => ({
+        id: sm.id,
+        home_score: sm.home_score,
+        away_score: sm.away_score,
+        odds: sm.multiplier,
+      }))
+    }
+    return match
   },
   async syncMatches(): Promise<{ synced: number }> {
     const r = await wcApi.post<{ synced: number }>('/admin/sync')
@@ -115,6 +128,26 @@ export const wcService = {
   async getMatchPredictions(matchId: string): Promise<WcPredictionPublic[]> {
     const r = await wcApi.get<WcPredictionPublic[]>(`/matches/${matchId}/predictions`)
     return r.data
+  },
+
+  // --- Bets ---
+  async listBets(): Promise<WcBetWithMatch[]> {
+    const r = await wcApi.get<WcBetWithMatch[]>('/bets')
+    return r.data
+  },
+  async getMatchBets(matchId: string): Promise<WcBetPublic[]> {
+    const r = await wcApi.get<WcBetPublic[]>(`/matches/${matchId}/bets`)
+    return r.data
+  },
+  async placeBet(req: WcPlaceBetRequest): Promise<WcBet> {
+    const r = await wcApi.post<WcBet>('/bets', req)
+    return r.data
+  },
+  async updateBetStake(id: string, stake: number): Promise<void> {
+    await wcApi.put(`/bets/${id}`, { stake })
+  },
+  async deleteBet(id: string): Promise<void> {
+    await wcApi.delete(`/bets/${id}`)
   },
 
   // --- Leaderboard ---
