@@ -100,11 +100,6 @@ function isEditable(pred: WcPredictionWithMatch): boolean {
   return true
 }
 
-function startEdit(pred: WcPredictionWithMatch) {
-  editingId.value = pred.id
-  editPoints.value = pred.points
-}
-
 function cancelEdit() {
   editingId.value = null
 }

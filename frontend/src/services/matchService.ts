@@ -5,7 +5,7 @@ import type {
   CreateMatchRequest,
   MatchStats,
 } from '@/types/match'
-import type { MatchFilterParams } from '@/types/api'
+import type { MatchFilterParams, PaginationParams } from '@/types/api'
 
 export const matchService = {
   async getAll(params?: MatchFilterParams): Promise<MatchFeedItem[]> {

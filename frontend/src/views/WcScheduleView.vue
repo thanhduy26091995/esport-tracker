@@ -58,14 +58,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWcStore } from '@/stores/wcStore'
-import { useWcAuthStore } from '@/stores/wcAuthStore'
 import WcGroupFilter from '@/components/wc/WcGroupFilter.vue'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import type { WcMatch } from '@/types/wc'
 
 const { t } = useI18n()
 const store = useWcStore()
-const wcAuthStore = useWcAuthStore()
 
 const selectedFilter = ref('')
 
