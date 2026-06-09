@@ -253,6 +253,12 @@ server {
         try_files \$uri \$uri/ /index.html;
     }
 
+    location /uploads/ {
+        alias ${APP_DIR}/backend/uploads/;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;

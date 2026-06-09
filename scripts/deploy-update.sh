@@ -11,6 +11,9 @@ set -eu
 # ══════════════════════════════════════════════════════════════
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_PORT=8080
+DOMAIN="fifa.sitenow.cloud"
+SSL_CERT="/etc/nginx/ssl/fullchain.pem"
+SSL_KEY="/etc/nginx/ssl/privatekey.pem"
 # ══════════════════════════════════════════════════════════════
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -47,10 +50,51 @@ npm install --silent
 npm run build
 log "Frontend rebuilt."
 
-# ── 4. Reload Nginx ───────────────────────────────────────────
-step "4/4 — Reload Nginx"
+# ── 4. Update Nginx config + Reload ──────────────────────────
+step "4/4 — Update Nginx config and reload"
+sudo tee /etc/nginx/sites-available/esport >/dev/null <<EOF
+# HTTP → HTTPS redirect
+server {
+    listen 80;
+    server_name ${DOMAIN};
+    return 301 https://\$host\$request_uri;
+}
+
+# HTTPS
+server {
+    listen 443 ssl;
+    server_name ${DOMAIN};
+
+    ssl_certificate     ${SSL_CERT};
+    ssl_certificate_key ${SSL_KEY};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    root ${APP_DIR}/frontend/dist;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /uploads/ {
+        alias ${APP_DIR}/backend/uploads/;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
 sudo nginx -t && sudo systemctl reload nginx
-log "Nginx reloaded."
+log "Nginx config updated and reloaded."
 
 # ── Health check ──────────────────────────────────────────────
 SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
