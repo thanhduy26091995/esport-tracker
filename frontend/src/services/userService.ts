@@ -52,6 +52,11 @@ export const userService = {
     return response.data.avatar_url
   },
 
+  async setAvatarUrl(userId: string, avatarUrl: string): Promise<string> {
+    const response = await api.put<{ avatar_url: string }>(`/users/${userId}/avatar/url`, { avatar_url: avatarUrl })
+    return response.data.avatar_url
+  },
+
   async deleteAvatar(userId: string): Promise<void> {
     await api.delete(`/users/${userId}/avatar`)
   },

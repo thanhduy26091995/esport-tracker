@@ -288,6 +288,31 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"avatar_url": avatarURL})
 }
 
+// SetAvatarURL handles PUT /users/:id/avatar/url
+func (h *UserHandler) SetAvatarURL(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid user ID"}})
+		return
+	}
+	var req struct {
+		AvatarURL string `json:"avatar_url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.AvatarURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "avatar_url is required"}})
+		return
+	}
+	if err := h.userService.SetAvatarURL(id, req.AvatarURL); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "user not found" {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": gin.H{"code": "UPDATE_ERROR", "message": err.Error()}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"avatar_url": req.AvatarURL})
+}
+
 // DeleteAvatar handles DELETE /users/:id/avatar
 func (h *UserHandler) DeleteAvatar(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))

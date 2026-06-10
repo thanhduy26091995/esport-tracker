@@ -13,17 +13,29 @@
       label-position="top"
       @submit.prevent="handleSubmit"
     >
-      <!-- Avatar upload (edit mode only) -->
+      <!-- Avatar (edit mode only) -->
       <el-form-item v-if="isEdit" label="Avatar">
         <div class="avatar-upload-row">
           <UserAvatar :avatar-url="avatarPreview" :name="formData.name || '?'" size="lg" />
           <div class="avatar-upload-actions">
-            <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden-file-input" @change="onFileChange" />
-            <el-button size="small" :loading="avatarUploading" @click="fileInput?.click()">
-              {{ avatarUploading ? 'Đang upload...' : 'Chọn ảnh' }}
-            </el-button>
+            <el-segmented v-model="avatarMode" :options="[{ label: 'Upload file', value: 'file' }, { label: 'Remote URL', value: 'url' }]" size="small" />
+
+            <template v-if="avatarMode === 'file'">
+              <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden-file-input" @change="onFileChange" />
+              <el-button size="small" :loading="avatarUploading" @click="fileInput?.click()">
+                {{ avatarUploading ? 'Đang upload...' : 'Chọn ảnh' }}
+              </el-button>
+              <span class="avatar-hint">JPG, PNG, GIF, WebP — tối đa 5 MB</span>
+            </template>
+
+            <template v-else>
+              <div class="avatar-url-row">
+                <el-input v-model="remoteUrl" placeholder="https://example.com/avatar.jpg" size="small" clearable />
+                <el-button size="small" type="primary" :loading="avatarUploading" @click="handleSetRemoteUrl">Lưu</el-button>
+              </div>
+            </template>
+
             <el-button v-if="avatarPreview" size="small" text type="danger" @click="handleDeleteAvatar">Xoá</el-button>
-            <span class="avatar-hint">JPG, PNG, GIF, WebP — tối đa 5 MB</span>
           </div>
         </div>
       </el-form-item>
@@ -114,6 +126,8 @@ const formRef = ref<FormInstance>()
 const fileInput = ref<HTMLInputElement>()
 const avatarUploading = ref(false)
 const avatarPreview = ref<string | null>(null)
+const avatarMode = ref<'file' | 'url'>('file')
+const remoteUrl = ref('')
 
 const formData = ref({
   name: '',
@@ -171,6 +185,21 @@ async function onFileChange(event: Event) {
   } finally {
     avatarUploading.value = false
     if (fileInput.value) fileInput.value.value = ''
+  }
+}
+
+async function handleSetRemoteUrl() {
+  if (!props.user || !remoteUrl.value.trim()) return
+  avatarUploading.value = true
+  try {
+    const url = await userService.setAvatarUrl(props.user.id, remoteUrl.value.trim())
+    avatarPreview.value = url
+    remoteUrl.value = ''
+    ElMessage.success('Đã cập nhật avatar')
+  } catch {
+    ElMessage.error('Cập nhật thất bại')
+  } finally {
+    avatarUploading.value = false
   }
 }
 
@@ -237,6 +266,12 @@ const resetForm = () => {
 
 .hidden-file-input {
   display: none;
+}
+
+.avatar-url-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
 }
 
 .avatar-hint {

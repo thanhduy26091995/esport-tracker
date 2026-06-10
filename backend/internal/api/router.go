@@ -87,7 +87,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			users.GET("/:id/matches", matchHandler.GetByUserID) // GET /api/v1/users/:id/matches
 			users.PUT("/:id", userHandler.Update)                    // PUT /api/v1/users/:id
 			users.DELETE("/:id", userHandler.Delete)                 // DELETE /api/v1/users/:id
-			users.PUT("/:id/avatar", userHandler.UploadAvatar)       // PUT /api/v1/users/:id/avatar
+			users.PUT("/:id/avatar", userHandler.UploadAvatar)         // PUT /api/v1/users/:id/avatar
+			users.PUT("/:id/avatar/url", userHandler.SetAvatarURL)   // PUT /api/v1/users/:id/avatar/url
 			users.DELETE("/:id/avatar", userHandler.DeleteAvatar)    // DELETE /api/v1/users/:id/avatar
 			users.PUT("/:id/club", userHandler.UpdateClub)           // PUT /api/v1/users/:id/club
 		}

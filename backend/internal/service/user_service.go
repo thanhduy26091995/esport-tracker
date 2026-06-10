@@ -256,6 +256,14 @@ func (s *UserService) UploadAvatar(userID uuid.UUID, file multipart.File, header
 	return avatarURL, nil
 }
 
+// SetAvatarURL sets a remote URL as the avatar without uploading a file.
+func (s *UserService) SetAvatarURL(userID uuid.UUID, avatarURL string) error {
+	if _, err := s.repo.GetByID(userID); err != nil {
+		return fmt.Errorf("user not found")
+	}
+	return s.repo.UpdateAvatarURL(userID, avatarURL)
+}
+
 // DeleteAvatar removes the avatar file and clears the URL.
 func (s *UserService) DeleteAvatar(userID uuid.UUID) error {
 	existing, err := s.repo.GetByID(userID)
