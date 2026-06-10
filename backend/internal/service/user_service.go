@@ -208,8 +208,8 @@ const avatarDir = "uploads/avatars"
 
 // UploadAvatar validates and stores an avatar file, returning the public URL.
 func (s *UserService) UploadAvatar(userID uuid.UUID, file multipart.File, header *multipart.FileHeader) (string, error) {
-	if header.Size > 2<<20 {
-		return "", fmt.Errorf("file too large (max 2 MB)")
+	if header.Size > 5<<20 {
+		return "", fmt.Errorf("file too large (max 5 MB)")
 	}
 
 	buf := make([]byte, 512)

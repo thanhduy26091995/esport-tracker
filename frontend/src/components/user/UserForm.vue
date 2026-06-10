@@ -23,7 +23,7 @@
               {{ avatarUploading ? 'Đang upload...' : 'Chọn ảnh' }}
             </el-button>
             <el-button v-if="avatarPreview" size="small" text type="danger" @click="handleDeleteAvatar">Xoá</el-button>
-            <span class="avatar-hint">JPG, PNG, GIF, WebP — tối đa 2 MB</span>
+            <span class="avatar-hint">JPG, PNG, GIF, WebP — tối đa 5 MB</span>
           </div>
         </div>
       </el-form-item>
@@ -157,8 +157,8 @@ watch(() => props.modelValue, (val) => {
 async function onFileChange(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file || !props.user) return
-  if (file.size > 2 * 1024 * 1024) {
-    ElMessage.error('File quá lớn (tối đa 2 MB)')
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('File quá lớn (tối đa 5 MB)')
     return
   }
   avatarUploading.value = true
