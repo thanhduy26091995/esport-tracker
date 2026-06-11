@@ -254,4 +254,6 @@ export interface WcMatchFilter {
   stage?: WcStage
   group?: string
   date?: string
+  date_from?: string // ISO8601 UTC — match_date >= date_from
+  date_to?: string   // ISO8601 UTC — match_date <= date_to
 }

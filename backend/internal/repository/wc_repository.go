@@ -25,10 +25,12 @@ func (r *WcRepository) DB() *gorm.DB {
 
 // MatchFilter is used by ListMatches.
 type MatchFilter struct {
-	Status string
-	Stage  string
-	Group  string
-	Date   string // "YYYY-MM-DD" — filter by match date (local date)
+	Status   string
+	Stage    string
+	Group    string
+	Date     string // "YYYY-MM-DD" — filter by match date (local date)
+	DateFrom string // ISO8601 UTC — match_date >= DateFrom
+	DateTo   string // ISO8601 UTC — match_date <= DateTo
 }
 
 // --- Config ---
@@ -79,6 +81,12 @@ func (r *WcRepository) ListMatches(f MatchFilter) ([]*model.WcMatch, error) {
 	}
 	if f.Date != "" {
 		q = q.Where("DATE(match_date AT TIME ZONE 'UTC') = ?", f.Date)
+	}
+	if f.DateFrom != "" {
+		q = q.Where("match_date >= ?", f.DateFrom)
+	}
+	if f.DateTo != "" {
+		q = q.Where("match_date <= ?", f.DateTo)
 	}
 	var matches []*model.WcMatch
 	return matches, q.Find(&matches).Error

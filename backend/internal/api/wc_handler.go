@@ -60,10 +60,12 @@ func (h *WcHandler) UpdateConfig(c *gin.Context) {
 // ListMatches handles GET /api/v1/wc/matches
 func (h *WcHandler) ListMatches(c *gin.Context) {
 	f := repository.MatchFilter{
-		Status: c.Query("status"),
-		Stage:  c.Query("stage"),
-		Group:  c.Query("group"),
-		Date:   c.Query("date"),
+		Status:   c.Query("status"),
+		Stage:    c.Query("stage"),
+		Group:    c.Query("group"),
+		Date:     c.Query("date"),
+		DateFrom: c.Query("date_from"),
+		DateTo:   c.Query("date_to"),
 	}
 	matches, err := h.svc.ListMatches(f)
 	if err != nil {

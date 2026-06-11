@@ -43,6 +43,14 @@
         <StatCard :title="t('dashboard.statFundBalance')"    :value="formatVND(fundStore.balance)"  :icon="Wallet"     :loading="fundStore.loading"                          type="warning" />
         <StatCard :title="t('dashboard.statPlayersInDebt')" :value="getDebtorsCount()"             :icon="TrendCharts" :loading="userStore.loading || configStore.loading"  type="danger"  />
 
+        <!-- WC upcoming matches: spans all columns, hidden when empty or loading -->
+        <WcUpcomingWidget
+          v-if="upcomingMatches.length > 0"
+          :matches="upcomingMatches"
+          :has-more="hasMoreUpcoming"
+          class="dashboard-full-width"
+        />
+
         <!-- Champion banner: spans all columns -->
         <div v-if="championClub" class="champion-banner">
           <div class="champion-bg-text" aria-hidden="true">{{ championClub.name }}</div>
@@ -201,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import { Trophy, User, Plus, Minus, Warning, Wallet, TrendCharts, Document, Loading, Star } from '@element-plus/icons-vue'
@@ -224,6 +232,9 @@ import type { CreateScoreBonusRequest } from '@/types/scoreBonus'
 import { sortByStrategy } from '@/utils/sort'
 import { CLUBS } from '@/config/clubs'
 import UserAvatar from '@/components/shared/UserAvatar.vue'
+import WcUpcomingWidget from '@/components/wc/WcUpcomingWidget.vue'
+import { listMatchesPublic } from '@/services/wcPublicApi'
+import type { WcMatch } from '@/types/wc'
 
 const userStore = useUserStore()
 const matchStore = useMatchStore()
@@ -245,6 +256,29 @@ const championClub = computed(() => {
   return CLUBS.find(c => c.slug === slug) ?? null
 })
 
+const upcomingMatches = ref<WcMatch[]>([])
+const hasMoreUpcoming = ref(false)
+
+async function fetchUpcomingWcMatches() {
+  try {
+    const now = new Date()
+    // Extend lookback 4h to capture live matches (match_date is their kickoff time, in the past)
+    const lookBackFrom = new Date(now.getTime() - 4 * 3600 * 1000)
+    const in3Days = new Date(now.getTime() + 72 * 3600 * 1000)
+    const all = await listMatchesPublic({
+      date_from: lookBackFrom.toISOString(),
+      date_to: in3Days.toISOString(),
+    })
+    const filtered = all.filter(m => m.status === 'scheduled' || m.status === 'live')
+    hasMoreUpcoming.value = filtered.length > 10
+    upcomingMatches.value = filtered.slice(0, 10)
+  } catch {
+    // silent — widget stays hidden; wcPublicApi has no error interceptor
+  }
+}
+
+let wcRefreshInterval: ReturnType<typeof setInterval> | null = null
+
 onMounted(async () => {
   await Promise.all([
     userStore.fetchUsers(),
@@ -256,6 +290,12 @@ onMounted(async () => {
     fundStore.fetchTransactions(),
     configStore.fetchConfigs()
   ])
+  fetchUpcomingWcMatches()
+  wcRefreshInterval = setInterval(fetchUpcomingWcMatches, 5 * 60 * 1000)
+})
+
+onUnmounted(() => {
+  if (wcRefreshInterval) clearInterval(wcRefreshInterval)
 })
 
 const recentSettlements = computed(() => settlementStore.settlements.slice(0, 5))
@@ -301,6 +341,11 @@ const handleRefreshUsers = async () => {
 .champion-banner,
 .content-card {
   grid-column: span 2;
+}
+
+/* Full-width utility — spans all grid columns (used by champion-banner and WC widget) */
+.dashboard-full-width {
+  grid-column: 1 / -1;
 }
 
 /* Champion banner always fills all 4 columns */
