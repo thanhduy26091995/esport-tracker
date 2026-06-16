@@ -64,6 +64,7 @@
             <el-input-number
               v-model="handicapPoints"
               :min="1"
+              :max="5"
               :placeholder="t('wc.points')"
               controls-position="right"
               style="width: 160px"
@@ -102,6 +103,7 @@
               <el-input-number
                 v-model="selectedScores[so.id].points"
                 :min="1"
+                :max="5"
                 controls-position="right"
                 size="small"
                 style="width: 110px"
@@ -164,7 +166,7 @@ const visible = computed({
 
 const activeTab = ref<"handicap" | "exact_score">("handicap");
 const handicapChoice = ref<"home" | "away" | null>(null);
-const handicapPoints = ref(100);
+const handicapPoints = ref(2);
 const selectedScores = ref<Record<string, { points: number; multiplier: number }>>({});
 const submitting = ref(false);
 
@@ -205,7 +207,7 @@ function toggleScore(so: WcScoreMultiplier) {
   if (selectedScores.value[so.id]) {
     delete selectedScores.value[so.id];
   } else {
-    selectedScores.value[so.id] = { points: 100, multiplier: so.multiplier };
+    selectedScores.value[so.id] = { points: 2, multiplier: so.multiplier };
   }
 }
 
@@ -225,7 +227,7 @@ const canSubmit = computed(() => {
 
 function reset() {
   handicapChoice.value = null;
-  handicapPoints.value = 100;
+  handicapPoints.value = 2;
   selectedScores.value = {};
   activeTab.value = "handicap";
   existingHandicapPrediction.value = null;

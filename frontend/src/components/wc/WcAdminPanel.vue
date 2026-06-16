@@ -95,6 +95,7 @@
               Đóng dự đoán
             </el-button>
             <el-button
+              plain
               size="small"
               type="success"
               @click="handleSettle(match.id)"

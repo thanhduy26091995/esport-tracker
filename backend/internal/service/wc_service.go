@@ -143,6 +143,9 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 	if req.Points <= 0 {
 		return nil, fmt.Errorf("points must be greater than 0")
 	}
+	if req.Points > 5 {
+		return nil, fmt.Errorf("points must not exceed 5 per prediction")
+	}
 
 	var multiplierSnapshot float64
 	var handicapSnapshot *float64
@@ -226,6 +229,9 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
 func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int) error {
 	if points <= 0 {
 		return fmt.Errorf("points must be greater than 0")
+	}
+	if points > 5 {
+		return fmt.Errorf("points must not exceed 5 per prediction")
 	}
 	bet, err := s.repo.GetPredictionByID(betID)
 	if err != nil {
@@ -462,6 +468,9 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 	if req.Stake <= 0 {
 		return nil, fmt.Errorf("stake must be greater than 0")
 	}
+	if req.Stake > 5 {
+		return nil, fmt.Errorf("stake must not exceed 5 per bet")
+	}
 
 	var oddsSnapshot float64
 	var handicapSnapshot *float64
@@ -524,6 +533,9 @@ func (s *WcService) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic, e
 func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
 	if stake <= 0 {
 		return fmt.Errorf("stake must be greater than 0")
+	}
+	if stake > 5 {
+		return fmt.Errorf("stake must not exceed 5 per bet")
 	}
 	bet, err := s.repo.GetBet(betID)
 	if err != nil {

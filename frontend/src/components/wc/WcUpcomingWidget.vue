@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useWcAuthStore } from '@/stores/wcAuthStore'
 import type { WcMatch, WcStage } from '@/types/wc'
 
 defineProps<{
@@ -8,6 +9,7 @@ defineProps<{
 }>()
 
 const router = useRouter()
+const wcAuthStore = useWcAuthStore()
 
 const STAGE_LABELS: Record<WcStage, string> = {
   group: 'Vòng bảng',
@@ -43,7 +45,16 @@ function goToSchedule() {
   <div class="wc-upcoming-widget">
     <div class="wc-upcoming-header">
       <span class="wc-upcoming-title">⚽ WC2026 — Sắp diễn ra</span>
-      <router-link to="/world-cup" class="view-all-link">Xem lịch đầy đủ →</router-link>
+      <div class="wc-upcoming-header-actions">
+        <router-link
+          v-if="wcAuthStore.isLoggedIn && !wcAuthStore.isAdmin"
+          to="/world-cup/predict"
+          class="predict-shortcut-link"
+        >
+          🎯 Dự đoán
+        </router-link>
+        <router-link to="/world-cup" class="view-all-link">Xem lịch đầy đủ →</router-link>
+      </div>
     </div>
     <div class="wc-upcoming-list">
       <div
@@ -95,6 +106,12 @@ function goToSchedule() {
   color: var(--text-primary, #e2e8f0);
 }
 
+.wc-upcoming-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .view-all-link {
   font-size: 0.78rem;
   color: var(--color-primary, #4f8ef7);
@@ -104,6 +121,23 @@ function goToSchedule() {
 
 .view-all-link:hover {
   text-decoration: underline;
+}
+
+.predict-shortcut-link {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  padding: 3px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.predict-shortcut-link:hover {
+  background: rgba(37, 99, 235, 0.18);
 }
 
 .wc-upcoming-list {

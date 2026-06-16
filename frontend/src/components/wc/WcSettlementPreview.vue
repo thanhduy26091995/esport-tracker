@@ -76,12 +76,12 @@ import type { WcSettlementPreviewRow, WcSettlementDirection } from '@/types/wc'
 const { t } = useI18n()
 const store = useWcStore()
 
-const pointRate = ref(10000)
+const pointRate = ref(22000)
 const previewRows = ref<WcSettlementPreviewRow[]>([])
 const previewing = ref(false)
 const creating = ref(false)
 const showCreateDialog = ref(false)
-const createForm = ref({ name: '', note: '', pointRate: 10000 })
+const createForm = ref({ name: '', note: '', pointRate: 22000 })
 
 watch(pointRate, () => {
   createForm.value.pointRate = pointRate.value

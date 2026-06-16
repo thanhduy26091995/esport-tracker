@@ -64,6 +64,7 @@
             <el-input-number
               v-model="handicapStake"
               :min="1"
+              :max="5"
               :placeholder="t('wc.stake')"
               controls-position="right"
               style="width: 160px"
@@ -102,6 +103,7 @@
               <el-input-number
                 v-model="selectedScores[so.id].stake"
                 :min="1"
+                :max="5"
                 controls-position="right"
                 size="small"
                 style="width: 110px"
@@ -164,7 +166,7 @@ const visible = computed({
 
 const activeTab = ref<"handicap" | "exact_score">("handicap");
 const handicapChoice = ref<"home" | "away" | null>(null);
-const handicapStake = ref(100);
+const handicapStake = ref(2);
 const selectedScores = ref<Record<string, { stake: number; odds: number }>>({});
 const submitting = ref(false);
 
@@ -206,7 +208,7 @@ function toggleScore(so: WcScoreOdds) {
   if (selectedScores.value[so.id]) {
     delete selectedScores.value[so.id];
   } else {
-    selectedScores.value[so.id] = { stake: 100, odds: so.odds };
+    selectedScores.value[so.id] = { stake: 2, odds: so.odds };
   }
 }
 
@@ -226,7 +228,7 @@ const canSubmit = computed(() => {
 
 function reset() {
   handicapChoice.value = null;
-  handicapStake.value = 100;
+  handicapStake.value = 2;
   selectedScores.value = {};
   activeTab.value = "handicap";
   existingHandicapBet.value = null;

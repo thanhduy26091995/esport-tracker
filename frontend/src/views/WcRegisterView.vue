@@ -41,7 +41,8 @@
               @keyup.enter="handleRegister"
             />
           </el-form-item>
-          <p v-if="mismatch" class="wc-error-msg">{{ t('wc.passwordMismatch') }}</p>
+          <p v-if="submitted && (!form.name || !form.password)" class="wc-error-msg">Vui lòng điền đầy đủ thông tin</p>
+          <p v-else-if="mismatch" class="wc-error-msg">{{ t('wc.passwordMismatch') }}</p>
 
           <el-button
             type="primary"
@@ -82,11 +83,16 @@ const router = useRouter()
 const authStore = useWcAuthStore()
 
 const form = ref({ name: '', password: '', confirmPassword: '' })
+const submitted = ref(false)
+
 const mismatch = computed(
-  () => form.value.confirmPassword.length > 0 && form.value.password !== form.value.confirmPassword,
+  () =>
+    (submitted.value || form.value.confirmPassword.length > 0) &&
+    form.value.password !== form.value.confirmPassword,
 )
 
 async function handleRegister() {
+  submitted.value = true
   if (!form.value.name || !form.value.password) return
   if (form.value.password !== form.value.confirmPassword) return
   try {
