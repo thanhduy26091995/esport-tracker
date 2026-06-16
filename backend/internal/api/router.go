@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/duyb/esport-score-tracker/internal/cron"
 	"github.com/duyb/esport-score-tracker/internal/middleware"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/duyb/esport-score-tracker/internal/service"
@@ -61,6 +62,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	if err := tierService.RecalculateAllTiers(); err != nil {
 		log.Printf("⚠️  Failed to backfill tiers on startup: %v", err)
 	}
+
+	// Start WC match auto-sync cron job.
+	go cron.StartWcMatchSync(wcService)
 
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)
