@@ -12,6 +12,7 @@ set -eu
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_PORT=8080
 DOMAIN="fifa.sitenow.cloud"
+ANALYTICS_DOMAIN="analytics-fifa.sitenow.cloud"
 SSL_CERT="/etc/nginx/ssl/fullchain.pem"
 SSL_KEY="/etc/nginx/ssl/privatekey.pem"
 # ══════════════════════════════════════════════════════════════
@@ -94,7 +95,26 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    location /umami {
+}
+
+# HTTP → HTTPS redirect for analytics subdomain
+server {
+    listen 80;
+    server_name ${ANALYTICS_DOMAIN};
+    return 301 https://\$host\$request_uri;
+}
+
+# Analytics subdomain — Umami
+server {
+    listen 443 ssl;
+    server_name ${ANALYTICS_DOMAIN};
+
+    ssl_certificate     ${SSL_CERT};
+    ssl_certificate_key ${SSL_KEY};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Host              \$host;
