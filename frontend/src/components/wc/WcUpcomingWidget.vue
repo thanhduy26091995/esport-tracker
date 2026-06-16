@@ -47,8 +47,8 @@ function goToSchedule() {
       <span class="wc-upcoming-title">⚽ WC2026 — Sắp diễn ra</span>
       <div class="wc-upcoming-header-actions">
         <router-link
-          v-if="wcAuthStore.isLoggedIn && !wcAuthStore.isAdmin"
-          to="/world-cup/predict"
+          v-if="!wcAuthStore.isAdmin"
+          :to="wcAuthStore.isLoggedIn ? '/world-cup/predict' : '/world-cup/login'"
           class="predict-shortcut-link"
         >
           🎯 Dự đoán
