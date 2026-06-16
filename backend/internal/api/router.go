@@ -15,7 +15,9 @@ import (
 )
 
 func SetupRouter(db *gorm.DB) *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(middleware.RequestLogger())
 	router.MaxMultipartMemory = 5 << 20 // 5 MB limit for avatar uploads
 
 	// CORS middleware — must be registered before any routes (including Static)

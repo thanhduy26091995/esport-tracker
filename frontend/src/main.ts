@@ -18,4 +18,17 @@ app.use(pinia)
 app.use(router)
 app.use(ElementPlus)
 app.use(i18n)
+
+// Forward unhandled Vue errors to Umami as custom events
+app.config.errorHandler = (err, _instance, info) => {
+  console.error('[Vue error]', err, info)
+  try {
+    window.umami?.track('js-error', {
+      message: err instanceof Error ? err.message : String(err),
+      info,
+      url: window.location.pathname,
+    })
+  } catch {}
+}
+
 app.mount('#app')
