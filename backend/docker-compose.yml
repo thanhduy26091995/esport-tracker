@@ -24,7 +24,7 @@ services:
     ports:
       - "127.0.0.1:3001:3000"
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@esport-postgres:5432/${DB_NAME}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@esport-postgres:5432/umami
       APP_SECRET: ${UMAMI_APP_SECRET}
     depends_on:
       postgres:
