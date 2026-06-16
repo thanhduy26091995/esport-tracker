@@ -26,6 +26,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@esport-postgres:5432/umami
       APP_SECRET: ${UMAMI_APP_SECRET}
+      BASE_PATH: /umami
     depends_on:
       postgres:
         condition: service_healthy
