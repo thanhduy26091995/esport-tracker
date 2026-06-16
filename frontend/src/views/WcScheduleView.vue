@@ -87,6 +87,30 @@ const wcAuthStore = useWcAuthStore()
 const selectedFilter = ref('')
 const featureEnabled = ref(false)
 
+function computeDefaultFilter(matches: WcMatch[]): string {
+  if (!matches.length) return ''
+  const localDate = (iso: string) => new Date(iso).toLocaleDateString('sv') // YYYY-MM-DD
+  const todayStr = localDate(new Date().toISOString())
+
+  let candidates = matches.filter(m => localDate(m.match_date) === todayStr)
+
+  if (!candidates.length) {
+    const future = matches
+      .filter(m => m.status !== 'completed' && m.status !== 'cancelled' && localDate(m.match_date) > todayStr)
+      .sort((a, b) => a.match_date.localeCompare(b.match_date))
+    if (!future.length) return ''
+    const nextDate = localDate(future[0].match_date)
+    candidates = future.filter(m => localDate(m.match_date) === nextDate)
+  }
+
+  if (!candidates.length) return ''
+  const first = candidates.sort((a, b) => a.match_date.localeCompare(b.match_date))[0]
+  if (first.stage === 'group' && first.group_name) {
+    return `group_${first.group_name.replace('Group ', '')}`
+  }
+  return first.stage
+}
+
 const filteredMatches = computed(() => {
   if (!selectedFilter.value) return store.matches
   // e.g. 'group_A' → stage=group, group=A; 'r16' → stage=r16
@@ -129,7 +153,8 @@ watch(selectedFilter, () => {
 })
 
 onMounted(async () => {
-  store.fetchMatches()
+  await store.fetchMatches()
+  selectedFilter.value = computeDefaultFilter(store.matches)
   try {
     const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
     const res = await fetch(`${apiBase}/config`)
