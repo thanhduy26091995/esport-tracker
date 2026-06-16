@@ -258,7 +258,17 @@ func (s *WcService) ListPredictionsForMatchPublic(matchID uuid.UUID) ([]*model.W
 }
 
 func (s *WcService) GetWallet(wcUserID uuid.UUID) (*model.WcWallet, error) {
-	return s.repo.GetWallet(wcUserID)
+	w, err := s.repo.GetWallet(wcUserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if createErr := s.repo.CreateWallet(s.repo.DB(), wcUserID); createErr != nil {
+				return nil, createErr
+			}
+			return s.repo.GetWallet(wcUserID)
+		}
+		return nil, err
+	}
+	return w, nil
 }
 
 func (s *WcService) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
