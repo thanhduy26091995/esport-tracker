@@ -29,10 +29,10 @@
               <div class="wc-hc-team">{{ match!.home_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="homeGives" class="wc-hc-handi"
-                  >-{{ fmtHandicap(match!.handicap_value) }}</span
+                  >-{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ fmtHandicap(match!.handicap_value) }}</span
+                  >+{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_home?.toFixed(2) }}</span
@@ -48,10 +48,10 @@
               <div class="wc-hc-team">{{ match!.away_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="!homeGives" class="wc-hc-handi"
-                  >-{{ fmtHandicap(match!.handicap_value) }}</span
+                  >-{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ fmtHandicap(match!.handicap_value) }}</span
+                  >+{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_away?.toFixed(2) }}</span
