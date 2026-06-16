@@ -699,33 +699,84 @@ func isFinished(m *model.WcMatch) bool {
 	return m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled
 }
 
+// isQuarterHandicap returns true for .25/.75 handicaps which use split-bet (Asian quarter-ball) rules.
+func isQuarterHandicap(h float64) bool {
+	frac := math.Mod(math.Abs(h), 0.5)
+	return math.Abs(frac-0.25) < 0.001
+}
+
+// evalSubHandicap evaluates a single handicap line, returning "win", "lose", or "push".
+func evalSubHandicap(homeScore, awayScore int, h float64, handicapTeam, betChoice string) string {
+	var adjustedHome float64
+	if handicapTeam == model.WcTeamHome {
+		adjustedHome = float64(homeScore) - h
+	} else {
+		adjustedHome = float64(homeScore) + h
+	}
+	adjustedAway := float64(awayScore)
+	if adjustedHome > adjustedAway {
+		if betChoice == model.WcTeamHome {
+			return "win"
+		}
+		return "lose"
+	}
+	if adjustedHome < adjustedAway {
+		if betChoice == model.WcTeamAway {
+			return "win"
+		}
+		return "lose"
+	}
+	return "push"
+}
+
 // evaluateHandicapPrediction applies Asian handicap rules for the prediction system.
+// Quarter handicaps (e.g. 1.25, 0.75) split the stake across two lines.
 func evaluateHandicapPrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, int) {
 	if bet.HandicapSnapshot == nil || bet.HandicapTeamSnapshot == nil || bet.PredictionChoice == nil {
 		return model.WcResultIncorrect, 0
 	}
 
 	h := *bet.HandicapSnapshot
+	hTeam := *bet.HandicapTeamSnapshot
+	choice := *bet.PredictionChoice
+
+	if isQuarterHandicap(h) {
+		r1 := evalSubHandicap(homeScore, awayScore, h-0.25, hTeam, choice)
+		r2 := evalSubHandicap(homeScore, awayScore, h+0.25, hTeam, choice)
+		half := float64(bet.Points) / 2
+		switch {
+		case r1 == "win" && r2 == "win":
+			return model.WcResultCorrect, int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
+		case r1 == "lose" && r2 == "lose":
+			return model.WcResultIncorrect, 0
+		case (r1 == "win" || r2 == "win"):
+			// one win + one push
+			return model.WcResultWinHalf, int(math.Floor(half*bet.MultiplierSnapshot)) + int(math.Floor(half))
+		default:
+			// one push + one lose
+			return model.WcResultLoseHalf, int(math.Floor(half))
+		}
+	}
+
 	var adjustedHome float64
-	if *bet.HandicapTeamSnapshot == model.WcTeamHome {
+	if hTeam == model.WcTeamHome {
 		adjustedHome = float64(homeScore) - h
 	} else {
 		adjustedHome = float64(homeScore) + h
 	}
 	adjustedAway := float64(awayScore)
 
-	var handicapWinner string
+	var winner string
 	if adjustedHome > adjustedAway {
-		handicapWinner = model.WcTeamHome
+		winner = model.WcTeamHome
 	} else if adjustedHome < adjustedAway {
-		handicapWinner = model.WcTeamAway
+		winner = model.WcTeamAway
 	} else {
 		return model.WcResultVoid, bet.Points
 	}
 
-	if handicapWinner == *bet.PredictionChoice {
-		pointsEarned := int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
-		return model.WcResultCorrect, pointsEarned
+	if winner == choice {
+		return model.WcResultCorrect, int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
 	}
 	return model.WcResultIncorrect, 0
 }
@@ -743,32 +794,53 @@ func evaluateExactScorePrediction(bet *model.WcPrediction, homeScore, awayScore 
 }
 
 // evaluateHandicapBet applies Asian handicap rules for the betting system.
+// Quarter handicaps (e.g. 1.25, 0.75) split the stake across two lines.
 func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, int) {
 	if bet.HandicapSnapshot == nil || bet.HandicapTeamSnapshot == nil || bet.BetChoice == nil {
 		return model.WcResultLose, 0
 	}
 
 	h := *bet.HandicapSnapshot
+	hTeam := *bet.HandicapTeamSnapshot
+	choice := *bet.BetChoice
+
+	if isQuarterHandicap(h) {
+		r1 := evalSubHandicap(homeScore, awayScore, h-0.25, hTeam, choice)
+		r2 := evalSubHandicap(homeScore, awayScore, h+0.25, hTeam, choice)
+		half := float64(bet.Stake) / 2
+		switch {
+		case r1 == "win" && r2 == "win":
+			return model.WcResultWin, int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
+		case r1 == "lose" && r2 == "lose":
+			return model.WcResultLose, 0
+		case (r1 == "win" || r2 == "win"):
+			// one win + one push: payout winning half + refund pushing half
+			return model.WcResultWinHalf, int(math.Floor(half*bet.OddsSnapshot)) + int(math.Floor(half))
+		default:
+			// one push + one lose: refund pushing half only
+			return model.WcResultLoseHalf, int(math.Floor(half))
+		}
+	}
+
 	var adjustedHome float64
-	if *bet.HandicapTeamSnapshot == model.WcTeamHome {
+	if hTeam == model.WcTeamHome {
 		adjustedHome = float64(homeScore) - h
 	} else {
 		adjustedHome = float64(homeScore) + h
 	}
 	adjustedAway := float64(awayScore)
 
-	var handicapWinner string
+	var winner string
 	if adjustedHome > adjustedAway {
-		handicapWinner = model.WcTeamHome
+		winner = model.WcTeamHome
 	} else if adjustedHome < adjustedAway {
-		handicapWinner = model.WcTeamAway
+		winner = model.WcTeamAway
 	} else {
 		return model.WcResultPush, bet.Stake
 	}
 
-	if handicapWinner == *bet.BetChoice {
-		payout := int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
-		return model.WcResultWin, payout
+	if winner == choice {
+		return model.WcResultWin, int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
 	}
 	return model.WcResultLose, 0
 }

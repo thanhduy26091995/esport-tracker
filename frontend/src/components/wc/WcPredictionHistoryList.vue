@@ -61,7 +61,13 @@
             {{ t('wc.resultPending') }}
           </span>
           <span v-else-if="pred.result === 'correct'" class="wc-result-badge wc-result--correct">
-            +{{ pred.points_earned }} {{ t('wc.resultCorrect') }}
+            +{{ (pred.points_earned ?? 0) - pred.points }} {{ t('wc.resultCorrect') }}
+          </span>
+          <span v-else-if="pred.result === 'win_half'" class="wc-result-badge wc-result--win-half">
+            +{{ (pred.points_earned ?? 0) - pred.points }} {{ t('wc.resultWinHalf') }}
+          </span>
+          <span v-else-if="pred.result === 'lose_half'" class="wc-result-badge wc-result--lose-half">
+            -{{ pred.points - (pred.points_earned ?? 0) }} {{ t('wc.resultLoseHalf') }}
           </span>
           <span v-else-if="pred.result === 'incorrect'" class="wc-result-badge wc-result--incorrect">
             -{{ pred.points }} {{ t('wc.resultIncorrect') }}
@@ -245,6 +251,16 @@ function formatDate(s: string) {
 .wc-result--correct {
   background: rgba(22, 163, 74, 0.12);
   color: #16a34a;
+}
+
+.wc-result--win-half {
+  background: rgba(22, 163, 74, 0.08);
+  color: #16a34a;
+}
+
+.wc-result--lose-half {
+  background: rgba(239, 68, 68, 0.07);
+  color: #ef4444;
 }
 
 .wc-result--incorrect {

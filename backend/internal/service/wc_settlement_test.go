@@ -119,6 +119,69 @@ func TestHandicap_PayoutFloorRounding(t *testing.T) {
 	assert.Equal(t, 187, payout)
 }
 
+// ─── Quarter handicap (split bet) ────────────────────────────────────────────
+
+func TestHandicap_QuarterBall_HomeGives125_WinByTwo(t *testing.T) {
+	// Home gives 1.25 (split: -1.0 / -1.5). France wins 2-0:
+	// -1.0: adjusted=1 > 0 → win; -1.5: adjusted=0.5 > 0 → win → WIN FULL
+	bet := handicapBet("home", 3, 2.10, 1.25, "home")
+	result, payout := evaluateHandicapBet(bet, 2, 0)
+	assert.Equal(t, model.WcResultWin, result)
+	assert.Equal(t, 6, payout) // floor(3 * 2.10) = 6
+}
+
+func TestHandicap_QuarterBall_HomeGives125_WinByOne(t *testing.T) {
+	// Home gives 1.25 (split: -1.0 / -1.5). France wins 1-0:
+	// -1.0: adjusted=0 == 0 → push; -1.5: adjusted=-0.5 < 0 → lose → LOSE HALF
+	bet := handicapBet("home", 3, 2.10, 1.25, "home")
+	result, payout := evaluateHandicapBet(bet, 1, 0)
+	assert.Equal(t, model.WcResultLoseHalf, result)
+	assert.Equal(t, 1, payout) // floor(1.5) = 1, refund half stake
+}
+
+func TestHandicap_QuarterBall_HomeGives125_Draw(t *testing.T) {
+	// Home gives 1.25. Draw 0-0: both sub-handicaps lose → LOSE FULL
+	bet := handicapBet("home", 3, 2.10, 1.25, "home")
+	result, payout := evaluateHandicapBet(bet, 0, 0)
+	assert.Equal(t, model.WcResultLose, result)
+	assert.Equal(t, 0, payout)
+}
+
+func TestHandicap_QuarterBall_HomeGives075_WinByOne(t *testing.T) {
+	// Home gives 0.75 (split: -0.5 / -1.0). Home wins 1-0:
+	// -0.5: adjusted=0.5 > 0 → win; -1.0: adjusted=0 == 0 → push → WIN HALF
+	bet := handicapBet("home", 4, 1.90, 0.75, "home")
+	result, payout := evaluateHandicapBet(bet, 1, 0)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.Equal(t, 5, payout) // floor(2 * 1.90) + floor(2) = 3 + 2 = 5
+}
+
+func TestHandicap_QuarterBall_HomeGives075_Draw(t *testing.T) {
+	// Home gives 0.75. Draw 0-0:
+	// -0.5: adjusted=-0.5 < 0 → lose; -1.0: adjusted=-1 < 0 → lose → LOSE FULL
+	bet := handicapBet("home", 4, 1.90, 0.75, "home")
+	result, payout := evaluateHandicapBet(bet, 0, 0)
+	assert.Equal(t, model.WcResultLose, result)
+	assert.Equal(t, 0, payout)
+}
+
+func TestHandicap_QuarterBall_AwayGets125_WinByOne(t *testing.T) {
+	// Home gives 1.25 (split: -1.0 / -1.5). Bet on AWAY, home wins 1-0:
+	// -1.0: adjusted=0 == 0 → push; -1.5: adjusted=-0.5 < 0 → away wins → WIN HALF for away bettor
+	bet := handicapBet("away", 3, 1.78, 1.25, "home")
+	result, payout := evaluateHandicapBet(bet, 1, 0)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.Equal(t, 3, payout) // floor(1.5 * 1.78) + floor(1.5) = 2 + 1 = 3
+}
+
+func TestHandicap_QuarterBall_EvenStake(t *testing.T) {
+	// Even stake=2, home gives 1.25, wins 1-0 (lose half)
+	bet := handicapBet("home", 2, 2.10, 1.25, "home")
+	result, payout := evaluateHandicapBet(bet, 1, 0)
+	assert.Equal(t, model.WcResultLoseHalf, result)
+	assert.Equal(t, 1, payout) // floor(1.0) = 1
+}
+
 // ─── evaluateExactScoreBet ────────────────────────────────────────────────────
 
 func TestExactScore_CorrectPrediction(t *testing.T) {

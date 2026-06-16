@@ -9,27 +9,37 @@
           <p class="page-subtitle">{{ t('wc.schedule') }}</p>
         </div>
         <div class="wc-schedule-header-right">
-          <router-link
-            v-if="wcAuthStore.isLoggedIn && wcAuthStore.isAdmin"
-            :to="{ name: 'wc-admin' }"
-            class="wc-admin-link"
-          >
-            {{ t('wc.adminPanel') }}
-          </router-link>
-          <router-link
-            v-else-if="wcAuthStore.isLoggedIn && !wcAuthStore.isAdmin"
-            :to="{ name: 'wc-predict' }"
-            class="wc-predict-link"
-          >
-            {{ t('wc.predicting') }}
-          </router-link>
-          <router-link
-            v-else-if="!wcAuthStore.isLoggedIn"
-            :to="{ name: 'wc-login' }"
-            class="wc-login-link"
-          >
-            {{ t('wc.login') }}
-          </router-link>
+          <template v-if="featureEnabled">
+            <router-link
+              :to="wcAuthStore.isLoggedIn ? { name: 'wc-predict' } : { name: 'wc-login' }"
+              class="wc-cta-btn"
+            >
+              🏆 Vào trang dự đoán
+            </router-link>
+          </template>
+          <template v-else>
+            <router-link
+              v-if="wcAuthStore.isLoggedIn && wcAuthStore.isAdmin"
+              :to="{ name: 'wc-admin' }"
+              class="wc-admin-link"
+            >
+              {{ t('wc.adminPanel') }}
+            </router-link>
+            <router-link
+              v-else-if="wcAuthStore.isLoggedIn"
+              :to="{ name: 'wc-predict' }"
+              class="wc-predict-link"
+            >
+              {{ t('wc.predicting') }}
+            </router-link>
+            <router-link
+              v-else
+              :to="{ name: 'wc-login' }"
+              class="wc-login-link"
+            >
+              {{ t('wc.login') }}
+            </router-link>
+          </template>
         </div>
       </div>
 
@@ -75,6 +85,7 @@ const store = useWcStore()
 const wcAuthStore = useWcAuthStore()
 
 const selectedFilter = ref('')
+const featureEnabled = ref(false)
 
 const filteredMatches = computed(() => {
   if (!selectedFilter.value) return store.matches
@@ -117,7 +128,15 @@ watch(selectedFilter, () => {
   store.fetchMatches(filter)
 })
 
-onMounted(() => store.fetchMatches())
+onMounted(async () => {
+  store.fetchMatches()
+  try {
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
+    const res = await fetch(`${apiBase}/config`)
+    const data = await res.json()
+    featureEnabled.value = !!data.is_enabled
+  } catch { /* ignore */ }
+})
 </script>
 
 <style scoped>
@@ -176,6 +195,26 @@ onMounted(() => store.fetchMatches())
 
 .wc-predict-link:hover {
   background: rgba(37, 99, 235, 0.14);
+}
+
+.wc-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 10px;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.wc-cta-btn:hover {
+  box-shadow: 0 6px 18px rgba(22, 163, 74, 0.45);
+  transform: translateY(-1px);
 }
 
 .wc-loading {

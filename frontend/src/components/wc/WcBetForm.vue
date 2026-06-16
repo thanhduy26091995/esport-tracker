@@ -29,10 +29,10 @@
               <div class="wc-hc-team">{{ match!.home_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="homeGives" class="wc-hc-handi"
-                  >-{{ match!.handicap_value }}</span
+                  >-{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ match!.handicap_value }}</span
+                  >+{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_home?.toFixed(2) }}</span
@@ -48,10 +48,10 @@
               <div class="wc-hc-team">{{ match!.away_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="!homeGives" class="wc-hc-handi"
-                  >-{{ match!.handicap_value }}</span
+                  >-{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ match!.handicap_value }}</span
+                  >+{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_away?.toFixed(2) }}</span
@@ -69,9 +69,27 @@
               controls-position="right"
               style="width: 160px"
             />
-            <div class="wc-payout-preview">
+            <div v-if="isQuarterHandicap" class="wc-payout-split">
+              <div class="wc-payout-split-row wc-payout-split--win">
+                <span>Thắng cả</span>
+                <span>+{{ handicapSplitPayout.winProfit }}</span>
+              </div>
+              <div class="wc-payout-split-row wc-payout-split--win-half">
+                <span>Thắng nửa</span>
+                <span>+{{ handicapSplitPayout.winHalfProfit }}</span>
+              </div>
+              <div class="wc-payout-split-row wc-payout-split--lose-half">
+                <span>Thua nửa</span>
+                <span>-{{ handicapSplitPayout.loseHalfLoss }}</span>
+              </div>
+              <div class="wc-payout-split-row wc-payout-split--lose">
+                <span>Thua cả</span>
+                <span>-{{ handicapStake }}</span>
+              </div>
+            </div>
+            <div v-else class="wc-payout-preview">
               <span class="wc-payout-label">{{ t("wc.payout") }}</span>
-              <span class="wc-payout-value">{{ handicapPayout }}</span>
+              <span class="wc-payout-value">+{{ handicapPayout }}</span>
             </div>
           </div>
         </div>
@@ -109,7 +127,7 @@
                 style="width: 110px"
               />
               <span class="wc-sc-payout-preview">
-                = {{ Math.floor(selectedScores[so.id].stake * so.odds) }}
+                +{{ Math.floor(selectedScores[so.id].stake * so.odds) - selectedScores[so.id].stake }}
               </span>
             </div>
           </div>
@@ -174,6 +192,12 @@ const submitting = ref(false);
 const existingHandicapBet = ref<WcBetWithMatch | null>(null);
 const existingScoreBetMap = ref<Record<string, WcBetWithMatch>>({});
 
+function fmtHandicap(v: number | null | undefined): string {
+  if (v == null) return ''
+  // parseFloat removes trailing zeros: 1.50 → "1.5", 1.25 → "1.25", 1.00 → "1"
+  return parseFloat(v.toFixed(2)).toString()
+}
+
 const hasHandicap = computed(
   () =>
     !!(
@@ -192,9 +216,30 @@ const handicapOdds = computed(() => {
     : (props.match.odds_handicap_away ?? 1);
 });
 
+const isQuarterHandicap = computed(() => {
+  const h = props.match?.handicap_value;
+  if (!h) return false;
+  const frac = Math.abs(h) % 0.5;
+  return Math.abs(frac - 0.25) < 0.001;
+});
+
 const handicapPayout = computed(() =>
-  Math.floor(handicapStake.value * handicapOdds.value),
+  Math.floor(handicapStake.value * handicapOdds.value) - handicapStake.value,
 );
+
+const handicapSplitPayout = computed(() => {
+  const s = handicapStake.value;
+  const odds = handicapOdds.value;
+  const half = s / 2;
+  const winPayout = Math.floor(s * odds);
+  const winHalfPayout = Math.floor(half * odds) + Math.floor(half);
+  const loseHalfPayout = Math.floor(half);
+  return {
+    winProfit: winPayout - s,
+    winHalfProfit: winHalfPayout - s,
+    loseHalfLoss: s - loseHalfPayout,
+  };
+});
 
 function selectHandicap(side: "home" | "away") {
   handicapChoice.value = handicapChoice.value === side ? null : side;
@@ -433,6 +478,28 @@ watch(
   color: #16a34a;
   font-variant-numeric: tabular-nums;
 }
+
+.wc-payout-split {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 130px;
+}
+
+.wc-payout-split-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.wc-payout-split--win { background: rgba(22,163,74,0.1); color: #16a34a; }
+.wc-payout-split--win-half { background: rgba(22,163,74,0.06); color: #16a34a; }
+.wc-payout-split--lose-half { background: rgba(239,68,68,0.06); color: #ef4444; }
+.wc-payout-split--lose { background: rgba(239,68,68,0.1); color: #ef4444; }
 
 .wc-score-grid {
   display: grid;

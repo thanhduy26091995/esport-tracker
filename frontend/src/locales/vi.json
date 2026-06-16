@@ -172,6 +172,8 @@
     "noBets": "Chưa có cược nào",
     "bettorsOnMatch": "Người đặt cược",
     "resultWin": "Thắng",
+    "resultWinHalf": "Thắng nửa",
+    "resultLoseHalf": "Thua nửa",
     "resultLose": "Thua",
     "resultPush": "Hoà vốn",
     "logout": "Đăng xuất"

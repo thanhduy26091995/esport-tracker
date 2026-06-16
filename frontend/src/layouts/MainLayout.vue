@@ -25,10 +25,11 @@
             :to="item.href"
             @click="mobileMenuOpen = false"
             class="nav-item"
-            :class="{ 'nav-item--active': isActiveRoute(item.href) }"
+            :class="{ 'nav-item--active': isActiveRoute(item.href), 'nav-item--wc': item.highlight === 'wc' }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
             <span>{{ t(item.navKey) }}</span>
+            <span v-if="item.highlight === 'wc'" class="nav-item-badge">2026</span>
           </router-link>
         </nav>
         <div class="sidebar-lang">
@@ -56,10 +57,11 @@
             :key="item.navKey"
             :to="item.href"
             class="nav-item"
-            :class="{ 'nav-item--active': isActiveRoute(item.href) }"
+            :class="{ 'nav-item--active': isActiveRoute(item.href), 'nav-item--wc': item.highlight === 'wc' }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
             <span>{{ t(item.navKey) }}</span>
+            <span v-if="item.highlight === 'wc'" class="nav-item-badge">2026</span>
           </router-link>
         </nav>
         <div class="sidebar-lang">
@@ -134,7 +136,7 @@ const navigation = [
   { navKey: 'nav.tournaments', href: '/tournaments', icon: Grid },
   { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
   { navKey: 'nav.fund', href: '/fund', icon: Wallet },
-  { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion },
+  { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion, highlight: 'wc' },
   { navKey: 'nav.settings', href: '/settings', icon: Setting },
 ]
 
@@ -262,6 +264,29 @@ const todayLabel = computed(() => {
 
 .nav-item--active .nav-icon {
   opacity: 1;
+}
+
+.nav-item--wc {
+  background: linear-gradient(90deg, rgba(22, 163, 74, 0.15) 0%, transparent 100%);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  color: #16a34a;
+}
+
+.nav-item--wc .nav-icon {
+  opacity: 1;
+  color: #16a34a;
+}
+
+.nav-item-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(22, 163, 74, 0.18);
+  color: #16a34a;
+  padding: 1px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
 .sidebar-footer {

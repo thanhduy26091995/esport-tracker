@@ -155,7 +155,7 @@ const walletClass = computed(() => {
 
 const storeMatches = computed(() => store.matches)
 const { search: betSearch, activeFilter: betFilter, filtered: betFiltered, counts: betCounts } =
-  useMatchFilter(storeMatches, 'incoming')
+  useMatchFilter(storeMatches, 'open')
 
 const betFilterOptions = computed(() => [
   { key: 'incoming' as const, label: 'Sắp tới', count: betCounts.value.incoming },

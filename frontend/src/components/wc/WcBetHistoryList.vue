@@ -61,7 +61,13 @@
             {{ t('wc.resultPending') }}
           </span>
           <span v-else-if="bet.result === 'win'" class="wc-result-badge wc-result--win">
-            +{{ bet.payout }} {{ t('wc.resultWin') }}
+            +{{ (bet.payout ?? 0) - bet.stake }} {{ t('wc.resultWin') }}
+          </span>
+          <span v-else-if="bet.result === 'win_half'" class="wc-result-badge wc-result--win-half">
+            +{{ (bet.payout ?? 0) - bet.stake }} {{ t('wc.resultWinHalf') }}
+          </span>
+          <span v-else-if="bet.result === 'lose_half'" class="wc-result-badge wc-result--lose-half">
+            -{{ bet.stake - (bet.payout ?? 0) }} {{ t('wc.resultLoseHalf') }}
           </span>
           <span v-else-if="bet.result === 'lose'" class="wc-result-badge wc-result--lose">
             -{{ bet.stake }} {{ t('wc.resultLose') }}
@@ -248,6 +254,16 @@ function formatDate(s: string) {
 
 .wc-result--lose {
   background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.wc-result--win-half {
+  background: rgba(22, 163, 74, 0.08);
+  color: #16a34a;
+}
+
+.wc-result--lose-half {
+  background: rgba(239, 68, 68, 0.07);
   color: #ef4444;
 }
 

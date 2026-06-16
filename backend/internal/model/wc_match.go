@@ -52,9 +52,11 @@ const (
 
 // Bet result constants
 const (
-	WcResultWin  = "win"
-	WcResultLose = "lose"
-	WcResultPush = "push"
+	WcResultWin      = "win"
+	WcResultLose     = "lose"
+	WcResultPush     = "push"
+	WcResultWinHalf  = "win_half"  // split handicap: win one sub-bet, push the other
+	WcResultLoseHalf = "lose_half" // split handicap: lose one sub-bet, push the other
 )
 
 // Settlement direction constants
@@ -85,7 +87,7 @@ type WcMatch struct {
 	AwayScore           *int       `json:"away_score"`
 	Status              string     `gorm:"type:varchar(20);not null;default:'scheduled'" json:"status"`
 	HandicapTeam        string     `gorm:"type:varchar(5)" json:"handicap_team"`
-	HandicapValue       *float64   `gorm:"type:numeric(4,1)" json:"handicap_value"`
+	HandicapValue       *float64   `gorm:"type:numeric(5,2)" json:"handicap_value"`
 	OddsHandicapHome    *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_home"`
 	OddsHandicapAway    *float64   `gorm:"type:numeric(5,2)" json:"odds_handicap_away"`
 	PredictionsOpen     bool       `gorm:"not null;default:false" json:"predictions_open"`
@@ -221,7 +223,7 @@ type WcBet struct {
 	BetChoice            *string   `gorm:"type:varchar(5);uniqueIndex:idx_bet_hc_dedup" json:"bet_choice,omitempty"`
 	Stake                int       `gorm:"not null" json:"stake"`
 	OddsSnapshot         float64   `gorm:"type:numeric(5,2);not null" json:"odds_snapshot"`
-	HandicapSnapshot     *float64  `gorm:"type:numeric(4,1)" json:"handicap_snapshot,omitempty"`
+	HandicapSnapshot     *float64  `gorm:"type:numeric(5,2)" json:"handicap_snapshot,omitempty"`
 	HandicapTeamSnapshot *string   `gorm:"type:varchar(5)" json:"handicap_team_snapshot,omitempty"`
 	PredictedHomeScore   *int      `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_home_score,omitempty"`
 	PredictedAwayScore   *int      `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_away_score,omitempty"`

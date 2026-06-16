@@ -172,6 +172,8 @@
     "noBets": "No bets yet",
     "bettorsOnMatch": "Bettors",
     "resultWin": "Win",
+    "resultWinHalf": "Win Half",
+    "resultLoseHalf": "Lose Half",
     "resultLose": "Lose",
     "resultPush": "Push",
     "logout": "Sign Out"

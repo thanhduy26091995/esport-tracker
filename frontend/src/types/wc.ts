@@ -1,11 +1,11 @@
 export type WcMatchStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
 export type WcStage = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final' | 'third_place'
 export type WcPredictionType = 'handicap' | 'exact_score'
-export type WcPredictionResult = 'correct' | 'incorrect' | 'void'
+export type WcPredictionResult = 'correct' | 'incorrect' | 'void' | 'win_half' | 'lose_half'
 export type WcSettlementDirection = 'pay' | 'collect' | 'even'
 export type WcSettlementStatus = 'pending' | 'done'
 export type WcBetType = 'handicap' | 'exact_score'
-export type WcBetResult = 'win' | 'lose' | 'push'
+export type WcBetResult = 'win' | 'lose' | 'push' | 'win_half' | 'lose_half'
 
 export interface WcUser {
   id: string
