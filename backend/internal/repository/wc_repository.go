@@ -92,6 +92,14 @@ func (r *WcRepository) ListMatches(f MatchFilter) ([]*model.WcMatch, error) {
 	return matches, q.Find(&matches).Error
 }
 
+func (r *WcRepository) ListUnfinalizedScoredMatches() ([]*model.WcMatch, error) {
+	var matches []*model.WcMatch
+	return matches, r.db.
+		Where("home_score IS NOT NULL AND away_score IS NOT NULL AND settled_at IS NULL").
+		Order("match_date ASC").
+		Find(&matches).Error
+}
+
 func (r *WcRepository) GetMatch(id uuid.UUID) (*model.WcMatch, error) {
 	var m model.WcMatch
 	err := r.db.First(&m, "id = ?", id).Error
@@ -299,18 +307,22 @@ func (r *WcRepository) UpdatePredictionResult(tx *gorm.DB, betID uuid.UUID, resu
 }
 
 func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
-	var rows []*model.WcLeaderboardEntry
+	rows := make([]*model.WcLeaderboardEntry, 0)
 	err := r.db.Raw(`
 		SELECT
 			u.id   AS wc_user_id,
 			u.name,
-			COALESCE(SUM(b.points_earned - b.points) FILTER (WHERE b.result IS NOT NULL), 0) AS net_points,
-			COUNT(b.id) FILTER (WHERE b.result IS NOT NULL)                                   AS total_predictions,
-			COUNT(b.id) FILTER (WHERE b.result = 'correct')                                   AS correct
+			COALESCE(SUM(COALESCE(b.points_earned, 0) - b.points) FILTER (WHERE b.result IS NOT NULL), 0) AS net_points,
+			COUNT(b.id) FILTER (WHERE b.result IS NOT NULL)              AS total_predictions,
+			COUNT(b.id) FILTER (WHERE b.result = 'correct')              AS correct,
+			COUNT(b.id) FILTER (WHERE b.result = 'win_half')             AS win_half,
+			COUNT(b.id) FILTER (WHERE b.result = 'lose_half')            AS lose_half,
+			COUNT(b.id) FILTER (WHERE b.result = 'incorrect')            AS incorrect
 		FROM wc_users u
 		LEFT JOIN wc_predictions b ON b.wc_user_id = u.id
 		GROUP BY u.id, u.name
-		ORDER BY net_points DESC, u.name ASC
+		HAVING COUNT(b.id) > 0
+		ORDER BY net_points DESC, correct DESC, u.name ASC
 	`).Scan(&rows).Error
 	if err != nil {
 		return nil, err

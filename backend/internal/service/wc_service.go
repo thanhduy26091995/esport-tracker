@@ -292,11 +292,14 @@ func (s *WcService) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 // --- Match settlement ---
 
 // FinalizeMatch evaluates all predictions on a match, credits/debits wallets, and marks settled_at.
-// Idempotent: re-settling reverses previous payouts before re-applying.
+// Returns an error if the match has already been finalized.
 func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 	m, err := s.repo.GetMatch(matchID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("match not found")
+	}
+	if m.SettledAt != nil {
+		return 0, 0, fmt.Errorf("match already finalized at %s", m.SettledAt.Format("2006-01-02 15:04:05"))
 	}
 	if m.HomeScore == nil || m.AwayScore == nil {
 		return 0, 0, fmt.Errorf("match score not set — cannot settle")
@@ -313,14 +316,6 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, bet := range bets {
-			// Reverse previous payout if re-settling
-			if bet.Result != nil && bet.PointsEarned != nil && *bet.PointsEarned > 0 {
-				prevDelta := float64(-(*bet.PointsEarned))
-				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, prevDelta); err != nil {
-					return err
-				}
-			}
-
 			var result string
 			var pointsEarned int
 
@@ -362,6 +357,33 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 	})
 
 	return processed, totalPointsEarned, err
+}
+
+// FinalizeAllResult summarises a bulk-finalize run.
+type FinalizeAllResult struct {
+	Processed          int `json:"processed"`
+	Skipped            int `json:"skipped"`
+	TotalPointsAwarded int `json:"total_points_awarded"`
+}
+
+// FinalizeAllMatches finalizes every scored-but-not-yet-settled match in one call.
+// Matches already finalized are counted as skipped (not an error).
+func (s *WcService) FinalizeAllMatches() (*FinalizeAllResult, error) {
+	matches, err := s.repo.ListUnfinalizedScoredMatches()
+	if err != nil {
+		return nil, err
+	}
+	result := &FinalizeAllResult{}
+	for _, m := range matches {
+		_, pts, err := s.FinalizeMatch(m.ID)
+		if err != nil {
+			result.Skipped++
+			continue
+		}
+		result.Processed++
+		result.TotalPointsAwarded += pts
+	}
+	return result, nil
 }
 
 // --- Tournament settlement ---

@@ -512,6 +512,16 @@ func (h *WcHandler) DeleteScoreMultiplier(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// FinalizeAll handles POST /api/v1/wc/admin/matches/finalize-all
+func (h *WcHandler) FinalizeAll(c *gin.Context) {
+	result, err := h.svc.FinalizeAllMatches()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 // FinalizeMatch handles POST /api/v1/wc/admin/matches/:id/finalize
 func (h *WcHandler) FinalizeMatch(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))

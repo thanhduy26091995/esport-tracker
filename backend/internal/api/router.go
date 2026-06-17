@@ -236,6 +236,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAdmin.POST("/matches/:id/score-multipliers", wcHandler.AddScoreMultiplier)
 				wcAdmin.PUT("/score-multipliers/:id", wcHandler.UpdateScoreMultiplier)
 				wcAdmin.DELETE("/score-multipliers/:id", wcHandler.DeleteScoreMultiplier)
+				wcAdmin.POST("/matches/finalize-all", wcHandler.FinalizeAll)
 				wcAdmin.POST("/matches/:id/finalize", wcHandler.FinalizeMatch)
 				wcAdmin.POST("/matches/:id/settle", wcHandler.SettleMatch)
 				wcAdmin.POST("/matches/:id/score-odds", wcHandler.AddScoreOdds)

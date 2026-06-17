@@ -146,6 +146,9 @@ export interface WcLeaderboardEntry {
   net_points: number
   total_predictions: number
   correct: number
+  win_half: number
+  lose_half: number
+  incorrect: number
 }
 
 export interface WcSettlement {

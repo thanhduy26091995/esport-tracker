@@ -292,6 +292,9 @@ type WcLeaderboardEntry struct {
 	NetPoints        int       `json:"net_points"`
 	TotalPredictions int       `json:"total_predictions"`
 	Correct          int       `json:"correct"`
+	WinHalf          int       `json:"win_half"`
+	LoseHalf         int       `json:"lose_half"`
+	Incorrect        int       `json:"incorrect"`
 }
 
 // WcWalletWithUser is used by GetAllWallets (admin panel + settlement preview).

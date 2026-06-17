@@ -18,7 +18,11 @@
         </div>
         <div class="wc-lb-name">{{ entry.name }}</div>
         <div class="wc-lb-stats">
-          <span class="wc-lb-stat">{{ entry.correct }}W / {{ entry.total_predictions }}T</span>
+          <span class="wc-lb-stat wc-stat--win">{{ entry.correct }}W</span>
+          <span v-if="entry.win_half > 0" class="wc-lb-stat wc-stat--winhalf">{{ entry.win_half }}½W</span>
+          <span v-if="entry.lose_half > 0" class="wc-lb-stat wc-stat--losehalf">{{ entry.lose_half }}½L</span>
+          <span class="wc-lb-stat wc-stat--loss">{{ entry.incorrect }}L</span>
+          <span class="wc-lb-stat wc-stat--total">/ {{ entry.total_predictions }}</span>
         </div>
         <div class="wc-lb-profit" :class="entry.net_points >= 0 ? 'wc-profit--pos' : 'wc-profit--neg'">
           {{ entry.net_points >= 0 ? '+' : '' }}{{ entry.net_points }}
@@ -88,10 +92,19 @@ defineProps<{ entries: WcLeaderboardEntry[] }>()
 }
 
 .wc-lb-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
-  color: var(--text-muted);
+  font-weight: 600;
   flex-shrink: 0;
 }
+.wc-lb-stat { font-variant-numeric: tabular-nums; }
+.wc-stat--win      { color: #16a34a; }
+.wc-stat--winhalf  { color: #65a30d; }
+.wc-stat--losehalf { color: #ea580c; }
+.wc-stat--loss     { color: #ef4444; }
+.wc-stat--total    { color: var(--text-muted); font-weight: 400; }
 
 .wc-lb-profit {
   font-size: 16px;

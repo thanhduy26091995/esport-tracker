@@ -33,6 +33,14 @@
         <el-button type="info" plain @click="mappingDialogRef?.open()">
           Setup StatsAPI Mapping
         </el-button>
+        <el-button
+          type="success"
+          plain
+          :loading="finalizingAll"
+          @click="handleFinalizeAll"
+        >
+          Tính điểm toàn bộ
+        </el-button>
       </div>
 
       <!-- Admin match filter bar -->
@@ -567,6 +575,17 @@ async function handleClose(matchId: string) {
 async function handleSettle(matchId: string) {
   await store.finalizeMatch(matchId);
   pnlRef.value?.load();
+}
+
+const finalizingAll = ref(false)
+async function handleFinalizeAll() {
+  finalizingAll.value = true
+  try {
+    await store.finalizeAll()
+    pnlRef.value?.load()
+  } finally {
+    finalizingAll.value = false
+  }
 }
 
 function openTopUpDialog(user: WcUser) {
