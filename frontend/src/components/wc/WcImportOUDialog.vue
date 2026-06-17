@@ -55,7 +55,7 @@
       <el-button v-if="!preview" type="primary" :loading="loading" :disabled="!match?.statsapi_fixture_id" @click="runPreview">
         Xem trước
       </el-button>
-      <el-button v-if="preview" type="warning" :loading="saving" @click="confirmImport">
+      <el-button v-if="preview" type="warning" plain :loading="saving" @click="confirmImport">
         Ghi đè và lưu
       </el-button>
     </template>

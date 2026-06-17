@@ -18,12 +18,27 @@
     </div>
 
     <!-- Teams odds table with inline editing -->
-    <el-table :data="teams" size="small" style="margin-top: 14px">
-      <el-table-column label="Đội" min-width="140">
+    <div class="teams-toolbar">
+      <el-input
+        v-model="teamSearch"
+        placeholder="Tìm đội..."
+        size="small"
+        clearable
+        style="width: 200px"
+      />
+      <span class="teams-count">{{ filteredTeams.length }} / {{ teams.length }} đội</span>
+    </div>
+    <el-table :data="filteredTeams" size="small" style="margin-top: 8px" max-height="420">
+      <el-table-column label="Đội" min-width="160">
         <template #default="{ row }">{{ row.flag_emoji }} {{ row.name }}</template>
       </el-table-column>
-      <el-table-column label="Code" prop="code" width="60" />
-      <el-table-column label="Odds" width="130" align="right">
+      <el-table-column label="Code" prop="code" width="58" />
+      <el-table-column label="Odds hiện tại" width="90" align="right">
+        <template #default="{ row }">
+          <el-tag size="small" type="warning">{{ row.odds }}x</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="Sửa Odds" width="175" align="right">
         <template #default="{ row }">
           <div class="odds-edit-row">
             <el-input-number
@@ -32,7 +47,7 @@
               :step="0.5"
               :precision="2"
               size="small"
-              style="width: 80px"
+              style="width: 95px"
             />
             <el-button
               size="small"
@@ -54,7 +69,7 @@
       <h4 class="settle-title">Công bố Vô địch</h4>
       <p class="settle-hint">Chọn đội vô địch và xác nhận. Thao tác này không thể hoàn tác.</p>
       <div class="settle-row">
-        <el-select v-model="winnerTeamId" placeholder="Chọn đội vô địch" style="flex: 1">
+        <el-select v-model="winnerTeamId" placeholder="Chọn đội vô địch" style="flex: 1" filterable>
           <el-option
             v-for="team in teams"
             :key="team.id"
@@ -63,6 +78,7 @@
           />
         </el-select>
         <el-button
+          plain
           type="danger"
           :loading="settling"
           :disabled="!winnerTeamId || !!config?.is_open"
@@ -94,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { wcService } from '@/services/wcService'
 import type { WcChampionConfig, WcChampionTeam, WcChampionSettleResult } from '@/types/wc'
@@ -108,6 +124,12 @@ const savingOdds = reactive<Record<string, boolean>>({})
 const winnerTeamId = ref('')
 const settling = ref(false)
 const settleResult = ref<WcChampionSettleResult | null>(null)
+const teamSearch = ref('')
+
+const filteredTeams = computed(() => {
+  const q = teamSearch.value.toLowerCase()
+  return q ? teams.value.filter(t => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q)) : teams.value
+})
 
 async function load() {
   const [cfg, teamList] = await Promise.allSettled([
@@ -186,6 +208,16 @@ onMounted(load)
 .champion-config-label {
   font-size: 14px;
   color: #606266;
+}
+.teams-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.teams-count {
+  font-size: 12px;
+  color: #909399;
 }
 .odds-edit-row {
   display: flex;

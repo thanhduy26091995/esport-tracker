@@ -242,12 +242,8 @@ export const wcService = {
     return r.data
   },
   async getMyChampionPrediction(): Promise<WcChampionPredictionMine | null> {
-    try {
-      const r = await wcApi.get<WcChampionPredictionMine>('/champion/my-prediction')
-      return r.data
-    } catch {
-      return null
-    }
+    const r = await wcApi.get<WcChampionPredictionMine | null>('/champion/my-prediction')
+    return r.data ?? null
   },
   async placeChampionPrediction(teamId: string, points: number): Promise<WcChampionPredictionMine> {
     const r = await wcApi.post<WcChampionPredictionMine>('/champion/predict', { team_id: teamId, points })

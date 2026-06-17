@@ -38,7 +38,7 @@ func (p *PoissonService) PoissonProb(lambda float64, k int) float64 {
 
 // GenerateScoreOdds computes fair odds for all scorelines with probability >= MinProb,
 // then applies the house margin (vig).
-func (p *PoissonService) GenerateScoreOdds(input PoissonInput) ([]PoissonScoreline, []model.WcScoreOdds) {
+func (p *PoissonService) GenerateScoreOdds(input PoissonInput) ([]PoissonScoreline, []model.WcScoreMultiplier) {
 	type candidate struct {
 		h, a int
 		prob float64
@@ -61,10 +61,9 @@ func (p *PoissonService) GenerateScoreOdds(input PoissonInput) ([]PoissonScoreli
 
 	margin := 1.0 - input.HouseMargin
 	lines := make([]PoissonScoreline, 0, len(candidates))
-	odds := make([]model.WcScoreOdds, 0, len(candidates))
+	multipliers := make([]model.WcScoreMultiplier, 0, len(candidates))
 
 	for _, c := range candidates {
-		// Fair probability (relative to included pool) + house margin applied
 		fairProb := c.prob / probSum
 		vigProb := fairProb * margin
 		var oddsVal float64
@@ -77,15 +76,15 @@ func (p *PoissonService) GenerateScoreOdds(input PoissonInput) ([]PoissonScoreli
 			Probability: math.Round(fairProb*10000) / 10000,
 			Odds:        oddsVal,
 		})
-		odds = append(odds, model.WcScoreOdds{
-			ID:        uuid.New(),
-			MatchID:   input.MatchID,
-			HomeScore: c.h,
-			AwayScore: c.a,
-			Odds:      oddsVal,
+		multipliers = append(multipliers, model.WcScoreMultiplier{
+			ID:         uuid.New(),
+			MatchID:    input.MatchID,
+			HomeScore:  c.h,
+			AwayScore:  c.a,
+			Multiplier: oddsVal,
 		})
 	}
-	return lines, odds
+	return lines, multipliers
 }
 
 func factorial(n int) float64 {

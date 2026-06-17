@@ -48,11 +48,12 @@ func (h *WcChampionHandler) GetAllPredictions(c *gin.Context) {
 }
 
 // GetMyPrediction handles GET /api/v1/wc/champion/my-prediction
+// Returns the prediction object when found, or null when the user has no prediction.
 func (h *WcChampionHandler) GetMyPrediction(c *gin.Context) {
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
 	pred, err := h.svc.GetMyPrediction(wcUserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no prediction found"})
+		c.JSON(http.StatusOK, nil)
 		return
 	}
 	c.JSON(http.StatusOK, pred)

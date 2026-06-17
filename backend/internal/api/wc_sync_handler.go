@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 
-	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -145,16 +144,11 @@ func (h *WcSyncHandler) GeneratePoisson(c *gin.Context) {
 		return
 	}
 
-	// Save to wc_score_odds
-	dbOdds := make([]model.WcScoreOdds, len(oddsRows))
-	copy(dbOdds, oddsRows)
-	// Use the existing AddScoreOdds upsert via the repo (through a pointer we pass in)
-	// We'll bulk-upsert by calling the handler's repo indirectly via a service call not available here.
-	// Instead, expose BulkUpsert via a thin wrapper in WcSyncHandler.
-	if err := h.syncSvc.UpsertScoreOdds(dbOdds); err != nil {
+	if err := h.syncSvc.UpsertScoreMultipliers(oddsRows); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save score odds"})
 		return
 	}
+	_ = h.syncSvc.TouchPoissonSync(matchID)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "count": len(oddsRows)})
 }
 

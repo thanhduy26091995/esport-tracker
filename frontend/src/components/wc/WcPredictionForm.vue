@@ -95,6 +95,57 @@
         </div>
       </el-tab-pane>
 
+      <!-- OVER/UNDER TAB -->
+      <el-tab-pane label="Tài Xỉu" name="over_under">
+        <div v-if="!hasOU" class="wc-bet-empty">
+          <el-icon><InfoFilled /></el-icon>
+          Chưa có kèo Tài Xỉu cho trận này.
+        </div>
+        <div v-else class="wc-handicap-form">
+          <div class="wc-ou-line">
+            Đường kèo: <strong>{{ match!.ou_line }}</strong>
+          </div>
+          <div class="wc-hc-sides">
+            <div
+              class="wc-hc-side"
+              :class="{ 'wc-hc-side--selected': ouChoice === 'over' }"
+              @click="selectOU('over')"
+            >
+              <div class="wc-hc-team">Tài (Over)</div>
+              <div class="wc-hc-odds">
+                <span class="wc-hc-handi--receive">+{{ match!.ou_line }}</span>
+                <span class="wc-hc-rate">@ {{ match!.odds_over?.toFixed(2) }}</span>
+              </div>
+            </div>
+            <div
+              class="wc-hc-side"
+              :class="{ 'wc-hc-side--selected': ouChoice === 'under' }"
+              @click="selectOU('under')"
+            >
+              <div class="wc-hc-team">Xỉu (Under)</div>
+              <div class="wc-hc-odds">
+                <span class="wc-hc-handi">-{{ match!.ou_line }}</span>
+                <span class="wc-hc-rate">@ {{ match!.odds_under?.toFixed(2) }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="ouChoice" class="wc-stake-row">
+            <el-input-number
+              v-model="ouPoints"
+              :min="1"
+              :max="5"
+              :placeholder="t('wc.points')"
+              controls-position="right"
+              style="width: 160px"
+            />
+            <div class="wc-payout-preview">
+              <span class="wc-payout-label">{{ t("wc.pointsEarned") }}</span>
+              <span class="wc-payout-value">+{{ ouPayoutPreview }}</span>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
       <!-- EXACT SCORE TAB -->
       <el-tab-pane :label="t('wc.predictionTypeExactScore')" name="exact_score">
         <div v-if="!scoreMultipliers || scoreMultipliers.length === 0" class="wc-bet-empty">
@@ -182,13 +233,16 @@ const visible = computed({
   set: (v) => emit("update:modelValue", v),
 });
 
-const activeTab = ref<"handicap" | "exact_score">("handicap");
+const activeTab = ref<"handicap" | "over_under" | "exact_score">("handicap");
 const handicapChoice = ref<"home" | "away" | null>(null);
 const handicapPoints = ref(2);
+const ouChoice = ref<"over" | "under" | null>(null);
+const ouPoints = ref(2);
 const selectedScores = ref<Record<string, { points: number; multiplier: number }>>({});
 const submitting = ref(false);
 
 const existingHandicapPrediction = ref<WcPredictionWithMatch | null>(null);
+const existingOUPrediction = ref<WcPredictionWithMatch | null>(null);
 const existingScorePredictionMap = ref<Record<string, WcPredictionWithMatch>>({});
 
 const hasHandicap = computed(
@@ -198,6 +252,21 @@ const hasHandicap = computed(
       props.match.odds_handicap_home &&
       props.match.odds_handicap_away
     ),
+);
+
+const hasOU = computed(
+  () => !!(props.match?.ou_line && props.match.odds_over && props.match.odds_under),
+);
+
+const ouOdds = computed(() => {
+  if (!props.match) return 1;
+  return ouChoice.value === "over"
+    ? (props.match.odds_over ?? 1)
+    : (props.match.odds_under ?? 1);
+});
+
+const ouPayoutPreview = computed(() =>
+  +(ouPoints.value * ouOdds.value - ouPoints.value).toFixed(2),
 );
 
 const homeGives = computed(() => props.match?.handicap_team === "home");
@@ -237,6 +306,10 @@ function selectHandicap(side: "home" | "away") {
   handicapChoice.value = handicapChoice.value === side ? null : side;
 }
 
+function selectOU(side: "over" | "under") {
+  ouChoice.value = ouChoice.value === side ? null : side;
+}
+
 function isScoreSelected(id: string) {
   return !!selectedScores.value[id];
 }
@@ -252,6 +325,7 @@ function toggleScore(so: WcScoreMultiplier) {
 const totalPredictionCount = computed(() => {
   let count = 0;
   if (activeTab.value === "handicap" && handicapChoice.value) count++;
+  if (activeTab.value === "over_under" && ouChoice.value) count++;
   if (activeTab.value === "exact_score")
     count += Object.keys(selectedScores.value).length;
   return count;
@@ -260,15 +334,20 @@ const totalPredictionCount = computed(() => {
 const canSubmit = computed(() => {
   if (activeTab.value === "handicap")
     return !!handicapChoice.value && handicapPoints.value > 0;
+  if (activeTab.value === "over_under")
+    return !!ouChoice.value && ouPoints.value > 0;
   return Object.keys(selectedScores.value).length > 0;
 });
 
 function reset() {
   handicapChoice.value = null;
   handicapPoints.value = 2;
+  ouChoice.value = null;
+  ouPoints.value = 2;
   selectedScores.value = {};
   activeTab.value = "handicap";
   existingHandicapPrediction.value = null;
+  existingOUPrediction.value = null;
   existingScorePredictionMap.value = {};
 }
 
@@ -282,6 +361,10 @@ function populateFromExisting() {
       handicapChoice.value = pred.prediction_choice as "home" | "away";
       handicapPoints.value = pred.points;
       hasHc = true;
+    } else if (pred.prediction_type === "over_under" && pred.prediction_choice) {
+      existingOUPrediction.value = pred;
+      ouChoice.value = pred.prediction_choice as "over" | "under";
+      ouPoints.value = pred.points;
     } else if (pred.prediction_type === "exact_score") {
       const so = props.scoreMultipliers.find(
         (s) =>
@@ -315,6 +398,21 @@ async function handleSubmit() {
           prediction_type: "handicap",
           prediction_choice: handicapChoice.value,
           points: handicapPoints.value,
+        });
+      }
+    } else if (activeTab.value === "over_under" && ouChoice.value) {
+      const existing = existingOUPrediction.value;
+      if (existing && existing.prediction_choice === ouChoice.value) {
+        if (existing.points !== ouPoints.value) {
+          await wcService.updatePredictionPoints(existing.id, ouPoints.value);
+        }
+      } else {
+        if (existing) await wcService.deletePrediction(existing.id);
+        await wcService.submitPrediction({
+          match_id: props.match.id,
+          prediction_type: "over_under",
+          prediction_choice: ouChoice.value,
+          points: ouPoints.value,
         });
       }
     } else if (activeTab.value === "exact_score") {
@@ -575,5 +673,12 @@ watch(
   font-size: 12px;
   color: var(--text-muted);
   margin-right: auto;
+}
+
+.wc-ou-line {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
 }
 </style>

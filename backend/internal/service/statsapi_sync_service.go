@@ -481,9 +481,14 @@ func (s *StatsApiSyncService) GetSyncLogs() ([]*model.WcSyncLog, error) {
 	return s.repo.GetSyncLogs()
 }
 
-// UpsertScoreOdds bulk-upserts Poisson-generated score odds into wc_score_odds.
-func (s *StatsApiSyncService) UpsertScoreOdds(odds []model.WcScoreOdds) error {
-	return s.repo.BulkUpsertScoreOdds(odds)
+// UpsertScoreMultipliers bulk-upserts Poisson-generated odds into wc_score_multipliers.
+func (s *StatsApiSyncService) UpsertScoreMultipliers(multipliers []model.WcScoreMultiplier) error {
+	return s.repo.BulkUpsertScoreMultipliers(multipliers)
+}
+
+// TouchPoissonSync stamps poisson_synced_at on the match so the admin panel can show it.
+func (s *StatsApiSyncService) TouchPoissonSync(matchID uuid.UUID) error {
+	return s.repo.UpdateMatch(matchID, map[string]any{"poisson_synced_at": time.Now()})
 }
 
 func (s *StatsApiSyncService) logSync(adminID uuid.UUID, trigger, syncType string, updated, failed int, errDetail *string) {

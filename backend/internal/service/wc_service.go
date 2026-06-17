@@ -178,8 +178,22 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 		}
 		multiplierSnapshot = so.Multiplier
 
+	case model.WcPredictionTypeOverUnder:
+		if req.PredictionChoice == nil || (*req.PredictionChoice != model.WcChoiceOver && *req.PredictionChoice != model.WcChoiceUnder) {
+			return nil, fmt.Errorf("prediction_choice must be 'over' or 'under'")
+		}
+		if m.OULine == nil || m.OddsOver == nil || m.OddsUnder == nil {
+			return nil, fmt.Errorf("O/U odds not set for this match")
+		}
+		if *req.PredictionChoice == model.WcChoiceOver {
+			multiplierSnapshot = *m.OddsOver
+		} else {
+			multiplierSnapshot = *m.OddsUnder
+		}
+		handicapSnapshot = m.OULine
+
 	default:
-		return nil, fmt.Errorf("prediction_type must be 'handicap' or 'exact_score'")
+		return nil, fmt.Errorf("prediction_type must be 'handicap', 'exact_score', or 'over_under'")
 	}
 
 	bet := &model.WcPrediction{
@@ -315,6 +329,8 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 				result, pointsEarned = evaluateHandicapPrediction(bet, *m.HomeScore, *m.AwayScore)
 			case model.WcPredictionTypeExactScore:
 				result, pointsEarned = evaluateExactScorePrediction(bet, *m.HomeScore, *m.AwayScore)
+			case model.WcPredictionTypeOverUnder:
+				result, pointsEarned = evaluateOverUnderPrediction(bet, *m.HomeScore, *m.AwayScore)
 			}
 
 			if err := s.repo.UpdatePredictionResult(tx, bet.ID, result, pointsEarned); err != nil {
@@ -510,13 +526,26 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 		if req.PredictedHomeScore == nil || req.PredictedAwayScore == nil {
 			return nil, fmt.Errorf("predicted scores required for exact score bet")
 		}
-		so, err := s.repo.GetScoreOdds(req.MatchID, *req.PredictedHomeScore, *req.PredictedAwayScore)
+		so, err := s.repo.GetScoreMultiplier(req.MatchID, *req.PredictedHomeScore, *req.PredictedAwayScore)
 		if err != nil {
 			return nil, fmt.Errorf("scoreline %d:%d is not available for this match", *req.PredictedHomeScore, *req.PredictedAwayScore)
 		}
-		oddsSnapshot = so.Odds
+		oddsSnapshot = so.Multiplier
+	case model.WcBetTypeOverUnder:
+		if req.BetChoice == nil || (*req.BetChoice != model.WcChoiceOver && *req.BetChoice != model.WcChoiceUnder) {
+			return nil, fmt.Errorf("bet_choice must be 'over' or 'under'")
+		}
+		if m.OULine == nil || m.OddsOver == nil || m.OddsUnder == nil {
+			return nil, fmt.Errorf("O/U odds not configured for this match")
+		}
+		if *req.BetChoice == model.WcChoiceOver {
+			oddsSnapshot = *m.OddsOver
+		} else {
+			oddsSnapshot = *m.OddsUnder
+		}
+		handicapSnapshot = m.OULine
 	default:
-		return nil, fmt.Errorf("bet_type must be 'handicap' or 'exact_score'")
+		return nil, fmt.Errorf("bet_type must be 'handicap', 'exact_score', or 'over_under'")
 	}
 
 	bet := &model.WcBet{
@@ -635,6 +664,8 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, float64, error) {
 				result, payout = evaluateHandicapBet(bet, *m.HomeScore, *m.AwayScore)
 			case model.WcBetTypeExactScore:
 				result, payout = evaluateExactScoreBet(bet, *m.HomeScore, *m.AwayScore)
+			case model.WcBetTypeOverUnder:
+				result, payout = evaluateOverUnderBet(bet, *m.HomeScore, *m.AwayScore)
 			}
 
 			if err := s.repo.UpdateBetResult(tx, bet.ID, result, payout); err != nil {
@@ -675,10 +706,6 @@ func (s *WcService) UpdateScoreOdds(id uuid.UUID, odds float64) error {
 
 func (s *WcService) DeleteScoreOdds(id uuid.UUID) error {
 	return s.repo.DeleteScoreOdds(id)
-}
-
-func (s *WcService) ListScoreOdds(matchID uuid.UUID) ([]*model.WcScoreOdds, error) {
-	return s.repo.ListScoreOdds(matchID)
 }
 
 // --- Helpers ---
@@ -808,6 +835,25 @@ func evaluateExactScorePrediction(bet *model.WcPrediction, homeScore, awayScore 
 	return model.WcResultIncorrect, 0
 }
 
+// evaluateOverUnderPrediction checks total goals vs the O/U line.
+// HandicapSnapshot stores the OU line; PredictionChoice is "over" or "under".
+// Exact hit on the line = void (stake refunded).
+func evaluateOverUnderPrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, int) {
+	if bet.PredictionChoice == nil || bet.HandicapSnapshot == nil {
+		return model.WcResultIncorrect, 0
+	}
+	total := float64(homeScore + awayScore)
+	line := *bet.HandicapSnapshot
+	choice := *bet.PredictionChoice
+	if total == line {
+		return model.WcResultVoid, bet.Points
+	}
+	if (total > line && choice == model.WcChoiceOver) || (total < line && choice == model.WcChoiceUnder) {
+		return model.WcResultCorrect, int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
+	}
+	return model.WcResultIncorrect, 0
+}
+
 // evaluateHandicapBet applies Asian handicap rules for the betting system.
 // Quarter handicaps (e.g. 1.25, 0.75) split the stake across two lines.
 func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, float64) {
@@ -868,6 +914,25 @@ func evaluateExactScoreBet(bet *model.WcBet, homeScore, awayScore int) (string, 
 	if *bet.PredictedHomeScore == homeScore && *bet.PredictedAwayScore == awayScore {
 		payout := math.Round(float64(bet.Stake)*bet.OddsSnapshot*100) / 100
 		return model.WcResultWin, payout
+	}
+	return model.WcResultLose, 0
+}
+
+// evaluateOverUnderBet checks total goals vs the O/U line for the betting system.
+// HandicapSnapshot stores the OU line; BetChoice is "over" or "under".
+// Exact hit on the line = push (stake refunded).
+func evaluateOverUnderBet(bet *model.WcBet, homeScore, awayScore int) (string, float64) {
+	if bet.BetChoice == nil || bet.HandicapSnapshot == nil {
+		return model.WcResultLose, 0
+	}
+	total := float64(homeScore + awayScore)
+	line := *bet.HandicapSnapshot
+	choice := *bet.BetChoice
+	if total == line {
+		return model.WcResultPush, float64(bet.Stake)
+	}
+	if (total > line && choice == model.WcChoiceOver) || (total < line && choice == model.WcChoiceUnder) {
+		return model.WcResultWin, math.Round(float64(bet.Stake)*bet.OddsSnapshot*100) / 100
 	}
 	return model.WcResultLose, 0
 }

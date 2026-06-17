@@ -87,7 +87,7 @@ func (r *WcChampionRepository) GetMyPrediction(wcUserID uuid.UUID) (*model.WcCha
 }
 
 func (r *WcChampionRepository) GetAllPredictions() ([]*model.WcChampionPredictionPublic, error) {
-	var rows []*model.WcChampionPredictionPublic
+	rows := make([]*model.WcChampionPredictionPublic, 0)
 	err := r.db.Table("wc_champion_predictions p").
 		Select("u.name AS user_name, p.wc_user_id, t.name AS team_name, t.code AS team_code, t.flag_emoji, p.points, p.odds_snapshot, p.result").
 		Joins("JOIN wc_champion_teams t ON t.id = p.team_id").

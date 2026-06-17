@@ -2,114 +2,150 @@
   <div class="champion-panel">
     <!-- Status banner -->
     <div v-if="config" class="champion-status-banner" :class="statusClass">
-      <span class="champion-status-icon">{{ statusIcon }}</span>
+      <span>{{ statusIcon }}</span>
       <span class="champion-status-text">{{ statusText }}</span>
       <span v-if="config.winner_team" class="champion-winner-flag">
         {{ config.winner_team.flag_emoji }} {{ config.winner_team.name }}
       </span>
     </div>
 
-    <!-- My prediction card (when already placed) -->
-    <el-card v-if="myPrediction" class="my-prediction-card" shadow="never">
-      <div class="my-prediction-header">
-        <span class="my-prediction-label">Dự đoán của bạn</span>
-        <div class="my-prediction-actions" v-if="config?.is_open && !config.settled_at">
-          <el-button size="small" type="danger" text @click="handleDelete">Xóa</el-button>
-        </div>
-      </div>
-      <div class="my-prediction-info">
-        <span class="champion-flag">{{ myPrediction.flag_emoji }}</span>
-        <span class="champion-team-name">{{ myPrediction.team_name }}</span>
-        <el-tag size="small" type="info">{{ myPrediction.odds_snapshot }}x</el-tag>
-        <span class="champion-points">{{ myPrediction.points }} điểm</span>
-        <span class="champion-payout">→ {{ myPrediction.payout_if_correct }} điểm nếu đúng</span>
-      </div>
-      <div v-if="myPrediction.result" class="my-prediction-result">
-        <el-tag :type="myPrediction.result === 'correct' ? 'success' : 'danger'">
-          {{ myPrediction.result === 'correct' ? `+${myPrediction.points_earned} điểm` : 'Không đúng' }}
-        </el-tag>
-      </div>
-    </el-card>
+    <!-- Main 2-col layout -->
+    <div class="champion-main">
+      <!-- LEFT: my prediction + place form -->
+      <div class="champion-left">
 
-    <!-- Place prediction form (when window is open and no prediction yet) -->
-    <el-card v-if="config?.is_open && !config.settled_at && !myPrediction" class="place-form-card" shadow="never">
-      <h3 class="form-title">Dự đoán Vô địch</h3>
-      <div class="form-row">
-        <el-select v-model="selectedTeamId" placeholder="Chọn đội vô địch" class="team-select" filterable>
-          <el-option
-            v-for="team in teams"
-            :key="team.id"
-            :label="`${team.flag_emoji} ${team.name} (${team.odds}x)`"
-            :value="team.id"
-          />
-        </el-select>
-        <div class="points-input-wrap">
-          <span class="points-label">Điểm cược (1–5)</span>
-          <el-input-number
-            v-model="selectedPoints"
-            :min="1"
-            :max="5"
-            size="small"
-            style="width: 80px"
-          />
-        </div>
-      </div>
-      <div v-if="selectedTeam" class="payout-preview">
-        <span>Nếu đúng → </span>
-        <strong>{{ payoutPreview }} điểm</strong>
-        <span class="payout-formula">({{ selectedPoints }} × {{ selectedTeam.odds }}x)</span>
-      </div>
-      <el-button type="primary" :loading="placing" @click="handlePlace" style="margin-top: 12px">
-        Đặt dự đoán
-      </el-button>
-    </el-card>
-
-    <!-- Teams odds table -->
-    <el-card class="teams-card" shadow="never">
-      <template #header>
-        <span>Tỉ lệ cược vô địch</span>
-      </template>
-      <el-table :data="teams" size="small" :show-header="true">
-        <el-table-column label="Đội" min-width="140">
-          <template #default="{ row }">
-            <span>{{ row.flag_emoji }} {{ row.name }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="Code" prop="code" width="60" />
-        <el-table-column label="Tỉ lệ" width="80" align="right">
-          <template #default="{ row }">
-            <el-tag size="small" type="warning">{{ row.odds }}x</el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-
-    <!-- All predictions leaderboard -->
-    <el-card v-if="allPredictions.length > 0" class="predictions-card" shadow="never">
-      <template #header>
-        <span>Tất cả dự đoán ({{ allPredictions.length }})</span>
-      </template>
-      <el-table :data="allPredictions" size="small">
-        <el-table-column label="Người dùng" prop="user_name" min-width="110" />
-        <el-table-column label="Đội" min-width="120">
-          <template #default="{ row }">
-            {{ row.flag_emoji }} {{ row.team_name }}
-          </template>
-        </el-table-column>
-        <el-table-column label="Điểm" prop="points" width="60" align="right" />
-        <el-table-column label="Nếu đúng" width="90" align="right">
-          <template #default="{ row }">{{ row.payout_if_correct }}</template>
-        </el-table-column>
-        <el-table-column label="KQ" width="80" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.result" :type="row.result === 'correct' ? 'success' : 'danger'" size="small">
-              {{ row.result === 'correct' ? 'Đúng' : 'Sai' }}
+        <!-- My prediction card (already placed) -->
+        <el-card v-if="myPrediction" class="champion-card" shadow="never">
+          <div class="my-pred-header">
+            <span class="my-pred-label">Dự đoán của bạn</span>
+            <el-button
+              v-if="config?.is_open && !config.settled_at"
+              size="small" type="danger" text
+              @click="handleDelete"
+            >Xóa</el-button>
+          </div>
+          <div class="my-pred-body">
+            <span class="pred-flag">{{ myPrediction.flag_emoji }}</span>
+            <div>
+              <span class="pred-team">{{ myPrediction.team_name }}</span>
+              <div class="pred-meta">
+                <el-tag size="small" type="warning">{{ myPrediction.odds_snapshot }}x</el-tag>
+                <span class="pred-points">{{ myPrediction.points }} điểm</span>
+                <span class="pred-payout">→ <strong>{{ myPrediction.payout_if_correct }}</strong> nếu đúng</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="myPrediction.result" class="my-pred-result">
+            <el-tag :type="myPrediction.result === 'correct' ? 'success' : 'danger'" size="small">
+              {{ myPrediction.result === 'correct' ? `+${myPrediction.points_earned} điểm` : 'Không đúng' }}
             </el-tag>
-            <span v-else class="result-pending">–</span>
+          </div>
+        </el-card>
+
+        <!-- Place form (window open, no prediction yet) -->
+        <el-card v-if="config?.is_open && !config.settled_at && !myPrediction" class="champion-card" shadow="never">
+          <div class="form-title">🏆 Đặt dự đoán Vô địch</div>
+          <el-input
+            v-model="teamSearch"
+            placeholder="🔍 Tìm đội..."
+            size="small"
+            clearable
+            style="margin-bottom: 10px"
+          />
+          <div class="teams-pick-grid">
+            <div
+              v-for="team in filteredTeams"
+              :key="team.id"
+              class="team-pick-card"
+              :class="{ 'team-pick-card--selected': selectedTeamId === team.id }"
+              @click="selectedTeamId = team.id"
+            >
+              <span class="pick-flag">{{ team.flag_emoji }}</span>
+              <span class="pick-name">{{ team.name }}</span>
+              <el-tag size="small" type="warning" effect="plain" class="pick-odds">{{ team.odds }}x</el-tag>
+            </div>
+          </div>
+          <div v-if="selectedTeam" class="form-footer">
+            <div class="points-row">
+              <span class="points-label">Điểm cược (1–5)</span>
+              <el-input-number v-model="selectedPoints" :min="1" :max="5" size="small" style="width: 80px" />
+            </div>
+            <div class="payout-preview">
+              Nếu đúng →
+              <strong class="payout-value">{{ payoutPreview }} điểm</strong>
+              <span class="payout-formula">({{ selectedPoints }} × {{ selectedTeam.odds }}x)</span>
+            </div>
+            <el-button type="primary" :loading="placing" @click="handlePlace" style="margin-top: 10px; width: 100%">
+              Đặt dự đoán {{ selectedTeam.flag_emoji }} {{ selectedTeam.name }}
+            </el-button>
+          </div>
+          <div v-else-if="!filteredTeams.length" class="empty-teams">
+            Không tìm thấy đội nào.
+          </div>
+        </el-card>
+
+        <!-- Window closed notice (no prediction) -->
+        <el-card v-if="config && !config.is_open && !config.settled_at && !myPrediction" class="champion-card" shadow="never">
+          <div class="closed-notice">🔴 Cửa sổ dự đoán đã đóng — bạn chưa đặt dự đoán.</div>
+        </el-card>
+
+        <!-- All predictions table (below left on mobile, below form on desktop) -->
+        <el-card v-if="allPredictions.length > 0" class="champion-card" shadow="never">
+          <template #header>
+            <span class="card-header-title">Tất cả dự đoán ({{ allPredictions.length }})</span>
           </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+          <el-table :data="allPredictions" size="small" max-height="300">
+            <el-table-column label="Người dùng" prop="user_name" min-width="100" />
+            <el-table-column label="Đội" min-width="110">
+              <template #default="{ row }">{{ row.flag_emoji }} {{ row.team_name }}</template>
+            </el-table-column>
+            <el-table-column label="Điểm" prop="points" width="55" align="right" />
+            <el-table-column label="Nếu đúng" width="80" align="right">
+              <template #default="{ row }">{{ row.payout_if_correct }}</template>
+            </el-table-column>
+            <el-table-column label="KQ" width="68" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.result" :type="row.result === 'correct' ? 'success' : 'danger'" size="small">
+                  {{ row.result === 'correct' ? 'Đúng' : 'Sai' }}
+                </el-tag>
+                <span v-else style="color: #c0c4cc">–</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </div>
+
+      <!-- RIGHT: teams odds grid -->
+      <div class="champion-right">
+        <el-card class="champion-card" shadow="never">
+          <template #header>
+            <div class="card-header-row">
+              <span class="card-header-title">Tỉ lệ cược ({{ teams.length }} đội)</span>
+              <el-input
+                v-model="oddsSearch"
+                placeholder="Tìm..."
+                size="small"
+                clearable
+                style="width: 120px"
+              />
+            </div>
+          </template>
+          <div v-if="!teams.length" class="empty-teams">Đang tải...</div>
+          <div v-else class="odds-grid">
+            <div
+              v-for="team in filteredOddsTeams"
+              :key="team.id"
+              class="odds-chip"
+              :class="{ 'odds-chip--mine': myPrediction?.team_name === team.name }"
+            >
+              <span class="odds-chip-flag">{{ team.flag_emoji }}</span>
+              <span class="odds-chip-name">{{ team.name }}</span>
+              <el-tag size="small" type="warning" effect="plain">{{ team.odds }}x</el-tag>
+            </div>
+          </div>
+        </el-card>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -124,14 +160,24 @@ const teams = ref<WcChampionTeam[]>([])
 const myPrediction = ref<WcChampionPredictionMine | null>(null)
 const allPredictions = ref<WcChampionPredictionPublic[]>([])
 
-const selectedTeamId = ref<string>('')
+const selectedTeamId = ref('')
 const selectedPoints = ref(3)
 const placing = ref(false)
+const teamSearch = ref('')
+const oddsSearch = ref('')
 
 const selectedTeam = computed(() => teams.value.find(t => t.id === selectedTeamId.value) ?? null)
 const payoutPreview = computed(() =>
   selectedTeam.value ? Math.floor(selectedPoints.value * selectedTeam.value.odds) : 0
 )
+const filteredTeams = computed(() => {
+  const q = teamSearch.value.toLowerCase()
+  return q ? teams.value.filter(t => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q)) : teams.value
+})
+const filteredOddsTeams = computed(() => {
+  const q = oddsSearch.value.toLowerCase()
+  return q ? teams.value.filter(t => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q)) : teams.value
+})
 
 const statusClass = computed(() => {
   if (!config.value) return ''
@@ -147,9 +193,9 @@ const statusIcon = computed(() => {
 })
 const statusText = computed(() => {
   if (!config.value) return ''
-  if (config.value.settled_at) return 'Đã có kết quả'
-  if (config.value.is_open) return 'Đang nhận dự đoán'
-  return 'Cửa sổ đã đóng'
+  if (config.value.settled_at) return 'Đã có kết quả vô địch'
+  if (config.value.is_open) return 'Đang nhận dự đoán vô địch'
+  return 'Cửa sổ dự đoán đã đóng'
 })
 
 async function load() {
@@ -160,16 +206,13 @@ async function load() {
     wcService.getMyChampionPrediction(),
   ])
   if (cfg.status === 'fulfilled') config.value = cfg.value
-  if (teamList.status === 'fulfilled') teams.value = teamList.value
-  if (preds.status === 'fulfilled') allPredictions.value = preds.value
+  if (teamList.status === 'fulfilled') teams.value = teamList.value ?? []
+  if (preds.status === 'fulfilled') allPredictions.value = preds.value ?? []
   if (mine.status === 'fulfilled') myPrediction.value = mine.value
 }
 
 async function handlePlace() {
-  if (!selectedTeamId.value) {
-    ElMessage.warning('Vui lòng chọn đội')
-    return
-  }
+  if (!selectedTeamId.value) { ElMessage.warning('Vui lòng chọn đội'); return }
   placing.value = true
   try {
     myPrediction.value = await wcService.placeChampionPrediction(selectedTeamId.value, selectedPoints.value)
@@ -201,10 +244,11 @@ onMounted(load)
 .champion-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 8px 0;
+  gap: 14px;
+  padding: 4px 0;
 }
 
+/* Status banner */
 .champion-status-banner {
   display: flex;
   align-items: center;
@@ -214,58 +258,111 @@ onMounted(load)
   font-weight: 600;
   font-size: 14px;
 }
-
-.status-open { background: #f0f9eb; color: #67c23a; }
-.status-closed { background: #fef0f0; color: #f56c6c; }
+.status-open    { background: #f0f9eb; color: #67c23a; }
+.status-closed  { background: #fef0f0; color: #f56c6c; }
 .status-settled { background: #fdf6ec; color: #e6a23c; }
-
-.champion-status-icon { font-size: 16px; }
 .champion-winner-flag { margin-left: auto; font-size: 18px; }
 
-.my-prediction-card, .place-form-card, .teams-card, .predictions-card {
-  border-radius: 10px;
+/* 2-col layout */
+.champion-main {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 14px;
+  align-items: start;
 }
+@media (max-width: 900px) {
+  .champion-main { grid-template-columns: 1fr; }
+}
+.champion-left, .champion-right { display: flex; flex-direction: column; gap: 14px; }
 
-.my-prediction-header {
+.champion-card { border-radius: 10px; }
+
+/* My prediction */
+.my-pred-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
-.my-prediction-label { font-weight: 600; font-size: 13px; color: #606266; }
-.my-prediction-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.champion-flag { font-size: 22px; }
-.champion-team-name { font-weight: 700; font-size: 16px; }
-.champion-points { font-size: 14px; color: #409eff; font-weight: 600; }
-.champion-payout { font-size: 13px; color: #909399; }
-.my-prediction-result { margin-top: 10px; }
+.my-pred-label { font-weight: 600; font-size: 13px; color: #606266; }
+.my-pred-body { display: flex; align-items: center; gap: 14px; }
+.pred-flag { font-size: 32px; flex-shrink: 0; }
+.pred-team { font-weight: 700; font-size: 17px; display: block; margin-bottom: 6px; }
+.pred-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pred-points { font-size: 13px; color: #409eff; font-weight: 600; }
+.pred-payout { font-size: 13px; color: #606266; }
+.my-pred-result { margin-top: 12px; }
 
-.form-title { margin: 0 0 14px; font-size: 15px; font-weight: 700; }
-.form-row {
+/* Place form */
+.form-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+
+.teams-pick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+.team-pick-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1.5px solid var(--border-default, #dcdfe6);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  user-select: none;
+  min-width: 0;
 }
-.team-select { flex: 1; min-width: 200px; }
-.points-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.team-pick-card:hover { border-color: #409eff; background: rgba(64,158,255,0.04); }
+.team-pick-card--selected {
+  border-color: #409eff;
+  background: rgba(64,158,255,0.10);
+  box-shadow: 0 0 0 1px #409eff;
 }
+.pick-flag { font-size: 18px; flex-shrink: 0; }
+.pick-name { flex: 1; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-odds { flex-shrink: 0; }
+
+.form-footer { border-top: 1px solid var(--border-subtle, #f0f0f0); padding-top: 12px; }
+.points-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .points-label { font-size: 13px; color: #606266; white-space: nowrap; }
-
-.payout-preview {
-  margin-top: 10px;
-  font-size: 14px;
-  color: #303133;
-}
+.payout-preview { font-size: 14px; color: #303133; }
+.payout-value { color: #67c23a; font-size: 16px; }
 .payout-formula { color: #909399; margin-left: 6px; font-size: 12px; }
 
-.result-pending { color: #c0c4cc; }
+.closed-notice { font-size: 14px; color: #909399; text-align: center; padding: 16px 0; }
+.empty-teams { font-size: 13px; color: #c0c4cc; text-align: center; padding: 16px 0; }
+
+/* Right column */
+.card-header-title { font-weight: 600; font-size: 14px; }
+.card-header-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+
+/* Odds grid */
+.odds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 6px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.odds-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--surface-card, #fafafa);
+  border: 1px solid var(--border-subtle, #f0f0f0);
+  font-size: 12px;
+  min-width: 0;
+}
+.odds-chip--mine {
+  border-color: #409eff;
+  background: rgba(64,158,255,0.08);
+}
+.odds-chip-flag { font-size: 16px; flex-shrink: 0; }
+.odds-chip-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

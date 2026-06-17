@@ -45,7 +45,7 @@
 
     <template #footer>
       <el-button @click="visible = false">Đóng</el-button>
-      <el-button v-if="preview" type="warning" :loading="saving" @click="confirmSave">
+      <el-button v-if="preview" type="warning" plain :loading="saving" @click="confirmSave">
         Lưu {{ preview.count }} kèo tỉ số
       </el-button>
     </template>

@@ -104,21 +104,15 @@ func (r *WcRepository) GetMatch(id uuid.UUID) (*model.WcMatch, error) {
 func (r *WcRepository) GetMatchWithOdds(id uuid.UUID) (*model.WcMatchWithOdds, error) {
 	var m model.WcMatchWithOdds
 	m.ScoreMultipliers = []model.WcScoreMultiplier{}
-	m.ScoreOdds = []model.WcScoreOdds{}
 	err := r.db.Model(&model.WcMatch{}).
 		Where("wc_matches.id = ?", id).
 		First(&m.WcMatch).Error
 	if err != nil {
 		return nil, err
 	}
-	if err = r.db.Where("match_id = ?", id).
-		Order("home_score ASC, away_score ASC").
-		Find(&m.ScoreMultipliers).Error; err != nil {
-		return nil, err
-	}
 	err = r.db.Where("match_id = ?", id).
 		Order("home_score ASC, away_score ASC").
-		Find(&m.ScoreOdds).Error
+		Find(&m.ScoreMultipliers).Error
 	return &m, err
 }
 
@@ -168,6 +162,13 @@ func (r *WcRepository) GetScoreMultiplierByID(id uuid.UUID) (*model.WcScoreMulti
 		return nil, err
 	}
 	return &so, nil
+}
+
+func (r *WcRepository) BulkUpsertScoreMultipliers(multipliers []model.WcScoreMultiplier) error {
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "match_id"}, {Name: "home_score"}, {Name: "away_score"}},
+		DoUpdates: clause.AssignmentColumns([]string{"multiplier", "updated_at"}),
+	}).Create(&multipliers).Error
 }
 
 func (r *WcRepository) ListScoreMultipliers(matchID uuid.UUID) ([]*model.WcScoreMultiplier, error) {

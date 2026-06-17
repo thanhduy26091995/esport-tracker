@@ -138,19 +138,63 @@ func seedWcChampion(db *gorm.DB) {
 	if count > 0 {
 		return
 	}
+	// WC 2026 — 48 teams, odds tiered by strength.
+	// sum(1/odds) ≈ 1.05 (slight house edge). Admin can update any odds via API.
 	teams := []model.WcChampionTeam{
+		// Tier 1 — Favourites (3–6x)
 		{Name: "Argentina", Code: "ARG", FlagEmoji: "🇦🇷", Odds: 3.50},
 		{Name: "France", Code: "FRA", FlagEmoji: "🇫🇷", Odds: 4.00},
+		{Name: "Brazil", Code: "BRA", FlagEmoji: "🇧🇷", Odds: 4.50},
 		{Name: "England", Code: "ENG", FlagEmoji: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", Odds: 5.00},
-		{Name: "Brazil", Code: "BRA", FlagEmoji: "🇧🇷", Odds: 5.00},
-		{Name: "Spain", Code: "ESP", FlagEmoji: "🇪🇸", Odds: 5.50},
+		{Name: "Spain", Code: "ESP", FlagEmoji: "🇪🇸", Odds: 5.00},
+		// Tier 2 — Strong (6–12x)
 		{Name: "Germany", Code: "GER", FlagEmoji: "🇩🇪", Odds: 7.00},
 		{Name: "Portugal", Code: "POR", FlagEmoji: "🇵🇹", Odds: 8.00},
 		{Name: "Netherlands", Code: "NED", FlagEmoji: "🇳🇱", Odds: 9.00},
-		{Name: "USA", Code: "USA", FlagEmoji: "🇺🇸", Odds: 15.00},
-		{Name: "Morocco", Code: "MAR", FlagEmoji: "🇲🇦", Odds: 18.00},
+		{Name: "Colombia", Code: "COL", FlagEmoji: "🇨🇴", Odds: 10.00},
+		{Name: "Uruguay", Code: "URU", FlagEmoji: "🇺🇾", Odds: 12.00},
+		// Tier 3 — Dark horses (12–25x)
+		{Name: "Belgium", Code: "BEL", FlagEmoji: "🇧🇪", Odds: 15.00},
+		{Name: "Morocco", Code: "MAR", FlagEmoji: "🇲🇦", Odds: 15.00},
+		{Name: "USA", Code: "USA", FlagEmoji: "🇺🇸", Odds: 18.00},
 		{Name: "Japan", Code: "JPN", FlagEmoji: "🇯🇵", Odds: 20.00},
-		{Name: "Mexico", Code: "MEX", FlagEmoji: "🇲🇽", Odds: 20.00},
+		{Name: "Croatia", Code: "CRO", FlagEmoji: "🇭🇷", Odds: 20.00},
+		{Name: "Italy", Code: "ITA", FlagEmoji: "🇮🇹", Odds: 20.00},
+		{Name: "Denmark", Code: "DEN", FlagEmoji: "🇩🇰", Odds: 22.00},
+		{Name: "Switzerland", Code: "SUI", FlagEmoji: "🇨🇭", Odds: 22.00},
+		{Name: "Senegal", Code: "SEN", FlagEmoji: "🇸🇳", Odds: 25.00},
+		// Tier 4 — Mid (25–55x)
+		{Name: "Mexico", Code: "MEX", FlagEmoji: "🇲🇽", Odds: 25.00},
+		{Name: "Canada", Code: "CAN", FlagEmoji: "🇨🇦", Odds: 30.00},
+		{Name: "South Korea", Code: "KOR", FlagEmoji: "🇰🇷", Odds: 30.00},
+		{Name: "Australia", Code: "AUS", FlagEmoji: "🇦🇺", Odds: 30.00},
+		{Name: "Turkey", Code: "TUR", FlagEmoji: "🇹🇷", Odds: 30.00},
+		{Name: "Austria", Code: "AUT", FlagEmoji: "🇦🇹", Odds: 35.00},
+		{Name: "Serbia", Code: "SRB", FlagEmoji: "🇷🇸", Odds: 35.00},
+		{Name: "Ecuador", Code: "ECU", FlagEmoji: "🇪🇨", Odds: 40.00},
+		{Name: "Ivory Coast", Code: "CIV", FlagEmoji: "🇨🇮", Odds: 40.00},
+		{Name: "Iran", Code: "IRN", FlagEmoji: "🇮🇷", Odds: 45.00},
+		{Name: "Egypt", Code: "EGY", FlagEmoji: "🇪🇬", Odds: 45.00},
+		{Name: "Nigeria", Code: "NGA", FlagEmoji: "🇳🇬", Odds: 50.00},
+		// Tier 5 — Underdogs (55–120x)
+		{Name: "Scotland", Code: "SCO", FlagEmoji: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", Odds: 55.00},
+		{Name: "Hungary", Code: "HUN", FlagEmoji: "🇭🇺", Odds: 55.00},
+		{Name: "Paraguay", Code: "PAR", FlagEmoji: "🇵🇾", Odds: 60.00},
+		{Name: "South Africa", Code: "RSA", FlagEmoji: "🇿🇦", Odds: 60.00},
+		{Name: "Ghana", Code: "GHA", FlagEmoji: "🇬🇭", Odds: 65.00},
+		{Name: "Cameroon", Code: "CMR", FlagEmoji: "🇨🇲", Odds: 65.00},
+		{Name: "Saudi Arabia", Code: "KSA", FlagEmoji: "🇸🇦", Odds: 70.00},
+		{Name: "DR Congo", Code: "COD", FlagEmoji: "🇨🇩", Odds: 75.00},
+		{Name: "Mali", Code: "MLI", FlagEmoji: "🇲🇱", Odds: 75.00},
+		{Name: "Algeria", Code: "ALG", FlagEmoji: "🇩🇿", Odds: 75.00},
+		{Name: "Panama", Code: "PAN", FlagEmoji: "🇵🇦", Odds: 80.00},
+		{Name: "Honduras", Code: "HON", FlagEmoji: "🇭🇳", Odds: 90.00},
+		{Name: "Iraq", Code: "IRQ", FlagEmoji: "🇮🇶", Odds: 90.00},
+		{Name: "Uzbekistan", Code: "UZB", FlagEmoji: "🇺🇿", Odds: 100.00},
+		{Name: "New Zealand", Code: "NZL", FlagEmoji: "🇳🇿", Odds: 100.00},
+		{Name: "Jamaica", Code: "JAM", FlagEmoji: "🇯🇲", Odds: 110.00},
+		{Name: "Venezuela", Code: "VEN", FlagEmoji: "🇻🇪", Odds: 110.00},
+		{Name: "Tunisia", Code: "TUN", FlagEmoji: "🇹🇳", Odds: 120.00},
 	}
 	if err := db.Create(&teams).Error; err != nil {
 		log.Printf("⚠️  Failed to seed champion teams: %v", err)

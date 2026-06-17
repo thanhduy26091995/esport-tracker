@@ -85,6 +85,9 @@
             <span v-if="match.ou_synced_at" class="wc-sync-chip wc-sync-chip--synced">
               O/U {{ formatSyncTime(match.ou_synced_at) }}
             </span>
+            <span v-if="match.poisson_synced_at" class="wc-sync-chip wc-sync-chip--synced">
+              Poisson {{ formatSyncTime(match.poisson_synced_at) }}
+            </span>
           </div>
           <div class="wc-admin-match-actions">
             <el-button
@@ -130,6 +133,14 @@
               @click="openHandicapDialog(match)"
             >
               Chấp điểm
+            </el-button>
+            <el-button
+              plain
+              size="small"
+              type="info"
+              @click="openOUDialog(match)"
+            >
+              Tài Xỉu
             </el-button>
             <el-button
               plain
@@ -314,6 +325,51 @@
       </template>
     </el-dialog>
 
+    <!-- O/U Config Dialog -->
+    <el-dialog v-model="ouVisible" title="Cấu hình Tài Xỉu" width="400px">
+      <div class="wc-so-match-name" v-if="ouMatch">
+        {{ ouMatch.home_team }} vs {{ ouMatch.away_team }}
+      </div>
+      <el-form :model="ouForm" label-position="top" class="wc-handicap-config-form">
+        <el-form-item label="Đường kèo (O/U Line)">
+          <el-input-number
+            v-model="ouForm.ou_line"
+            :min="0.5"
+            :max="10"
+            :step="0.25"
+            :precision="1"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <div class="wc-handicap-odds-row">
+          <el-form-item label="Kèo Tài (Over)" style="flex: 1">
+            <el-input-number
+              v-model="ouForm.odds_over"
+              :min="1.01"
+              :step="0.05"
+              :precision="2"
+              style="width: 100%"
+            />
+          </el-form-item>
+          <el-form-item label="Kèo Xỉu (Under)" style="flex: 1">
+            <el-input-number
+              v-model="ouForm.odds_under"
+              :min="1.01"
+              :step="0.05"
+              :precision="2"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="ouVisible = false">{{ t("common.cancel") }}</el-button>
+        <el-button type="primary" :loading="savingOU" @click="handleSaveOU">
+          Lưu Tài Xỉu
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- StatsAPI Dialogs -->
     <WcSetupMappingDialog ref="mappingDialogRef" @mapped="handleOddsImported" />
     <WcImportHandicapDialog ref="importHandicapDialogRef" @imported="handleOddsImported" />
@@ -455,6 +511,7 @@ const scoreMultipliersMatch = ref<WcMatch | null>(null);
 const currentScoreMultipliers = ref<WcScoreMultiplier[]>([]);
 const newSo = ref({ homeScore: 0, awayScore: 0, multiplier: 3.0 });
 
+
 const handicapVisible = ref(false);
 const handicapMatch = ref<WcMatch | null>(null);
 const savingHandicap = ref(false);
@@ -464,6 +521,11 @@ const handicapForm = ref({
   odds_handicap_home: 1.9,
   odds_handicap_away: 1.9,
 });
+
+const ouVisible = ref(false);
+const ouMatch = ref<WcMatch | null>(null);
+const savingOU = ref(false);
+const ouForm = ref({ ou_line: 2.5, odds_over: 1.9, odds_under: 1.9 });
 
 const walletMap = computed(() => {
   const m: Record<string, number> = {};
@@ -558,6 +620,33 @@ async function handleSaveHandicap() {
     await store.fetchMatches();
   } finally {
     savingHandicap.value = false;
+  }
+}
+
+function openOUDialog(match: WcMatch) {
+  ouMatch.value = match;
+  ouForm.value = {
+    ou_line: match.ou_line ?? 2.5,
+    odds_over: match.odds_over ?? 1.9,
+    odds_under: match.odds_under ?? 1.9,
+  };
+  ouVisible.value = true;
+}
+
+async function handleSaveOU() {
+  if (!ouMatch.value) return;
+  savingOU.value = true;
+  try {
+    await wcService.updateMatch(ouMatch.value.id, {
+      ou_line: ouForm.value.ou_line,
+      odds_over: ouForm.value.odds_over,
+      odds_under: ouForm.value.odds_under,
+    });
+    ElMessage.success("Đã lưu Tài Xỉu");
+    ouVisible.value = false;
+    await store.fetchMatches();
+  } finally {
+    savingOU.value = false;
   }
 }
 

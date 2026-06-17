@@ -1,6 +1,6 @@
 export type WcMatchStatus = 'scheduled' | 'live' | 'completed' | 'cancelled'
 export type WcStage = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final' | 'third_place'
-export type WcPredictionType = 'handicap' | 'exact_score'
+export type WcPredictionType = 'handicap' | 'exact_score' | 'over_under'
 export type WcPredictionResult = 'correct' | 'incorrect' | 'void' | 'win_half' | 'lose_half'
 export type WcSettlementDirection = 'pay' | 'collect' | 'even'
 export type WcSettlementStatus = 'pending' | 'done'
@@ -45,6 +45,7 @@ export interface WcMatch {
   odds_over?: number
   odds_under?: number
   ou_synced_at?: string
+  poisson_synced_at?: string
   predictions_open: boolean
   predictions_locked_at?: string
   bets_locked_at?: string

@@ -35,6 +35,13 @@ const (
 const (
 	WcPredictionTypeHandicap   = "handicap"
 	WcPredictionTypeExactScore = "exact_score"
+	WcPredictionTypeOverUnder  = "over_under"
+)
+
+// Over/Under choice constants
+const (
+	WcChoiceOver  = "over"
+	WcChoiceUnder = "under"
 )
 
 // Prediction result constants
@@ -48,6 +55,7 @@ const (
 const (
 	WcBetTypeHandicap   = "handicap"
 	WcBetTypeExactScore = "exact_score"
+	WcBetTypeOverUnder  = "over_under"
 )
 
 // Bet result constants
@@ -101,6 +109,7 @@ type WcMatch struct {
 	OddsUnder         *float64   `gorm:"type:numeric(5,2)" json:"odds_under"`
 	OUSyncedAt        *time.Time `json:"ou_synced_at"`
 	OddsSyncedAt      *time.Time `json:"odds_synced_at"`
+	PoissonSyncedAt   *time.Time `json:"poisson_synced_at"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
@@ -273,7 +282,6 @@ type WcBetPublic struct {
 type WcMatchWithOdds struct {
 	WcMatch
 	ScoreMultipliers []WcScoreMultiplier `json:"score_multipliers"`
-	ScoreOdds        []WcScoreOdds       `json:"score_odds"`
 }
 
 // WcLeaderboardEntry is used by GET /leaderboard.
