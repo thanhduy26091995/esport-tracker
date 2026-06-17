@@ -22,7 +22,7 @@
         <span class="wc-col-points wc-points">
           {{ item.total_points_contributed }} {{ t('common.pointsUnit') }}
         </span>
-        <span class="wc-col-money wc-money">{{ formatVND(item.total_fund_amount) }}</span>
+        <span class="wc-col-money wc-money">{{ formatNumber(item.total_fund_amount) }}</span>
       </div>
     </div>
   </div>
@@ -31,7 +31,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Loading, Star } from '@element-plus/icons-vue'
-import { formatVND } from '@/utils/formatters'
+import { formatNumber } from '@/utils/formatters'
 import type { WinnerContributor } from '@/types/settlement'
 
 const { t } = useI18n()

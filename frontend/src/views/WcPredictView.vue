@@ -101,6 +101,11 @@
           <WcLeaderboard :entries="store.leaderboard" />
         </el-tab-pane>
 
+        <!-- CHAMPION TAB -->
+        <el-tab-pane label="🏆 Vô địch" name="champion">
+          <WcChampionPanel />
+        </el-tab-pane>
+
       </el-tabs>
     </div>
 
@@ -127,6 +132,7 @@ import WcPredictionForm from '@/components/wc/WcPredictionForm.vue'
 import WcPredictionHistoryList from '@/components/wc/WcPredictionHistoryList.vue'
 import WcMatchPredictionList from '@/components/wc/WcMatchPredictionList.vue'
 import WcLeaderboard from '@/components/wc/WcLeaderboard.vue'
+import WcChampionPanel from '@/components/wc/WcChampionPanel.vue'
 import type { WcMatchWithOdds, WcScoreMultiplier, WcMatch } from '@/types/wc'
 import { wcService } from '@/services/wcService'
 

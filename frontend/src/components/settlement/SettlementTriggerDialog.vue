@@ -17,18 +17,18 @@
           <p class="debtor-name">{{ debtor.name }}</p>
           <p class="debtor-sub">{{ t('settlements.triggerSubtitle') }}</p>
         </div>
-        <div class="debtor-amount">{{ formatVND(totalAmount) }}</div>
+        <div class="debtor-amount">{{ formatNumber(totalAmount) }}</div>
       </div>
 
       <!-- Distribution (based on allocated points) -->
       <div class="dist-grid">
         <div class="dist-item dist-item--green">
           <span class="dist-label">{{ t('settlements.fundShare', { percent: fundSplitPercent }) }}</span>
-          <span class="dist-val">{{ formatVND(fundAmount) }}</span>
+          <span class="dist-val">{{ formatNumber(fundAmount) }}</span>
         </div>
         <div class="dist-item dist-item--blue">
           <span class="dist-label">{{ t('settlements.winnersShare', { percent: 100 - fundSplitPercent }) }}</span>
-          <span class="dist-val">{{ formatVND(winnerAmount) }}</span>
+          <span class="dist-val">{{ formatNumber(winnerAmount) }}</span>
         </div>
       </div>
 
@@ -116,7 +116,7 @@
               </div>
             </div>
             <div class="winner-alloc-money">
-              {{ formatVND(Math.floor((winnerAmount * w.pointsToDeduct) / debtPoints)) }}
+              {{ formatNumber(Math.floor((winnerAmount * w.pointsToDeduct) / debtPoints)) }}
             </div>
           </div>
         </div>
@@ -155,7 +155,7 @@ import { useI18n } from 'vue-i18n'
 import { Warning } from '@element-plus/icons-vue'
 import type { User } from '@/types/user'
 import type { WinnerInput } from '@/types/settlement'
-import { formatVND } from '@/utils/formatters'
+import { formatNumber } from '@/utils/formatters'
 
 interface Props {
   modelValue: boolean

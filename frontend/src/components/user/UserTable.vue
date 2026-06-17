@@ -62,12 +62,12 @@
         <template #default="{ row }">
           <template v-if="showTotalPaid && row.total_paid != null">
             <div class="total-paid-cell">
-              <span class="vnd-value vnd-value--paid">{{ formatVND(row.total_paid) }}</span>
+              <span class="vnd-value vnd-value--paid">{{ formatNumber(row.total_paid) }}</span>
               <span v-if="row.total_debt_points > 0" class="payment-count-badge">{{ row.total_debt_points }} pts</span>
             </div>
           </template>
           <template v-else>
-            <span class="vnd-value">{{ formatVND(pointsToVND(row.current_score, conversionRate)) }}</span>
+            <span class="vnd-value">{{ formatNumber(pointsToVND(row.current_score, conversionRate)) }}</span>
           </template>
         </template>
       </el-table-column>
@@ -109,7 +109,7 @@ const { t } = useI18n()
 import { ElImageViewer } from 'element-plus'
 import { Edit, Delete, Search, Warning } from '@element-plus/icons-vue'
 import type { UserWithStats } from '@/types/user'
-import { formatVND, pointsToVND } from '@/utils/formatters'
+import { formatNumber, pointsToVND } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 import UserAvatar from '@/components/shared/UserAvatar.vue'

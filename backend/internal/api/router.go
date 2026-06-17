@@ -46,6 +46,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tournamentRepo := repository.NewTournamentRepository(db)
 	wcRepo := repository.NewWcRepository(db)
 	wcUserRepo := repository.NewWcUserRepository(db)
+	wcChampionRepo := repository.NewWcChampionRepository(db)
 
 	// Initialize services
 	configService := service.NewConfigService(configRepo)
@@ -57,6 +58,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 	wcAuthService := service.NewWcAuthService(wcUserRepo, wcRepo)
 	wcService := service.NewWcService(wcRepo, wcUserRepo)
+	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo)
+	statsApiKey := os.Getenv("ODDSAPI_KEY")
+	statsApiSyncService := service.NewStatsApiSyncService(wcRepo, statsApiKey, "")
+	poissonService := service.NewPoissonService()
 	bonusRepo := repository.NewScoreBonusRepository(db)
 	bonusService := service.NewScoreBonusService(bonusRepo, userRepo, tierService, db)
 
@@ -67,6 +72,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	// Start WC match auto-sync cron job.
 	go cron.StartWcMatchSync(wcService)
+	if statsApiKey != "" {
+		go statsApiSyncService.StartCron(30 * 60 * 1e9) // 30min
+	}
 
 	// Initialize handlers
 	userHandler := NewUserHandler(userService)
@@ -78,6 +86,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tournamentHandler := NewTournamentHandler(tournamentService)
 	wcAuthHandler := NewWcAuthHandler(wcAuthService)
 	wcHandler := NewWcHandler(wcService, wcAuthService)
+	wcSyncHandler := NewWcSyncHandler(statsApiSyncService, poissonService)
+	wcChampionHandler := NewWcChampionHandler(wcChampionService)
 
 	// API v1 group
 	v1 := router.Group("/api/v1")
@@ -196,6 +206,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			wcFeature.GET("/matches/:id/predictions", wcHandler.GetMatchPredictions)
 			wcFeature.GET("/matches/:id/bets", wcHandler.GetMatchBets)
 			wcFeature.GET("/leaderboard", wcHandler.GetLeaderboard)
+			wcFeature.GET("/champion/config", wcChampionHandler.GetConfig)
+			wcFeature.GET("/champion/teams", wcChampionHandler.GetTeams)
+			wcFeature.GET("/champion/predictions", wcChampionHandler.GetAllPredictions)
 
 			// JWT required
 			wcAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService))
@@ -209,6 +222,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAuth.POST("/bets", wcHandler.PlaceBet)
 				wcAuth.PUT("/bets/:id", wcHandler.UpdateBet)
 				wcAuth.DELETE("/bets/:id", wcHandler.DeleteBet)
+				wcAuth.GET("/champion/my-prediction", wcChampionHandler.GetMyPrediction)
+				wcAuth.POST("/champion/predict", wcChampionHandler.PlacePredict)
+				wcAuth.DELETE("/champion/predict", wcChampionHandler.DeletePredict)
 			}
 
 			// Admin required
@@ -230,11 +246,22 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAdmin.GET("/wallets", wcHandler.ListAllWallets)
 				wcAdmin.PUT("/wallets/:wc_user_id", wcHandler.AdminTopUp)
 				wcAdmin.GET("/wallets/:wc_user_id/logs", wcHandler.GetWalletLogs)
+				wcAdmin.GET("/house-pnl", wcHandler.GetHousePnL)
+				wcAdmin.POST("/setup-statsapi-mapping", wcSyncHandler.SetupMapping)
+				wcAdmin.POST("/matches/:id/import-handicap", wcSyncHandler.ImportHandicap)
+				wcAdmin.POST("/matches/:id/import-ou", wcSyncHandler.ImportOU)
+				wcAdmin.POST("/matches/:id/generate-poisson", wcSyncHandler.GeneratePoisson)
+				wcAdmin.GET("/sync-logs", wcSyncHandler.GetSyncLogs)
 				wcAdmin.GET("/settlements/preview", wcHandler.PreviewSettlement)
 				wcAdmin.POST("/settlements", wcHandler.CreateSettlement)
 				wcAdmin.GET("/settlements", wcHandler.ListSettlements)
 				wcAdmin.GET("/settlements/:id", wcHandler.GetSettlement)
 				wcAdmin.PUT("/settlements/:id/details/:wc_user_id", wcHandler.MarkSettlementDone)
+				// Champion prediction admin
+				wcAdmin.PUT("/champion/config", wcChampionHandler.AdminUpdateConfig)
+				wcAdmin.POST("/champion/teams", wcChampionHandler.AdminCreateTeam)
+				wcAdmin.PUT("/champion/teams/:id", wcChampionHandler.AdminUpdateTeamOdds)
+				wcAdmin.POST("/champion/settle", wcChampionHandler.AdminSettle)
 			}
 		}
 	}

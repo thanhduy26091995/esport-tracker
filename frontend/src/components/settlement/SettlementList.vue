@@ -34,7 +34,7 @@
               <p class="sl-date">{{ formatDateTime(s.settlement_date) }}</p>
             </div>
           </div>
-          <div class="sl-total">{{ formatVND(s.money_amount) }}</div>
+          <div class="sl-total">{{ formatNumber(s.money_amount) }}</div>
         </div>
 
         <div class="sl-grid">
@@ -44,21 +44,21 @@
           </div>
           <div class="sl-stat">
             <dt>{{ t('settlements.totalAmount') }}</dt>
-            <dd class="sl-stat-val">{{ formatVND(s.money_amount) }}</dd>
+            <dd class="sl-stat-val">{{ formatNumber(s.money_amount) }}</dd>
           </div>
           <div class="sl-stat">
             <dt>{{ t('settlements.toFund') }}</dt>
-            <dd class="sl-stat-val sl-stat-val--green">{{ formatVND(s.fund_amount) }}</dd>
+            <dd class="sl-stat-val sl-stat-val--green">{{ formatNumber(s.fund_amount) }}</dd>
           </div>
           <div class="sl-stat">
             <dt>{{ t('settlements.toWinners') }}</dt>
-            <dd class="sl-stat-val sl-stat-val--blue">{{ formatVND(s.winner_distribution) }}</dd>
+            <dd class="sl-stat-val sl-stat-val--blue">{{ formatNumber(s.winner_distribution) }}</dd>
           </div>
         </div>
 
         <div v-if="s.winners?.length" class="sl-winners">
           <span v-for="w in s.winners" :key="w.id" class="sl-winner-pill">
-            {{ w.winner.name }} · {{ formatVND(w.money_amount) }}
+            {{ w.winner.name }} · {{ formatNumber(w.money_amount) }}
           </span>
         </div>
 
@@ -77,7 +77,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Warning } from '@element-plus/icons-vue'
 import type { DebtSettlement } from '@/types/settlement'
-import { formatVND } from '@/utils/formatters'
+import { formatNumber } from '@/utils/formatters'
 import { formatDateTime, isToday } from '@/utils/date'
 
 interface Props { settlements: DebtSettlement[]; loading?: boolean }

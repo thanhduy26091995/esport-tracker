@@ -301,7 +301,7 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 		for _, bet := range bets {
 			// Reverse previous payout if re-settling
 			if bet.Result != nil && bet.PointsEarned != nil && *bet.PointsEarned > 0 {
-				prevDelta := -(*bet.PointsEarned)
+				prevDelta := float64(-(*bet.PointsEarned))
 				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, prevDelta); err != nil {
 					return err
 				}
@@ -323,13 +323,13 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 
 			// Credit wallet with pointsEarned (0 for losses)
 			if pointsEarned > 0 {
-				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, pointsEarned); err != nil {
+				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, float64(pointsEarned)); err != nil {
 					return err
 				}
 			}
 			// Deduct points from wallet (happens on bet placement for losses only conceptually;
 			// here we track net: pointsEarned - points)
-			if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, -bet.Points); err != nil {
+			if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, float64(-bet.Points)); err != nil {
 				return err
 			}
 
@@ -378,7 +378,7 @@ func (s *WcService) CreateSettlement(adminID uuid.UUID, name string, pointRate f
 		details = append(details, &model.WcSettlementDetail{
 			WcUserID:     w.WcUserID,
 			FinalBalance: w.Balance,
-			Amount:       math.Abs(float64(w.Balance)) * pointRate,
+			Amount:       math.Abs(w.Balance) * pointRate,
 			Direction:    dir,
 			Status:       model.WcSettlementStatusPending,
 		})
@@ -395,6 +395,10 @@ func (s *WcService) CreateSettlement(adminID uuid.UUID, name string, pointRate f
 		return nil, fmt.Errorf("failed to create settlement: %w", err)
 	}
 	return settlement, nil
+}
+
+func (s *WcService) GetHousePnL() (*model.HousePnLResponse, error) {
+	return s.repo.GetHousePnL()
 }
 
 func (s *WcService) ListSettlements() ([]*model.WcSettlement, error) {
@@ -420,17 +424,18 @@ func (s *WcService) AdminTopUp(adminID, wcUserID uuid.UUID, delta int, note stri
 		return fmt.Errorf("wallet not found for user")
 	}
 	balanceBefore := wallet.Balance
-	balanceAfter := balanceBefore + delta
+	deltaF := float64(delta)
+	balanceAfter := balanceBefore + deltaF
 
 	db := s.repo.DB()
 	return db.Transaction(func(tx *gorm.DB) error {
-		if err := s.repo.UpdateWalletBalance(tx, wcUserID, delta); err != nil {
+		if err := s.repo.UpdateWalletBalance(tx, wcUserID, deltaF); err != nil {
 			return err
 		}
 		return s.repo.LogWalletChange(tx, &model.WcWalletLog{
 			WcUserID:      wcUserID,
 			AdminID:       adminID,
-			Delta:         delta,
+			Delta:         deltaF,
 			BalanceBefore: balanceBefore,
 			BalanceAfter:  balanceAfter,
 			Note:          note,
@@ -589,7 +594,7 @@ func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
 }
 
 // SettleMatch evaluates all bets on a match and updates wallets. Idempotent.
-func (s *WcService) SettleMatch(matchID uuid.UUID) (int, int, error) {
+func (s *WcService) SettleMatch(matchID uuid.UUID) (int, float64, error) {
 	m, err := s.repo.GetMatch(matchID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("match not found")
@@ -610,21 +615,21 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, int, error) {
 	}
 
 	db := s.repo.DB()
-	var totalPayout int
+	var totalPayout float64
 	processed := 0
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, bet := range bets {
 			// Reverse previous settlement for idempotency
 			if bet.Result != nil && bet.Payout != nil {
-				prevNet := *bet.Payout - bet.Stake
+				prevNet := *bet.Payout - float64(bet.Stake)
 				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, -prevNet); err != nil {
 					return err
 				}
 			}
 
 			var result string
-			var payout int
+			var payout float64
 			switch bet.BetType {
 			case model.WcBetTypeHandicap:
 				result, payout = evaluateHandicapBet(bet, *m.HomeScore, *m.AwayScore)
@@ -636,7 +641,7 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, int, error) {
 				return err
 			}
 
-			netChange := payout - bet.Stake
+			netChange := payout - float64(bet.Stake)
 			if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, netChange); err != nil {
 				return err
 			}
@@ -805,7 +810,7 @@ func evaluateExactScorePrediction(bet *model.WcPrediction, homeScore, awayScore 
 
 // evaluateHandicapBet applies Asian handicap rules for the betting system.
 // Quarter handicaps (e.g. 1.25, 0.75) split the stake across two lines.
-func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, int) {
+func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, float64) {
 	if bet.HandicapSnapshot == nil || bet.HandicapTeamSnapshot == nil || bet.BetChoice == nil {
 		return model.WcResultLose, 0
 	}
@@ -820,15 +825,15 @@ func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, in
 		half := float64(bet.Stake) / 2
 		switch {
 		case r1 == "win" && r2 == "win":
-			return model.WcResultWin, int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
+			return model.WcResultWin, math.Round(float64(bet.Stake)*bet.OddsSnapshot*100) / 100
 		case r1 == "lose" && r2 == "lose":
 			return model.WcResultLose, 0
 		case (r1 == "win" || r2 == "win"):
 			// one win + one push: payout winning half + refund pushing half
-			return model.WcResultWinHalf, int(math.Floor(half*bet.OddsSnapshot)) + int(math.Floor(half))
+			return model.WcResultWinHalf, math.Round((half*bet.OddsSnapshot+half)*100) / 100
 		default:
 			// one push + one lose: refund pushing half only
-			return model.WcResultLoseHalf, int(math.Floor(half))
+			return model.WcResultLoseHalf, math.Round(half*100) / 100
 		}
 	}
 
@@ -846,22 +851,22 @@ func evaluateHandicapBet(bet *model.WcBet, homeScore, awayScore int) (string, in
 	} else if adjustedHome < adjustedAway {
 		winner = model.WcTeamAway
 	} else {
-		return model.WcResultPush, bet.Stake
+		return model.WcResultPush, float64(bet.Stake)
 	}
 
 	if winner == choice {
-		return model.WcResultWin, int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
+		return model.WcResultWin, math.Round(float64(bet.Stake)*bet.OddsSnapshot*100) / 100
 	}
 	return model.WcResultLose, 0
 }
 
 // evaluateExactScoreBet checks exact score for the betting system.
-func evaluateExactScoreBet(bet *model.WcBet, homeScore, awayScore int) (string, int) {
+func evaluateExactScoreBet(bet *model.WcBet, homeScore, awayScore int) (string, float64) {
 	if bet.PredictedHomeScore == nil || bet.PredictedAwayScore == nil {
 		return model.WcResultLose, 0
 	}
 	if *bet.PredictedHomeScore == homeScore && *bet.PredictedAwayScore == awayScore {
-		payout := int(math.Floor(float64(bet.Stake) * bet.OddsSnapshot))
+		payout := math.Round(float64(bet.Stake)*bet.OddsSnapshot*100) / 100
 		return model.WcResultWin, payout
 	}
 	return model.WcResultLose, 0

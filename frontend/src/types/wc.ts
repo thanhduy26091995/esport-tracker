@@ -25,6 +25,7 @@ export interface WcConfig {
 export interface WcMatch {
   id: string
   external_id?: number
+  statsapi_fixture_id?: string
   home_team: string
   away_team: string
   home_team_code?: string
@@ -39,6 +40,11 @@ export interface WcMatch {
   handicap_team?: string
   odds_handicap_home?: number
   odds_handicap_away?: number
+  odds_synced_at?: string
+  ou_line?: number
+  odds_over?: number
+  odds_under?: number
+  ou_synced_at?: string
   predictions_open: boolean
   predictions_locked_at?: string
   bets_locked_at?: string
@@ -256,4 +262,155 @@ export interface WcMatchFilter {
   date?: string
   date_from?: string // ISO8601 UTC — match_date >= date_from
   date_to?: string   // ISO8601 UTC — match_date <= date_to
+}
+
+export interface WcSyncLog {
+  id: string
+  trigger: string
+  sync_type: string
+  triggered_by?: string
+  matches_updated: number
+  matches_failed: number
+  error_detail?: string
+  created_at: string
+}
+
+export interface StatsApiFixtureRef {
+  id: string
+  home_team: string
+  away_team: string
+  match_date: string
+}
+
+export interface MappedMatch {
+  wc_match_id: string
+  home_team: string
+  away_team: string
+  statsapi_fixture_id: string
+  confidence: string
+}
+
+export interface MappingResult {
+  matched: MappedMatch[]
+  unmatched_local: Array<{ id: string; home_team: string; away_team: string }>
+  unmatched_api: StatsApiFixtureRef[]
+  total_api_fixtures: number
+}
+
+export interface HandicapOddsSnapshot {
+  handicap_team?: string
+  handicap_value?: number
+  odds_handicap_home?: number
+  odds_handicap_away?: number
+}
+
+export interface OUOddsSnapshot {
+  ou_line?: number
+  odds_over?: number
+  odds_under?: number
+}
+
+export interface ImportHandicapPreview {
+  match_id: string
+  statsapi_fixture_id: string
+  current: HandicapOddsSnapshot
+  proposed: HandicapOddsSnapshot
+  source: string
+  fetched_at: string
+}
+
+export interface ImportOUPreview {
+  match_id: string
+  current: OUOddsSnapshot
+  proposed: OUOddsSnapshot
+  source: string
+  fetched_at: string
+}
+
+export interface PoissonScoreline {
+  home_score: number
+  away_score: number
+  probability: number
+  odds: number
+}
+
+export interface GeneratePoissonPreview {
+  match_id: string
+  score_odds: PoissonScoreline[]
+  count: number
+  house_margin: number
+}
+
+export interface HousePnLMatch {
+  match_id: string
+  home_team: string
+  away_team: string
+  match_date: string
+  stage: string
+  stake: number
+  payout: number
+  profit: number
+  bet_count: number
+}
+
+export interface HousePnLResponse {
+  total_stake_settled: number
+  total_payout_settled: number
+  house_profit: number
+  total_stake_void: number
+  total_stake_pending: number
+  pending_bet_count: number
+  settled_bet_count: number
+  match_breakdown: HousePnLMatch[]
+  generated_at: string
+}
+
+// --- Champion Prediction ---
+
+export interface WcChampionTeam {
+  id: string
+  name: string
+  code: string
+  flag_emoji: string
+  odds: number
+}
+
+export interface WcChampionConfig {
+  is_open: boolean
+  settled_at?: string
+  winner_team?: WcChampionTeam
+}
+
+export interface WcChampionPredictionMine {
+  id: string
+  team_id: string
+  team_name: string
+  team_code: string
+  flag_emoji: string
+  points: number
+  odds_snapshot: number
+  payout_if_correct: number
+  result?: string
+  points_earned?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface WcChampionPredictionPublic {
+  user_name: string
+  wc_user_id: string
+  team_name: string
+  team_code: string
+  flag_emoji: string
+  points: number
+  odds_snapshot: number
+  payout_if_correct: number
+  result?: string
+}
+
+export interface WcChampionSettleResult {
+  winner: string
+  settled_count: number
+  correct_count: number
+  total_points_awarded: number
 }

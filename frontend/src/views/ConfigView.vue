@@ -113,7 +113,7 @@
               </p>
               <div v-if="formData.point_to_vnd > 0" class="cfg-preview">
                 <span class="cfg-preview-label">{{ t('config.exampleDebt') }}</span>
-                <span class="cfg-preview-val cfg-preview-val--red">{{ t('config.exampleDebtValue', { amount: formatVND(formData.point_to_vnd * 10) }) }}</span>
+                <span class="cfg-preview-val cfg-preview-val--red">{{ t('config.exampleDebtValue', { amount: formatNumber(formData.point_to_vnd * 10) }) }}</span>
               </div>
             </div>
           </div>
@@ -329,7 +329,7 @@
               </div>
               <div class="cfg-summary-item">
                 <span class="cfg-summary-label">{{ t('config.currentPointValue') }}</span>
-                <span class="cfg-summary-val">{{ formatVND(configStore.pointToVnd) }}</span>
+                <span class="cfg-summary-val">{{ formatNumber(configStore.pointToVnd) }}</span>
               </div>
               <div class="cfg-summary-item">
                 <span class="cfg-summary-label">{{ t('config.currentFundSplit') }}</span>
@@ -377,7 +377,7 @@ import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { Loading, Warning, Money, User, Trophy } from '@element-plus/icons-vue'
 import { useConfigStore } from '@/stores/configStore'
-import { formatVND } from '@/utils/formatters'
+import { formatNumber } from '@/utils/formatters'
 
 const { t } = useI18n()
 

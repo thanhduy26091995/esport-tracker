@@ -127,7 +127,7 @@
                 style="width: 110px"
               />
               <span class="wc-sc-payout-preview">
-                +{{ Math.floor(selectedScores[so.id].points * so.multiplier) - selectedScores[so.id].points }}
+                +{{ +(selectedScores[so.id].points * so.multiplier - selectedScores[so.id].points).toFixed(2) }}
               </span>
             </div>
           </div>
@@ -210,7 +210,7 @@ const handicapOdds = computed(() => {
 });
 
 const handicapPayoutPreview = computed(() =>
-  Math.floor(handicapPoints.value * handicapOdds.value) - handicapPoints.value,
+  +(handicapPoints.value * handicapOdds.value - handicapPoints.value).toFixed(2),
 );
 
 function fmtHandicap(v: number): string {
@@ -227,9 +227,9 @@ const handicapSplitPayout = computed(() => {
   const odds = handicapOdds.value
   const half = s / 2
   return {
-    winProfit: Math.floor(s * odds) - s,
-    winHalfProfit: Math.floor(half * odds) + Math.floor(half) - s,
-    loseHalfLoss: s - Math.floor(half),
+    winProfit: +(s * odds - s).toFixed(2),
+    winHalfProfit: +(half * odds + half - s).toFixed(2),
+    loseHalfLoss: +(s - half).toFixed(2),
   }
 })
 

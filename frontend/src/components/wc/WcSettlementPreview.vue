@@ -11,7 +11,7 @@
           style="width: 180px"
           @change="handlePreview"
         />
-        <span class="wc-sp-rate-hint">VND / điểm</span>
+        <span class="wc-sp-rate-hint">/điểm</span>
       </div>
     </div>
 
@@ -117,7 +117,7 @@ function dirLabel(d: WcSettlementDirection) {
 }
 
 function formatMoney(n: number) {
-  return new Intl.NumberFormat('vi-VN').format(n) + ' ₫'
+  return new Intl.NumberFormat('vi-VN').format(n)
 }
 </script>
 

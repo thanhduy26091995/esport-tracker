@@ -201,7 +201,7 @@ func (r *WcRepository) GetAllWallets() ([]*model.WcWalletWithUser, error) {
 	return rows, err
 }
 
-func (r *WcRepository) UpdateWalletBalance(tx *gorm.DB, wcUserID uuid.UUID, delta int) error {
+func (r *WcRepository) UpdateWalletBalance(tx *gorm.DB, wcUserID uuid.UUID, delta float64) error {
 	db := r.db
 	if tx != nil {
 		db = tx
@@ -393,6 +393,13 @@ func (r *WcRepository) DeleteScoreOdds(id uuid.UUID) error {
 	return r.db.Delete(&model.WcScoreOdds{}, "id = ?", id).Error
 }
 
+func (r *WcRepository) BulkUpsertScoreOdds(odds []model.WcScoreOdds) error {
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "match_id"}, {Name: "home_score"}, {Name: "away_score"}},
+		DoUpdates: clause.AssignmentColumns([]string{"odds", "updated_at"}),
+	}).Create(&odds).Error
+}
+
 func (r *WcRepository) ListScoreOdds(matchID uuid.UUID) ([]*model.WcScoreOdds, error) {
 	var odds []*model.WcScoreOdds
 	err := r.db.Where("match_id = ?", matchID).
@@ -463,7 +470,7 @@ func (r *WcRepository) UpdateBetStake(id uuid.UUID, stake int) error {
 		Updates(map[string]interface{}{"stake": stake, "updated_at": time.Now()}).Error
 }
 
-func (r *WcRepository) UpdateBetResult(tx *gorm.DB, id uuid.UUID, result string, payout int) error {
+func (r *WcRepository) UpdateBetResult(tx *gorm.DB, id uuid.UUID, result string, payout float64) error {
 	db := r.db
 	if tx != nil {
 		db = tx
@@ -481,6 +488,120 @@ func (r *WcRepository) DeleteBet(id, wcUserID uuid.UUID) error {
 		return errors.New("bet not found or not authorized")
 	}
 	return nil
+}
+
+// ListAllMatches returns all wc_matches (used by setup-mapping).
+func (r *WcRepository) ListAllMatches() ([]*model.WcMatch, error) {
+	var matches []*model.WcMatch
+	err := r.db.Order("match_date ASC").Find(&matches).Error
+	return matches, err
+}
+
+// ListUpcomingMatchesWithStatsapiID returns scheduled matches within the next 48h that have a statsapi_fixture_id.
+func (r *WcRepository) ListUpcomingMatchesWithStatsapiID() ([]*model.WcMatch, error) {
+	var matches []*model.WcMatch
+	cutoff := time.Now().Add(48 * time.Hour)
+	err := r.db.
+		Where("status = ? AND match_date <= ? AND statsapi_fixture_id IS NOT NULL", "scheduled", cutoff).
+		Order("match_date ASC").
+		Find(&matches).Error
+	return matches, err
+}
+
+// CreateSyncLog writes a sync log entry.
+func (r *WcRepository) CreateSyncLog(log *model.WcSyncLog) error {
+	return r.db.Create(log).Error
+}
+
+// GetSyncLogs returns the last 20 sync log entries (most recent first).
+func (r *WcRepository) GetSyncLogs() ([]*model.WcSyncLog, error) {
+	var logs []*model.WcSyncLog
+	err := r.db.Order("created_at DESC").Limit(20).Find(&logs).Error
+	return logs, err
+}
+
+// GetHousePnL aggregates bet data to compute house profit/loss.
+func (r *WcRepository) GetHousePnL() (*model.HousePnLResponse, error) {
+	type aggregate struct {
+		TotalStakeSettled  float64
+		TotalPayoutSettled float64
+		SettledBetCount    int
+		TotalStakeVoid     float64
+		TotalStakePending  float64
+		PendingBetCount    int
+	}
+	var agg aggregate
+	err := r.db.Raw(`
+		SELECT
+			COALESCE(SUM(stake) FILTER (WHERE result IS NOT NULL AND result != 'void'), 0) AS total_stake_settled,
+			COALESCE(SUM(payout) FILTER (WHERE result IS NOT NULL AND result != 'void'), 0) AS total_payout_settled,
+			COALESCE(COUNT(*) FILTER (WHERE result IS NOT NULL AND result != 'void'), 0) AS settled_bet_count,
+			COALESCE(SUM(stake) FILTER (WHERE result = 'void'), 0) AS total_stake_void,
+			COALESCE(SUM(stake) FILTER (WHERE result IS NULL), 0) AS total_stake_pending,
+			COALESCE(COUNT(*) FILTER (WHERE result IS NULL), 0) AS pending_bet_count
+		FROM wc_bets
+	`).Scan(&agg).Error
+	if err != nil {
+		return nil, err
+	}
+
+	type matchRow struct {
+		MatchID   string
+		HomeTeam  string
+		AwayTeam  string
+		MatchDate string
+		Stage     string
+		Stake     float64
+		Payout    float64
+		BetCount  int
+	}
+	var rows []matchRow
+	err = r.db.Raw(`
+		SELECT
+			b.match_id::text AS match_id,
+			m.home_team,
+			m.away_team,
+			m.match_date::text AS match_date,
+			m.stage,
+			SUM(b.stake)  AS stake,
+			SUM(b.payout) AS payout,
+			COUNT(b.id)   AS bet_count
+		FROM wc_bets b
+		JOIN wc_matches m ON m.id = b.match_id
+		WHERE b.result IS NOT NULL AND b.result != 'void'
+		GROUP BY b.match_id, m.home_team, m.away_team, m.match_date, m.stage
+		ORDER BY (SUM(b.stake) - SUM(b.payout)) ASC
+	`).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	breakdown := make([]model.HousePnLMatch, 0, len(rows))
+	for _, row := range rows {
+		breakdown = append(breakdown, model.HousePnLMatch{
+			MatchID:  row.MatchID,
+			HomeTeam: row.HomeTeam,
+			AwayTeam: row.AwayTeam,
+			MatchDate: row.MatchDate,
+			Stage:    row.Stage,
+			Stake:    row.Stake,
+			Payout:   row.Payout,
+			Profit:   row.Stake - row.Payout,
+			BetCount: row.BetCount,
+		})
+	}
+
+	return &model.HousePnLResponse{
+		TotalStakeSettled:  agg.TotalStakeSettled,
+		TotalPayoutSettled: agg.TotalPayoutSettled,
+		HouseProfit:        agg.TotalStakeSettled - agg.TotalPayoutSettled,
+		TotalStakeVoid:     agg.TotalStakeVoid,
+		TotalStakePending:  agg.TotalStakePending,
+		PendingBetCount:    agg.PendingBetCount,
+		SettledBetCount:    agg.SettledBetCount,
+		MatchBreakdown:     breakdown,
+		GeneratedAt:        time.Now().Format(time.RFC3339),
+	}, nil
 }
 
 // PreviewSettlement reads all wallet balances and computes direction + amount for each user.
@@ -503,7 +624,7 @@ func (r *WcRepository) PreviewSettlement(pointRate float64) ([]*model.WcSettleme
 			Name:      w.Name,
 			Balance:   w.Balance,
 			Direction: dir,
-			Amount:    math.Abs(float64(w.Balance)) * pointRate,
+			Amount:    math.Abs(w.Balance) * pointRate,
 		})
 	}
 	return rows, nil

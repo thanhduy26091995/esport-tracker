@@ -30,6 +30,11 @@ func Connect() (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	// Run schema migrations that GORM AutoMigrate cannot handle (column type changes)
+	if err := runSchemaMigrations(db); err != nil {
+		return nil, fmt.Errorf("failed to run schema migrations: %w", err)
+	}
+
 	// Auto-migrate models
 	if err := db.AutoMigrate(
 		&model.User{},
@@ -54,6 +59,11 @@ func Connect() (*gorm.DB, error) {
 		&model.WcBet{},
 		&model.WcSettlement{},
 		&model.WcSettlementDetail{},
+		&model.WcSyncLog{},
+		// Champion prediction
+		&model.WcChampionTeam{},
+		&model.WcChampionConfig{},
+		&model.WcChampionPrediction{},
 		&model.ScoreBonus{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
@@ -62,9 +72,27 @@ func Connect() (*gorm.DB, error) {
 	// Seed initial config values if not exists
 	seedConfig(db)
 	seedWcConfig(db)
+	seedWcChampion(db)
 
 	log.Println("✅ Database connected successfully")
 	return db, nil
+}
+
+func runSchemaMigrations(db *gorm.DB) error {
+	sqls := []string{
+		`ALTER TABLE wc_bets ALTER COLUMN payout TYPE NUMERIC(10,2)`,
+		`ALTER TABLE wc_wallets ALTER COLUMN balance TYPE NUMERIC(10,2)`,
+		`ALTER TABLE wc_wallet_logs ALTER COLUMN delta TYPE NUMERIC(10,2)`,
+		`ALTER TABLE wc_wallet_logs ALTER COLUMN balance_before TYPE NUMERIC(10,2)`,
+		`ALTER TABLE wc_wallet_logs ALTER COLUMN balance_after TYPE NUMERIC(10,2)`,
+		`ALTER TABLE wc_settlement_details ALTER COLUMN final_balance TYPE NUMERIC(10,2)`,
+	}
+	for _, sql := range sqls {
+		if err := db.Exec(sql).Error; err != nil {
+			log.Printf("Schema migration skipped (table may not exist yet): %v", err)
+		}
+	}
+	return nil
 }
 
 func seedWcConfig(db *gorm.DB) {
@@ -93,6 +121,41 @@ func seedWcConfig(db *gorm.DB) {
 			})
 			log.Printf("Seeded WC admin user: %s", adminName)
 		}
+	}
+}
+
+func seedWcChampion(db *gorm.DB) {
+	// Singleton champion config
+	var cfg model.WcChampionConfig
+	if err := db.First(&cfg, 1).Error; err != nil {
+		db.Create(&model.WcChampionConfig{ID: 1, IsOpen: false})
+		log.Println("Seeded wc_champion_config: is_open = false")
+	}
+
+	// Seed teams only if table is empty
+	var count int64
+	db.Model(&model.WcChampionTeam{}).Count(&count)
+	if count > 0 {
+		return
+	}
+	teams := []model.WcChampionTeam{
+		{Name: "Argentina", Code: "ARG", FlagEmoji: "🇦🇷", Odds: 3.50},
+		{Name: "France", Code: "FRA", FlagEmoji: "🇫🇷", Odds: 4.00},
+		{Name: "England", Code: "ENG", FlagEmoji: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", Odds: 5.00},
+		{Name: "Brazil", Code: "BRA", FlagEmoji: "🇧🇷", Odds: 5.00},
+		{Name: "Spain", Code: "ESP", FlagEmoji: "🇪🇸", Odds: 5.50},
+		{Name: "Germany", Code: "GER", FlagEmoji: "🇩🇪", Odds: 7.00},
+		{Name: "Portugal", Code: "POR", FlagEmoji: "🇵🇹", Odds: 8.00},
+		{Name: "Netherlands", Code: "NED", FlagEmoji: "🇳🇱", Odds: 9.00},
+		{Name: "USA", Code: "USA", FlagEmoji: "🇺🇸", Odds: 15.00},
+		{Name: "Morocco", Code: "MAR", FlagEmoji: "🇲🇦", Odds: 18.00},
+		{Name: "Japan", Code: "JPN", FlagEmoji: "🇯🇵", Odds: 20.00},
+		{Name: "Mexico", Code: "MEX", FlagEmoji: "🇲🇽", Odds: 20.00},
+	}
+	if err := db.Create(&teams).Error; err != nil {
+		log.Printf("⚠️  Failed to seed champion teams: %v", err)
+	} else {
+		log.Printf("Seeded %d WC champion teams", len(teams))
 	}
 }
 

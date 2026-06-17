@@ -11,7 +11,7 @@
             <span class="wc-sh-date">{{ formatDate(s.created_at) }}</span>
             <span v-if="s.note" class="wc-sh-note">{{ s.note }}</span>
           </div>
-          <div class="wc-sh-rate">{{ s.point_rate?.toLocaleString() }} ₫/điểm</div>
+          <div class="wc-sh-rate">{{ s.point_rate?.toLocaleString() }}/điểm</div>
           <el-icon class="wc-sh-chevron" :class="{ rotated: expanded === s.id }"><ArrowDown /></el-icon>
         </div>
 
@@ -99,7 +99,7 @@ function formatDate(s: string) {
 }
 
 function formatMoney(n: number) {
-  return new Intl.NumberFormat('vi-VN').format(n) + ' ₫'
+  return new Intl.NumberFormat('vi-VN').format(n)
 }
 </script>
 

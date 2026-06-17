@@ -388,7 +388,7 @@ func TestWcBet_ZeroBalance_Accepted(t *testing.T) {
 // buildSettledMatch creates a match, places a bet, settles it, and returns the wallet balance.
 func buildSettledMatch(t *testing.T, db *gorm.DB, svc *WcService, authSvc *WcAuthService,
 	actualHome, actualAway int, betChoice string, stake int, handicap float64, handicapTeam string,
-	oddsHome, oddsAway float64) (int, error) {
+	oddsHome, oddsAway float64) (float64, error) {
 
 	t.Helper()
 	user := seedWcUser(t, authSvc, "Settler_"+uuid.NewString()[:6], "pass")

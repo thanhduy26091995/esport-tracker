@@ -94,8 +94,15 @@ type WcMatch struct {
 	PredictionsLockedAt *time.Time `json:"predictions_locked_at"`
 	BetsLockedAt        *time.Time `json:"bets_locked_at"`
 	SettledAt           *time.Time `json:"settled_at"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
+	// StatsAPI integration fields
+	StatsapiFixtureID *string    `gorm:"type:varchar(64);uniqueIndex" json:"statsapi_fixture_id"`
+	OULine            *float64   `gorm:"type:numeric(4,1)" json:"ou_line"`
+	OddsOver          *float64   `gorm:"type:numeric(5,2)" json:"odds_over"`
+	OddsUnder         *float64   `gorm:"type:numeric(5,2)" json:"odds_under"`
+	OUSyncedAt        *time.Time `json:"ou_synced_at"`
+	OddsSyncedAt      *time.Time `json:"odds_synced_at"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 func (WcMatch) TableName() string {
@@ -119,7 +126,7 @@ func (WcScoreMultiplier) TableName() string {
 type WcWallet struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	WcUserID  uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"wc_user_id"`
-	Balance   int       `gorm:"default:0" json:"balance"`
+	Balance   float64   `gorm:"type:numeric(10,2);default:0" json:"balance"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -132,9 +139,9 @@ type WcWalletLog struct {
 	ID            uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	WcUserID      uuid.UUID `gorm:"type:uuid;not null;index" json:"wc_user_id"`
 	AdminID       uuid.UUID `gorm:"type:uuid;not null" json:"admin_id"`
-	Delta         int       `gorm:"not null" json:"delta"`
-	BalanceBefore int       `gorm:"not null" json:"balance_before"`
-	BalanceAfter  int       `gorm:"not null" json:"balance_after"`
+	Delta         float64   `gorm:"type:numeric(10,2);not null" json:"delta"`
+	BalanceBefore float64   `gorm:"type:numeric(10,2);not null" json:"balance_before"`
+	BalanceAfter  float64   `gorm:"type:numeric(10,2);not null" json:"balance_after"`
 	Note          string    `gorm:"type:varchar(255)" json:"note"`
 	CreatedAt     time.Time `json:"created_at"`
 }
@@ -188,7 +195,7 @@ type WcSettlementDetail struct {
 	ID           uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	SettlementID uuid.UUID  `gorm:"type:uuid;not null;index;uniqueIndex:idx_settlement_user" json:"settlement_id"`
 	WcUserID     uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_settlement_user" json:"wc_user_id"`
-	FinalBalance int        `gorm:"not null" json:"final_balance"`
+	FinalBalance float64    `gorm:"type:numeric(10,2);not null" json:"final_balance"`
 	Amount       float64    `gorm:"type:numeric(12,2);not null" json:"amount"`
 	Direction    string     `gorm:"type:varchar(10);not null" json:"direction"`
 	Status       string     `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`
@@ -228,7 +235,7 @@ type WcBet struct {
 	PredictedHomeScore   *int      `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_home_score,omitempty"`
 	PredictedAwayScore   *int      `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_away_score,omitempty"`
 	Result               *string   `gorm:"type:varchar(10)" json:"result,omitempty"`
-	Payout               *int      `json:"payout,omitempty"`
+	Payout               *float64  `gorm:"type:numeric(10,2)" json:"payout,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
@@ -258,7 +265,7 @@ type WcBetPublic struct {
 	PredictedHomeScore *int      `json:"predicted_home_score,omitempty"`
 	PredictedAwayScore *int      `json:"predicted_away_score,omitempty"`
 	Result             *string   `json:"result,omitempty"`
-	Payout             *int      `json:"payout,omitempty"`
+	Payout             *float64  `json:"payout,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 
@@ -324,11 +331,50 @@ type WcSettlementDetailWithUser struct {
 	Name string `json:"name"`
 }
 
+// WcSyncLog records each sync operation (manual or cron).
+type WcSyncLog struct {
+	ID             uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	Trigger        string     `gorm:"type:varchar(20);not null" json:"trigger"`
+	SyncType       string     `gorm:"type:varchar(20);not null" json:"sync_type"`
+	TriggeredBy    *uuid.UUID `gorm:"type:uuid" json:"triggered_by"`
+	MatchesUpdated int        `gorm:"not null;default:0" json:"matches_updated"`
+	MatchesFailed  int        `gorm:"not null;default:0" json:"matches_failed"`
+	ErrorDetail    *string    `gorm:"type:text" json:"error_detail"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
+func (WcSyncLog) TableName() string { return "wc_sync_logs" }
+
+// HousePnLResponse is returned by GET /admin/house-pnl.
+type HousePnLResponse struct {
+	TotalStakeSettled  float64        `json:"total_stake_settled"`
+	TotalPayoutSettled float64        `json:"total_payout_settled"`
+	HouseProfit        float64        `json:"house_profit"`
+	TotalStakeVoid     float64        `json:"total_stake_void"`
+	TotalStakePending  float64        `json:"total_stake_pending"`
+	PendingBetCount    int            `json:"pending_bet_count"`
+	SettledBetCount    int            `json:"settled_bet_count"`
+	MatchBreakdown     []HousePnLMatch `json:"match_breakdown"`
+	GeneratedAt        string         `json:"generated_at"`
+}
+
+type HousePnLMatch struct {
+	MatchID  string  `json:"match_id"`
+	HomeTeam string  `json:"home_team"`
+	AwayTeam string  `json:"away_team"`
+	MatchDate string `json:"match_date"`
+	Stage    string  `json:"stage"`
+	Stake    float64 `json:"stake"`
+	Payout   float64 `json:"payout"`
+	Profit   float64 `json:"profit"`
+	BetCount int     `json:"bet_count"`
+}
+
 // WcSettlementPreviewRow is returned by GET /admin/settlements/preview.
 type WcSettlementPreviewRow struct {
 	WcUserID  uuid.UUID `json:"wc_user_id"`
 	Name      string    `json:"name"`
-	Balance   int       `json:"balance"`
+	Balance   float64   `json:"balance"`
 	Direction string    `json:"direction"`
 	Amount    float64   `json:"amount"`
 }

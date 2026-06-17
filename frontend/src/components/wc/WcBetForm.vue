@@ -127,7 +127,7 @@
                 style="width: 110px"
               />
               <span class="wc-sc-payout-preview">
-                +{{ Math.floor(selectedScores[so.id].stake * so.odds) - selectedScores[so.id].stake }}
+                +{{ +(selectedScores[so.id].stake * so.odds - selectedScores[so.id].stake).toFixed(2) }}
               </span>
             </div>
           </div>
@@ -224,20 +224,20 @@ const isQuarterHandicap = computed(() => {
 });
 
 const handicapPayout = computed(() =>
-  Math.floor(handicapStake.value * handicapOdds.value) - handicapStake.value,
+  +(handicapStake.value * handicapOdds.value - handicapStake.value).toFixed(2),
 );
 
 const handicapSplitPayout = computed(() => {
   const s = handicapStake.value;
   const odds = handicapOdds.value;
   const half = s / 2;
-  const winPayout = Math.floor(s * odds);
-  const winHalfPayout = Math.floor(half * odds) + Math.floor(half);
-  const loseHalfPayout = Math.floor(half);
+  const winPayout = +(s * odds).toFixed(2);
+  const winHalfPayout = +(half * odds + half).toFixed(2);
+  const loseHalfPayout = +half.toFixed(2);
   return {
-    winProfit: winPayout - s,
-    winHalfProfit: winHalfPayout - s,
-    loseHalfLoss: s - loseHalfPayout,
+    winProfit: +(winPayout - s).toFixed(2),
+    winHalfProfit: +(winHalfPayout - s).toFixed(2),
+    loseHalfLoss: +(s - loseHalfPayout).toFixed(2),
   };
 });
 
@@ -349,6 +349,8 @@ async function handleSubmit() {
     ElMessage.success(t("wc.betSuccess"));
     emit("bet-placed");
     visible.value = false;
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.error ?? t("wc.betError") ?? "Lỗi khi đặt cược");
   } finally {
     submitting.value = false;
   }

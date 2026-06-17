@@ -30,6 +30,9 @@
         >
           {{ t("wc.syncMatches") }}
         </el-button>
+        <el-button type="info" plain @click="mappingDialogRef?.open()">
+          Setup StatsAPI Mapping
+        </el-button>
       </div>
 
       <!-- Admin match filter bar -->
@@ -73,6 +76,15 @@
             <span class="wc-admin-match-date">{{
               formatDate(match.match_date)
             }}</span>
+            <span v-if="match.statsapi_fixture_id" class="wc-sync-chip wc-sync-chip--ok">
+              Mapped
+            </span>
+            <span v-if="match.odds_synced_at" class="wc-sync-chip wc-sync-chip--synced">
+              HDP {{ formatSyncTime(match.odds_synced_at) }}
+            </span>
+            <span v-if="match.ou_synced_at" class="wc-sync-chip wc-sync-chip--synced">
+              O/U {{ formatSyncTime(match.ou_synced_at) }}
+            </span>
           </div>
           <div class="wc-admin-match-actions">
             <el-button
@@ -119,9 +131,38 @@
             >
               Chấp điểm
             </el-button>
+            <el-button
+              plain
+              size="small"
+              type="primary"
+              @click="importHandicapDialogRef?.open(match)"
+            >
+              HDP API
+            </el-button>
+            <el-button
+              plain
+              size="small"
+              type="primary"
+              @click="importOUDialogRef?.open(match)"
+            >
+              O/U API
+            </el-button>
+            <el-button
+              plain
+              size="small"
+              @click="poissonDialogRef?.open(match)"
+            >
+              Poisson
+            </el-button>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- StatsAPI Sync Logs -->
+    <div class="card card-body wc-admin-section">
+      <div class="wc-admin-section-title">StatsAPI Sync</div>
+      <WcSyncLogsPanel ref="syncLogsRef" />
     </div>
 
     <!-- User & Wallet Management -->
@@ -154,6 +195,12 @@
         </div>
       </div>
     </div>
+
+    <!-- House P&L -->
+    <WcHousePnL ref="pnlRef" />
+
+    <!-- Champion Prediction Admin -->
+    <WcChampionAdminPanel />
 
     <!-- Settlement Panel -->
     <div class="card card-body wc-admin-section">
@@ -267,6 +314,12 @@
       </template>
     </el-dialog>
 
+    <!-- StatsAPI Dialogs -->
+    <WcSetupMappingDialog ref="mappingDialogRef" @mapped="handleOddsImported" />
+    <WcImportHandicapDialog ref="importHandicapDialogRef" @imported="handleOddsImported" />
+    <WcImportOUDialog ref="importOUDialogRef" @imported="handleOddsImported" />
+    <WcGeneratePoissonDialog ref="poissonDialogRef" @saved="handleOddsImported" />
+
     <!-- Score Multipliers Dialog -->
     <el-dialog
       v-model="scoreMultipliersVisible"
@@ -345,6 +398,13 @@ import { useMatchFilter } from "@/composables/useMatchFilter";
 import type { WcUser, WcMatch, WcScoreMultiplier } from "@/types/wc";
 import WcSettlementPreview from "./WcSettlementPreview.vue";
 import WcSettlementHistory from "./WcSettlementHistory.vue";
+import WcHousePnL from "./WcHousePnL.vue";
+import WcSetupMappingDialog from "./WcSetupMappingDialog.vue";
+import WcImportHandicapDialog from "./WcImportHandicapDialog.vue";
+import WcImportOUDialog from "./WcImportOUDialog.vue";
+import WcGeneratePoissonDialog from "./WcGeneratePoissonDialog.vue";
+import WcSyncLogsPanel from "./WcSyncLogsPanel.vue";
+import WcChampionAdminPanel from "./WcChampionAdminPanel.vue";
 
 const { t } = useI18n();
 const store = useWcStore();
@@ -375,6 +435,12 @@ const adminFilterOptions = computed(() => [
 ]);
 
 const settlementTab = ref("preview");
+const pnlRef = ref<InstanceType<typeof WcHousePnL> | null>(null);
+const mappingDialogRef = ref<InstanceType<typeof WcSetupMappingDialog> | null>(null);
+const importHandicapDialogRef = ref<InstanceType<typeof WcImportHandicapDialog> | null>(null);
+const importOUDialogRef = ref<InstanceType<typeof WcImportOUDialog> | null>(null);
+const poissonDialogRef = ref<InstanceType<typeof WcGeneratePoissonDialog> | null>(null);
+const syncLogsRef = ref<InstanceType<typeof WcSyncLogsPanel> | null>(null);
 const syncing = ref(false);
 const togglingFeature = ref(false);
 const configEnabled = ref(store.config?.is_enabled ?? false);
@@ -438,6 +504,7 @@ async function handleClose(matchId: string) {
 
 async function handleSettle(matchId: string) {
   await store.finalizeMatch(matchId);
+  pnlRef.value?.load();
 }
 
 function openTopUpDialog(user: WcUser) {
@@ -522,10 +589,22 @@ async function handleDeleteScoreMultiplier(id: string) {
   currentScoreMultipliers.value = currentScoreMultipliers.value.filter((so) => so.id !== id);
 }
 
+async function handleOddsImported() {
+  await store.fetchMatches();
+  syncLogsRef.value?.load();
+}
+
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString("vi-VN", {
     day: "2-digit",
     month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatSyncTime(s: string) {
+  return new Date(s).toLocaleTimeString("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -691,6 +770,26 @@ onMounted(async () => {
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.wc-sync-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.wc-sync-chip--ok {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.wc-sync-chip--synced {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
 }
 
 .wc-admin-match-actions {

@@ -22,7 +22,7 @@
                 {{ getTournamentAffectsScoreLabel(store.currentTournament.affects_score) }}
               </el-tag>
               <el-tag v-if="store.currentTournament.entry_fee > 0" type="default" size="small">
-                {{ t('tournaments.detail.entryFee', { amount: formatVND(store.currentTournament.entry_fee) }) }}
+                {{ t('tournaments.detail.entryFee', { amount: formatNumber(store.currentTournament.entry_fee) }) }}
               </el-tag>
             </div>
           </div>
@@ -258,7 +258,7 @@ import { ElMessageBox } from 'element-plus'
 import { useTournamentStore } from '@/stores/tournamentStore'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 import type { Tournament, TournamentMatch, TournamentStanding } from '@/types/tournament'
-import { formatVND } from '@/utils/formatters'
+import { formatNumber } from '@/utils/formatters'
 import { getMatchTypeLabel, getTournamentAffectsScoreLabel, getTournamentStatusLabel } from '@/utils/tournamentLabels'
 
 const router = useRouter()

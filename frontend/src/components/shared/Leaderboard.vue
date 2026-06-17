@@ -88,7 +88,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loading, Warning } from '@element-plus/icons-vue'
 import type { User, UserWithPaymentTotal } from '@/types/user'
-import { formatVND, pointsToVND } from '@/utils/formatters'
+import { formatNumber, pointsToVND } from '@/utils/formatters'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
 import UserAvatar from '@/components/shared/UserAvatar.vue'
 import { CLUBS } from '@/config/clubs'
@@ -149,9 +149,9 @@ function barStyle(score: number) {
 function getRightValue(user: User): string {
   if (props.showTotalPaid) {
     const totalPaid = (user as UserWithPaymentTotal).total_paid
-    return totalPaid != null ? formatVND(totalPaid) : '—'
+    return totalPaid != null ? formatNumber(totalPaid) : '—'
   }
-  return formatVND(pointsToVND(user.current_score, props.conversionRate))
+  return formatNumber(pointsToVND(user.current_score, props.conversionRate))
 }
 
 function getTotalDebtPoints(user: User): number {

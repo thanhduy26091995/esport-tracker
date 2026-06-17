@@ -17,7 +17,7 @@
           <p class="sd-header-name">{{ settlement.debtor.name }}</p>
           <p class="sd-header-date">{{ formatDateTime(settlement.settlement_date) }}</p>
         </div>
-        <div class="sd-header-total">{{ formatVND(settlement.money_amount) }}</div>
+        <div class="sd-header-total">{{ formatNumber(settlement.money_amount) }}</div>
       </div>
 
       <!-- Summary row -->
@@ -29,17 +29,17 @@
         <div class="sd-stat-divider" />
         <div class="sd-stat">
           <dt>{{ t('settlements.totalPaid') }}</dt>
-          <dd class="sd-stat-val">{{ formatVND(settlement.money_amount) }}</dd>
+          <dd class="sd-stat-val">{{ formatNumber(settlement.money_amount) }}</dd>
         </div>
         <div class="sd-stat-divider" />
         <div class="sd-stat">
           <dt>{{ t('settlements.toFund') }}</dt>
-          <dd class="sd-stat-val sd-stat-val--green">{{ formatVND(settlement.fund_amount) }}</dd>
+          <dd class="sd-stat-val sd-stat-val--green">{{ formatNumber(settlement.fund_amount) }}</dd>
         </div>
         <div class="sd-stat-divider" />
         <div class="sd-stat">
           <dt>{{ t('settlements.toWinners') }}</dt>
-          <dd class="sd-stat-val sd-stat-val--blue">{{ formatVND(settlement.winner_distribution) }}</dd>
+          <dd class="sd-stat-val sd-stat-val--blue">{{ formatNumber(settlement.winner_distribution) }}</dd>
         </div>
       </div>
 
@@ -57,7 +57,7 @@
               <div class="sd-winner-avatar">{{ w.winner.name.charAt(0).toUpperCase() }}</div>
               {{ w.winner.name }}
             </div>
-            <span class="sd-winner-cash">+{{ formatVND(w.money_amount) }}</span>
+            <span class="sd-winner-cash">+{{ formatNumber(w.money_amount) }}</span>
             <span class="sd-winner-pts">−{{ w.points_deducted }} {{ t('common.pointsUnit') }}</span>
           </div>
         </div>
@@ -71,9 +71,9 @@
         </p>
         <ol class="sd-process-list">
           <li>{{ t('settlements.processStep1', { name: settlement.debtor.name, points: settlement.original_debt_points }) }}</li>
-          <li>{{ t('settlements.processStep2', { name: settlement.debtor.name, amount: formatVND(settlement.money_amount) }) }}</li>
-          <li>{{ t('settlements.processStep3', { percent: fundSplitPercent, amount: formatVND(settlement.fund_amount) }) }}</li>
-          <li>{{ t('settlements.processStep4', { percent: 100 - fundSplitPercent, amount: formatVND(settlement.winner_distribution), count: settlement.winners?.length ?? 0 }) }}</li>
+          <li>{{ t('settlements.processStep2', { name: settlement.debtor.name, amount: formatNumber(settlement.money_amount) }) }}</li>
+          <li>{{ t('settlements.processStep3', { percent: fundSplitPercent, amount: formatNumber(settlement.fund_amount) }) }}</li>
+          <li>{{ t('settlements.processStep4', { percent: 100 - fundSplitPercent, amount: formatNumber(settlement.winner_distribution), count: settlement.winners?.length ?? 0 }) }}</li>
           <li>{{ t('settlements.processStep5') }}</li>
           <li v-if="debtorScoreAfter === 0">{{ t('settlements.processStep6', { name: settlement.debtor.name }) }}</li>
           <li v-else>{{ t('settlements.processStep6Partial', { name: settlement.debtor.name, score: debtorScoreAfter }) }}</li>
@@ -92,7 +92,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Warning, InfoFilled } from '@element-plus/icons-vue'
 import type { DebtSettlement } from '@/types/settlement'
-import { formatVND } from '@/utils/formatters'
+import { formatNumber } from '@/utils/formatters'
 import { formatDateTime } from '@/utils/date'
 
 interface Props {

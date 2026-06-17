@@ -21,6 +21,17 @@ import type {
   WcBetWithMatch,
   WcBetPublic,
   WcPlaceBetRequest,
+  HousePnLResponse,
+  WcSyncLog,
+  MappingResult,
+  ImportHandicapPreview,
+  ImportOUPreview,
+  GeneratePoissonPreview,
+  WcChampionTeam,
+  WcChampionConfig,
+  WcChampionPredictionMine,
+  WcChampionPredictionPublic,
+  WcChampionSettleResult,
 } from '@/types/wc'
 
 export const wcService = {
@@ -189,5 +200,74 @@ export const wcService = {
       status: 'done',
       done_note: doneNote || '',
     })
+  },
+  async getHousePnL(): Promise<HousePnLResponse> {
+    const r = await wcApi.get<HousePnLResponse>('/admin/house-pnl')
+    return r.data
+  },
+
+  // --- StatsAPI Sync ---
+  async setupMapping(previewOnly: boolean): Promise<MappingResult> {
+    const r = await wcApi.post<MappingResult>('/admin/setup-statsapi-mapping', { preview_only: previewOnly })
+    return r.data
+  },
+  async importHandicap(matchId: string, previewOnly: boolean): Promise<ImportHandicapPreview | { ok: boolean }> {
+    const r = await wcApi.post<ImportHandicapPreview | { ok: boolean }>(`/admin/matches/${matchId}/import-handicap`, { preview_only: previewOnly })
+    return r.data
+  },
+  async importOU(matchId: string, previewOnly: boolean): Promise<ImportOUPreview | { ok: boolean }> {
+    const r = await wcApi.post<ImportOUPreview | { ok: boolean }>(`/admin/matches/${matchId}/import-ou`, { preview_only: previewOnly })
+    return r.data
+  },
+  async generatePoisson(matchId: string, params: { home_lambda: number; away_lambda: number; house_margin?: number; min_prob?: number }, previewOnly: boolean): Promise<GeneratePoissonPreview | { ok: boolean; count: number }> {
+    const r = await wcApi.post<GeneratePoissonPreview | { ok: boolean; count: number }>(`/admin/matches/${matchId}/generate-poisson`, { ...params, preview_only: previewOnly })
+    return r.data
+  },
+  async getSyncLogs(): Promise<WcSyncLog[]> {
+    const r = await wcApi.get<WcSyncLog[]>('/admin/sync-logs')
+    return r.data
+  },
+
+  // --- Champion Prediction ---
+  async getChampionConfig(): Promise<WcChampionConfig> {
+    const r = await wcApi.get<WcChampionConfig>('/champion/config')
+    return r.data
+  },
+  async getChampionTeams(): Promise<WcChampionTeam[]> {
+    const r = await wcApi.get<WcChampionTeam[]>('/champion/teams')
+    return r.data
+  },
+  async getChampionPredictions(): Promise<WcChampionPredictionPublic[]> {
+    const r = await wcApi.get<WcChampionPredictionPublic[]>('/champion/predictions')
+    return r.data
+  },
+  async getMyChampionPrediction(): Promise<WcChampionPredictionMine | null> {
+    try {
+      const r = await wcApi.get<WcChampionPredictionMine>('/champion/my-prediction')
+      return r.data
+    } catch {
+      return null
+    }
+  },
+  async placeChampionPrediction(teamId: string, points: number): Promise<WcChampionPredictionMine> {
+    const r = await wcApi.post<WcChampionPredictionMine>('/champion/predict', { team_id: teamId, points })
+    return r.data
+  },
+  async deleteChampionPrediction(): Promise<void> {
+    await wcApi.delete('/champion/predict')
+  },
+  async adminUpdateChampionConfig(isOpen: boolean): Promise<void> {
+    await wcApi.put('/admin/champion/config', { is_open: isOpen })
+  },
+  async adminCreateChampionTeam(data: { name: string; code: string; flag_emoji: string; odds: number }): Promise<WcChampionTeam> {
+    const r = await wcApi.post<WcChampionTeam>('/admin/champion/teams', data)
+    return r.data
+  },
+  async adminUpdateChampionTeamOdds(teamId: string, odds: number): Promise<void> {
+    await wcApi.put(`/admin/champion/teams/${teamId}`, { odds })
+  },
+  async adminSettleChampion(winnerTeamId: string): Promise<WcChampionSettleResult> {
+    const r = await wcApi.post<WcChampionSettleResult>('/admin/champion/settle', { winner_team_id: winnerTeamId })
+    return r.data
   },
 }

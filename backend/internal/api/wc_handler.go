@@ -667,6 +667,16 @@ func (h *WcHandler) GetSettlement(c *gin.Context) {
 	c.JSON(http.StatusOK, s)
 }
 
+// GetHousePnL handles GET /api/v1/wc/admin/house-pnl
+func (h *WcHandler) GetHousePnL(c *gin.Context) {
+	pnl, err := h.svc.GetHousePnL()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to compute P&L"})
+		return
+	}
+	c.JSON(http.StatusOK, pnl)
+}
+
 // MarkSettlementDone handles PUT /api/v1/wc/admin/settlements/:id/details/:wc_user_id
 func (h *WcHandler) MarkSettlementDone(c *gin.Context) {
 	settlementID, err := uuid.Parse(c.Param("id"))

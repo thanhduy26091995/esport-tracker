@@ -125,7 +125,7 @@
                   <p class="item-title">{{ getUserName(s.debtor_id) }}</p>
                   <p class="item-sub">{{ formatDate(s.created_at) }}</p>
                 </div>
-                <div class="item-amount item-amount--red">-{{ formatVND(s.money_amount) }}</div>
+                <div class="item-amount item-amount--red">-{{ formatNumber(s.money_amount) }}</div>
               </div>
             </div>
           </div>
@@ -158,7 +158,7 @@
                   <p class="item-sub">{{ tx.description }}</p>
                 </div>
                 <div class="item-amount" :class="tx.transaction_type === 'deposit' ? 'item-amount--green' : 'item-amount--red'">
-                  {{ tx.transaction_type === 'deposit' ? '+' : '-' }}{{ formatVND(tx.amount) }}
+                  {{ tx.transaction_type === 'deposit' ? '+' : '-' }}{{ formatNumber(tx.amount) }}
                 </div>
               </div>
             </div>
@@ -225,7 +225,7 @@ import MatchForm from '@/components/match/MatchForm.vue'
 import ScoreBonusForm from '@/components/match/ScoreBonusForm.vue'
 import FundContributors from '@/components/settlement/FundContributors.vue'
 import WinnerContributors from '@/components/settlement/WinnerContributors.vue'
-import { formatVND } from '@/utils/formatters'
+import { formatVND, formatNumber } from '@/utils/formatters'
 import { formatDate } from '@/utils/date'
 import type { CreateMatchRequest } from '@/types/match'
 import type { CreateScoreBonusRequest } from '@/types/scoreBonus'
