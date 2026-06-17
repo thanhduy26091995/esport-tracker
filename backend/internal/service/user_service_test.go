@@ -130,17 +130,17 @@ func TestAllowedAvatarMIME_RejectsPDF(t *testing.T) {
 
 func TestUploadAvatar_FileTooLarge_ReturnsError(t *testing.T) {
 	svc := &UserService{}
-	header := &mime.FileHeader{Size: 3 << 20} // 3 MB > 2 MB limit
+	header := &mime.FileHeader{Size: 6 << 20} // 6 MB > 5 MB limit
 	_, err := svc.UploadAvatar(uuid.New(), newMockFile(nil), header)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too large")
 }
 
 func TestUploadAvatar_ExactlyAtSizeLimit_PassesSizeGuard(t *testing.T) {
-	// Exactly 2 MB is within the limit. The call proceeds to MIME detection on
+	// Exactly 5 MB is within the limit. The call proceeds to MIME detection on
 	// empty bytes and fails there — confirming the size guard is boundary-correct.
 	svc := &UserService{}
-	header := &mime.FileHeader{Size: 2 << 20}
+	header := &mime.FileHeader{Size: 5 << 20}
 	_, err := svc.UploadAvatar(uuid.New(), newMockFile(nil), header)
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "too large", "size guard must not fire at exactly 2 MB")

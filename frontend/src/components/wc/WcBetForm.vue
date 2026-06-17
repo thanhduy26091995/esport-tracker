@@ -349,8 +349,8 @@ async function handleSubmit() {
     ElMessage.success(t("wc.betSuccess"));
     emit("bet-placed");
     visible.value = false;
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.error ?? t("wc.betError") ?? "Lỗi khi đặt cược");
+  } catch {
+    // Error display handled by wcApi interceptor; catch here prevents unhandled rejection
   } finally {
     submitting.value = false;
   }

@@ -44,7 +44,7 @@ func TestHandicap_HomeGivesHalfBall_HomeWins(t *testing.T) {
 	bet := handicapBet("home", 100, 1.90, 0.5, "home")
 	result, payout := evaluateHandicapBet(bet, 2, 1)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 190, payout) // floor(100 * 1.90)
+	assert.InDelta(t, 190.0, payout, 0.001)
 }
 
 func TestHandicap_HomeGivesHalfBall_HomeLoses(t *testing.T) {
@@ -52,7 +52,7 @@ func TestHandicap_HomeGivesHalfBall_HomeLoses(t *testing.T) {
 	bet := handicapBet("home", 100, 1.90, 0.5, "home")
 	result, payout := evaluateHandicapBet(bet, 1, 1)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestHandicap_AwayGivesHalfBall_AwayBetWins(t *testing.T) {
@@ -60,7 +60,7 @@ func TestHandicap_AwayGivesHalfBall_AwayBetWins(t *testing.T) {
 	bet := handicapBet("away", 100, 1.95, 0.5, "away")
 	result, payout := evaluateHandicapBet(bet, 1, 0)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestHandicap_AwayGivesHalfBall_AwayBetLoses(t *testing.T) {
@@ -68,7 +68,7 @@ func TestHandicap_AwayGivesHalfBall_AwayBetLoses(t *testing.T) {
 	bet := handicapBet("away", 100, 1.95, 0.5, "away")
 	result, payout := evaluateHandicapBet(bet, 0, 1)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 195, payout)
+	assert.InDelta(t, 195.0, payout, 0.001)
 }
 
 func TestHandicap_WholeNumber_Push(t *testing.T) {
@@ -76,7 +76,7 @@ func TestHandicap_WholeNumber_Push(t *testing.T) {
 	bet := handicapBet("home", 200, 1.85, 1.0, "home")
 	result, payout := evaluateHandicapBet(bet, 2, 1)
 	assert.Equal(t, model.WcResultPush, result)
-	assert.Equal(t, 200, payout) // stake returned
+	assert.InDelta(t, 200.0, payout, 0.001) // stake returned
 }
 
 func TestHandicap_WholeNumber_HomeWinsHandicap(t *testing.T) {
@@ -84,7 +84,7 @@ func TestHandicap_WholeNumber_HomeWinsHandicap(t *testing.T) {
 	bet := handicapBet("home", 100, 1.85, 1.0, "home")
 	result, payout := evaluateHandicapBet(bet, 3, 1)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 185, payout)
+	assert.InDelta(t, 185.0, payout, 0.001)
 }
 
 func TestHandicap_HomeGivesOneAndHalf_LargeWin(t *testing.T) {
@@ -92,7 +92,7 @@ func TestHandicap_HomeGivesOneAndHalf_LargeWin(t *testing.T) {
 	bet := handicapBet("home", 1000, 1.90, 1.5, "home")
 	result, payout := evaluateHandicapBet(bet, 3, 0)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 1900, payout)
+	assert.InDelta(t, 1900.0, payout, 0.001)
 }
 
 func TestHandicap_HomeGivesOneAndHalf_NotEnough(t *testing.T) {
@@ -100,7 +100,7 @@ func TestHandicap_HomeGivesOneAndHalf_NotEnough(t *testing.T) {
 	bet := handicapBet("home", 100, 1.90, 1.5, "home")
 	result, payout := evaluateHandicapBet(bet, 1, 0)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestHandicap_ZeroZeroScoreAwayGivesHalf_HomeWins(t *testing.T) {
@@ -108,15 +108,15 @@ func TestHandicap_ZeroZeroScoreAwayGivesHalf_HomeWins(t *testing.T) {
 	bet := handicapBet("home", 50, 1.95, 0.5, "away")
 	result, payout := evaluateHandicapBet(bet, 0, 0)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 97, payout) // floor(50 * 1.95) = 97
+	assert.InDelta(t, 97.5, payout, 0.001) // round(50 * 1.95, 2) = 97.5
 }
 
 func TestHandicap_PayoutFloorRounding(t *testing.T) {
-	// stake=100, odds=1.879 → floor(187.9) = 187
+	// stake=100, odds=1.879 → round(187.9, 2) = 187.9
 	bet := handicapBet("home", 100, 1.879, 0.5, "home")
 	result, payout := evaluateHandicapBet(bet, 2, 1)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 187, payout)
+	assert.InDelta(t, 187.9, payout, 0.001)
 }
 
 // ─── Quarter handicap (split bet) ────────────────────────────────────────────
@@ -127,7 +127,7 @@ func TestHandicap_QuarterBall_HomeGives125_WinByTwo(t *testing.T) {
 	bet := handicapBet("home", 3, 2.10, 1.25, "home")
 	result, payout := evaluateHandicapBet(bet, 2, 0)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 6, payout) // floor(3 * 2.10) = 6
+	assert.InDelta(t, 6.3, payout, 0.001) // round(3 * 2.10, 2) = 6.3
 }
 
 func TestHandicap_QuarterBall_HomeGives125_WinByOne(t *testing.T) {
@@ -136,7 +136,7 @@ func TestHandicap_QuarterBall_HomeGives125_WinByOne(t *testing.T) {
 	bet := handicapBet("home", 3, 2.10, 1.25, "home")
 	result, payout := evaluateHandicapBet(bet, 1, 0)
 	assert.Equal(t, model.WcResultLoseHalf, result)
-	assert.Equal(t, 1, payout) // floor(1.5) = 1, refund half stake
+	assert.InDelta(t, 1.5, payout, 0.001) // round(1.5, 2) = 1.5
 }
 
 func TestHandicap_QuarterBall_HomeGives125_Draw(t *testing.T) {
@@ -144,7 +144,7 @@ func TestHandicap_QuarterBall_HomeGives125_Draw(t *testing.T) {
 	bet := handicapBet("home", 3, 2.10, 1.25, "home")
 	result, payout := evaluateHandicapBet(bet, 0, 0)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestHandicap_QuarterBall_HomeGives075_WinByOne(t *testing.T) {
@@ -153,7 +153,7 @@ func TestHandicap_QuarterBall_HomeGives075_WinByOne(t *testing.T) {
 	bet := handicapBet("home", 4, 1.90, 0.75, "home")
 	result, payout := evaluateHandicapBet(bet, 1, 0)
 	assert.Equal(t, model.WcResultWinHalf, result)
-	assert.Equal(t, 5, payout) // floor(2 * 1.90) + floor(2) = 3 + 2 = 5
+	assert.InDelta(t, 5.8, payout, 0.001) // round(2 * 1.90 + 2, 2) = 5.8
 }
 
 func TestHandicap_QuarterBall_HomeGives075_Draw(t *testing.T) {
@@ -162,7 +162,7 @@ func TestHandicap_QuarterBall_HomeGives075_Draw(t *testing.T) {
 	bet := handicapBet("home", 4, 1.90, 0.75, "home")
 	result, payout := evaluateHandicapBet(bet, 0, 0)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestHandicap_QuarterBall_AwayGets125_WinByOne(t *testing.T) {
@@ -171,7 +171,7 @@ func TestHandicap_QuarterBall_AwayGets125_WinByOne(t *testing.T) {
 	bet := handicapBet("away", 3, 1.78, 1.25, "home")
 	result, payout := evaluateHandicapBet(bet, 1, 0)
 	assert.Equal(t, model.WcResultWinHalf, result)
-	assert.Equal(t, 3, payout) // floor(1.5 * 1.78) + floor(1.5) = 2 + 1 = 3
+	assert.InDelta(t, 4.17, payout, 0.01) // round(1.5 * 1.78 + 1.5, 2) = 4.17
 }
 
 func TestHandicap_QuarterBall_EvenStake(t *testing.T) {
@@ -179,7 +179,7 @@ func TestHandicap_QuarterBall_EvenStake(t *testing.T) {
 	bet := handicapBet("home", 2, 2.10, 1.25, "home")
 	result, payout := evaluateHandicapBet(bet, 1, 0)
 	assert.Equal(t, model.WcResultLoseHalf, result)
-	assert.Equal(t, 1, payout) // floor(1.0) = 1
+	assert.InDelta(t, 1.0, payout, 0.001) // round(1.0, 2) = 1.0
 }
 
 // ─── evaluateExactScoreBet ────────────────────────────────────────────────────
@@ -188,50 +188,50 @@ func TestExactScore_CorrectPrediction(t *testing.T) {
 	bet := exactScoreBet(2, 1, 100, 6.00)
 	result, payout := evaluateExactScoreBet(bet, 2, 1)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 600, payout)
+	assert.InDelta(t, 600.0, payout, 0.001)
 }
 
 func TestExactScore_WrongHomeScore(t *testing.T) {
 	bet := exactScoreBet(2, 1, 100, 6.00)
 	result, payout := evaluateExactScoreBet(bet, 3, 1)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestExactScore_WrongAwayScore(t *testing.T) {
 	bet := exactScoreBet(1, 0, 100, 5.00)
 	result, payout := evaluateExactScoreBet(bet, 1, 1)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestExactScore_ZeroZeroCorrect(t *testing.T) {
 	bet := exactScoreBet(0, 0, 200, 3.50)
 	result, payout := evaluateExactScoreBet(bet, 0, 0)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 700, payout)
+	assert.InDelta(t, 700.0, payout, 0.001)
 }
 
 func TestExactScore_ZeroZeroWrong(t *testing.T) {
 	bet := exactScoreBet(0, 0, 100, 3.50)
 	result, payout := evaluateExactScoreBet(bet, 1, 0)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
-func TestExactScore_HighOddsFloor(t *testing.T) {
-	// stake=33, odds=7.00 → floor(231) = 231
+func TestExactScore_HighOdds(t *testing.T) {
+	// stake=33, odds=7.00 → round(231, 2) = 231.0
 	bet := exactScoreBet(0, 3, 33, 7.00)
 	result, payout := evaluateExactScoreBet(bet, 0, 3)
 	assert.Equal(t, model.WcResultWin, result)
-	assert.Equal(t, 231, payout)
+	assert.InDelta(t, 231.0, payout, 0.001)
 }
 
 func TestExactScore_OffByOne_HomeHigher(t *testing.T) {
 	bet := exactScoreBet(2, 0, 100, 8.00)
 	result, payout := evaluateExactScoreBet(bet, 3, 0)
 	assert.Equal(t, model.WcResultLose, result)
-	assert.Equal(t, 0, payout)
+	assert.InDelta(t, 0.0, payout, 0.001)
 }
 
 func TestExactScore_NoPush(t *testing.T) {

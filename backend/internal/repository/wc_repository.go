@@ -103,6 +103,8 @@ func (r *WcRepository) GetMatch(id uuid.UUID) (*model.WcMatch, error) {
 
 func (r *WcRepository) GetMatchWithOdds(id uuid.UUID) (*model.WcMatchWithOdds, error) {
 	var m model.WcMatchWithOdds
+	m.ScoreMultipliers = []model.WcScoreMultiplier{}
+	m.ScoreOdds = []model.WcScoreOdds{}
 	err := r.db.Model(&model.WcMatch{}).
 		Where("wc_matches.id = ?", id).
 		First(&m.WcMatch).Error
@@ -401,7 +403,7 @@ func (r *WcRepository) BulkUpsertScoreOdds(odds []model.WcScoreOdds) error {
 }
 
 func (r *WcRepository) ListScoreOdds(matchID uuid.UUID) ([]*model.WcScoreOdds, error) {
-	var odds []*model.WcScoreOdds
+	odds := []*model.WcScoreOdds{}
 	err := r.db.Where("match_id = ?", matchID).
 		Order("home_score ASC, away_score ASC").
 		Find(&odds).Error

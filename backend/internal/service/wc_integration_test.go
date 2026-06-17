@@ -589,3 +589,134 @@ func TestWcTournamentSettlement_HistoryPreserved(t *testing.T) {
 	assert.Contains(t, ids, s1.ID, "first settlement must be in history")
 	assert.Contains(t, ids, s2.ID, "second settlement must be in history")
 }
+
+// ─── Poisson: BulkUpsertScoreOdds ────────────────────────────────────────────
+
+func TestPoisson_GetMatchWithOdds_EmptyBeforeUpsert_ReturnsEmptySlice(t *testing.T) {
+	// Regression: before the nil→[] fix, GetMatchWithOdds returned null for score_odds
+	// when no rows existed, causing the frontend to fall back to score_multipliers.
+	db := openWcTestDB(t)
+	wcRepo := repository.NewWcRepository(db)
+
+	m := seedWcMatch(t, db)
+
+	result, err := wcRepo.GetMatchWithOdds(m.ID)
+	require.NoError(t, err)
+
+	// Must be empty slice — not nil — so JSON serializes as [] not null.
+	require.NotNil(t, result.ScoreOdds, "ScoreOdds must be initialized to empty slice, not nil")
+	assert.Empty(t, result.ScoreOdds)
+}
+
+func TestPoisson_BulkUpsert_ThenGetMatchWithOdds_ReturnsOdds(t *testing.T) {
+	// Critical path: after Poisson generation and BulkUpsert, GetMatchWithOdds
+	// must return the saved score_odds so exact-score bets can be placed.
+	db := openWcTestDB(t)
+	wcRepo := repository.NewWcRepository(db)
+	poissonSvc := NewPoissonService()
+
+	m := seedWcMatch(t, db)
+
+	_, dbOdds := poissonSvc.GenerateScoreOdds(PoissonInput{
+		MatchID:     m.ID,
+		HomeLambda:  1.5,
+		AwayLambda:  1.2,
+		HouseMargin: 0.05,
+		MinProb:     0.01,
+	})
+	require.NotEmpty(t, dbOdds)
+
+	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds))
+
+	result, err := wcRepo.GetMatchWithOdds(m.ID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, result.ScoreOdds, "score_odds must be non-empty after BulkUpsert")
+	assert.Equal(t, len(dbOdds), len(result.ScoreOdds))
+}
+
+func TestPoisson_BulkUpsert_Idempotent(t *testing.T) {
+	// Upserting the same scorelines twice must not create duplicates or fail.
+	db := openWcTestDB(t)
+	wcRepo := repository.NewWcRepository(db)
+	poissonSvc := NewPoissonService()
+
+	m := seedWcMatch(t, db)
+
+	input := PoissonInput{
+		MatchID:     m.ID,
+		HomeLambda:  1.5,
+		AwayLambda:  1.2,
+		HouseMargin: 0.05,
+		MinProb:     0.01,
+	}
+	_, dbOdds := poissonSvc.GenerateScoreOdds(input)
+	require.NotEmpty(t, dbOdds)
+
+	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds))
+	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds), "second upsert must not fail")
+
+	listed, err := wcRepo.ListScoreOdds(m.ID)
+	require.NoError(t, err)
+	assert.Equal(t, len(dbOdds), len(listed), "duplicate upsert must not create extra rows")
+}
+
+func TestPoisson_BulkUpsert_UpdatesOddsOnConflict(t *testing.T) {
+	// When the same (match_id, home_score, away_score) is upserted with a different
+	// odds value, the stored odds must be updated to the new value.
+	db := openWcTestDB(t)
+	wcRepo := repository.NewWcRepository(db)
+
+	m := seedWcMatch(t, db)
+
+	first := []model.WcScoreOdds{
+		{ID: uuid.New(), MatchID: m.ID, HomeScore: 1, AwayScore: 0, Odds: 5.00},
+	}
+	require.NoError(t, wcRepo.BulkUpsertScoreOdds(first))
+
+	updated := []model.WcScoreOdds{
+		{ID: uuid.New(), MatchID: m.ID, HomeScore: 1, AwayScore: 0, Odds: 6.50},
+	}
+	require.NoError(t, wcRepo.BulkUpsertScoreOdds(updated))
+
+	result, err := wcRepo.GetMatchWithOdds(m.ID)
+	require.NoError(t, err)
+	require.Len(t, result.ScoreOdds, 1)
+	assert.InDelta(t, 6.50, result.ScoreOdds[0].Odds, 0.001, "odds must be updated on conflict")
+}
+
+func TestPoisson_BulkUpsert_ExactScoreBetCanBePlaced(t *testing.T) {
+	// End-to-end: generate → upsert → place exact score bet.
+	// This is the flow that was broken before the nil→[] fix.
+	db := openWcTestDB(t)
+	wcRepo := repository.NewWcRepository(db)
+	poissonSvc := NewPoissonService()
+	svc, authSvc := newWcServices(db)
+
+	user := seedWcUser(t, authSvc, "PoissonBet_"+uuid.NewString()[:6], "pass")
+	m := seedWcMatch(t, db)
+
+	_, dbOdds := poissonSvc.GenerateScoreOdds(PoissonInput{
+		MatchID:     m.ID,
+		HomeLambda:  1.5,
+		AwayLambda:  1.2,
+		HouseMargin: 0.05,
+		MinProb:     0.01,
+	})
+	require.NotEmpty(t, dbOdds)
+	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds))
+
+	// Pick the first generated scoreline to bet on.
+	target := dbOdds[0]
+	hs, as := target.HomeScore, target.AwayScore
+
+	bet, err := svc.PlaceBet(user.ID, PlaceBetRequest{
+		MatchID:            m.ID,
+		BetType:            model.WcBetTypeExactScore,
+		PredictedHomeScore: &hs,
+		PredictedAwayScore: &as,
+		Stake:              100,
+	})
+	require.NoError(t, err, "exact score bet must succeed after Poisson odds are saved")
+	assert.Equal(t, model.WcBetTypeExactScore, bet.BetType)
+	assert.InDelta(t, target.Odds, bet.OddsSnapshot, 0.001)
+}
