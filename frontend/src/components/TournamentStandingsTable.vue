@@ -1,9 +1,9 @@
 <template>
   <div class="standings-wrap">
-    <el-table :data="standings" size="small" class="standings-table" :row-class-name="({ rowIndex }) => rowIndex < (knockoutSize ?? 4) ? 'row-qualified' : ''">
+    <el-table :data="standings" size="small" class="standings-table" :row-class-name="({ rowIndex }: { rowIndex: number }) => rowIndex < (knockoutSize ?? 4) ? 'row-qualified' : ''">
       <el-table-column label="#" width="36" align="center">
         <template #default="{ $index }">
-          <span :class="$index < knockoutSize ? 'seed-qualified' : 'seed-out'">{{ $index + 1 }}</span>
+          <span :class="$index < (knockoutSize ?? 4) ? 'seed-qualified' : 'seed-out'">{{ $index + 1 }}</span>
         </template>
       </el-table-column>
 
