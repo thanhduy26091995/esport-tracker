@@ -11,6 +11,7 @@ type WcUser struct {
 	Name         string    `gorm:"type:varchar(100);not null;uniqueIndex" json:"name"`
 	PasswordHash *string   `gorm:"type:varchar(255)" json:"-"`
 	GoogleID     *string   `gorm:"type:varchar(100);uniqueIndex" json:"-"`
+	Email        *string   `gorm:"type:varchar(255)" json:"-"`
 	AvatarURL    *string   `gorm:"type:varchar(500)" json:"avatar_url"`
 	IsAdmin      bool      `gorm:"default:false" json:"is_admin"`
 	CreatedAt    time.Time `json:"created_at"`

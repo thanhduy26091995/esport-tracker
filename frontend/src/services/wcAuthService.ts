@@ -19,4 +19,5 @@ export const wcAuthService = {
     )
     return response.data
   },
+
 }

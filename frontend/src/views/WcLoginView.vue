@@ -92,17 +92,25 @@ async function handleLogin() {
 
 onMounted(() => {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-  if (!clientId || !window.google) return
+  if (!clientId) return
 
-  window.google.accounts.id.initialize({
-    client_id: clientId,
-    callback: handleGoogleCredential,
-    auto_select: false,
-  })
-  window.google.accounts.id.renderButton(
-    document.getElementById('google-signin-btn')!,
-    { theme: 'outline', size: 'large', text: 'signin_with', locale: 'vi', width: 356 }
-  )
+  const initGsi = () => {
+    window.google!.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential,
+      auto_select: false,
+    })
+    window.google!.accounts.id.renderButton(
+      document.getElementById('google-signin-btn')!,
+      { theme: 'outline', size: 'large', text: 'signin_with', locale: 'vi', width: 356 }
+    )
+  }
+
+  if (window.google) {
+    initGsi()
+  } else {
+    window.onGoogleLibraryLoad = initGsi
+  }
 })
 
 async function handleGoogleCredential(response: { credential: string }) {

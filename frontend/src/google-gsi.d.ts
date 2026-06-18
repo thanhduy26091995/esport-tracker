@@ -1,5 +1,6 @@
 // Minimal type declarations for Google Identity Services (GSI)
 interface Window {
+  onGoogleLibraryLoad?: () => void
   google?: {
     accounts: {
       id: {

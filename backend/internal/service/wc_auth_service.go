@@ -102,8 +102,14 @@ func (s *WcAuthService) GoogleLoginOrCreate(ctx context.Context, idTokenStr stri
 		return nil, ErrInvalidGoogleToken
 	}
 
+	googleEmail, _ := payload.Claims["email"].(string)
+
 	user, err := s.userRepo.GetByGoogleID(payload.Subject)
 	if err == nil {
+		// Silently persist email if not yet stored
+		if googleEmail != "" && user.Email == nil {
+			s.wcRepo.DB().Model(user).Update("email", googleEmail)
+		}
 		token, err := s.signToken(user)
 		if err != nil {
 			return nil, err
@@ -129,9 +135,14 @@ func (s *WcAuthService) GoogleLoginOrCreate(ctx context.Context, idTokenStr stri
 	}
 	name := s.uniqueName(googleName)
 
+	var emailPtr *string
+	if googleEmail != "" {
+		emailPtr = &googleEmail
+	}
 	newUser := &model.WcUser{
 		GoogleID:  &payload.Subject,
 		Name:      name,
+		Email:     emailPtr,
 		AvatarURL: &googlePic,
 	}
 	db := s.wcRepo.DB()
@@ -167,12 +178,17 @@ func (s *WcAuthService) LinkGoogleToAccount(ctx context.Context, userID uuid.UUI
 	}
 
 	avatarURL, _ := payload.Claims["picture"].(string)
+	email, _ := payload.Claims["email"].(string)
+	updates := map[string]interface{}{
+		"google_id":  payload.Subject,
+		"avatar_url": avatarURL,
+	}
+	if email != "" {
+		updates["email"] = email
+	}
 	result := s.wcRepo.DB().Model(&model.WcUser{}).
 		Where("id = ? AND google_id IS NULL", userID).
-		Updates(map[string]interface{}{
-			"google_id":  payload.Subject,
-			"avatar_url": avatarURL,
-		})
+		Updates(updates)
 	if result.Error != nil {
 		if isUniqueViolation(result.Error) {
 			return nil, ErrGoogleAlreadyLinked
