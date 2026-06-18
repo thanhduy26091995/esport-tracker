@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Picture, Check } from '@element-plus/icons-vue'
 import { wcProfileService } from '@/services/wcProfileService'
