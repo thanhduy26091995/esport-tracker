@@ -288,7 +288,7 @@ func (r *WcRepository) ListPredictionsForMatch(matchID uuid.UUID) ([]*model.WcPr
 func (r *WcRepository) ListPredictionsForMatchPublic(matchID uuid.UUID) ([]*model.WcPredictionPublic, error) {
 	var bets []*model.WcPredictionPublic
 	err := r.db.Table("wc_predictions b").
-		Select("b.id, b.wc_user_id, u.name, b.prediction_type, b.prediction_choice, b.predicted_home_score, b.predicted_away_score, b.points, b.multiplier_snapshot, b.result, b.points_earned, b.created_at").
+		Select("b.id, b.wc_user_id, u.name, u.avatar_url, b.prediction_type, b.prediction_choice, b.predicted_home_score, b.predicted_away_score, b.points, b.multiplier_snapshot, b.result, b.points_earned, b.created_at").
 		Joins("JOIN wc_users u ON u.id = b.wc_user_id").
 		Where("b.match_id = ?", matchID).
 		Order("b.created_at ASC").
@@ -296,7 +296,7 @@ func (r *WcRepository) ListPredictionsForMatchPublic(matchID uuid.UUID) ([]*mode
 	return bets, err
 }
 
-func (r *WcRepository) UpdatePredictionResult(tx *gorm.DB, betID uuid.UUID, result string, pointsEarned int) error {
+func (r *WcRepository) UpdatePredictionResult(tx *gorm.DB, betID uuid.UUID, result string, pointsEarned float64) error {
 	db := r.db
 	if tx != nil {
 		db = tx
@@ -310,8 +310,9 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 	rows := make([]*model.WcLeaderboardEntry, 0)
 	err := r.db.Raw(`
 		SELECT
-			u.id   AS wc_user_id,
+			u.id         AS wc_user_id,
 			u.name,
+			u.avatar_url,
 			COALESCE(SUM(COALESCE(b.points_earned, 0) - b.points) FILTER (WHERE b.result IS NOT NULL), 0) AS net_points,
 			COUNT(b.id) FILTER (WHERE b.result IS NOT NULL)              AS total_predictions,
 			COUNT(b.id) FILTER (WHERE b.result = 'correct')              AS correct,
@@ -320,7 +321,7 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 			COUNT(b.id) FILTER (WHERE b.result = 'incorrect')            AS incorrect
 		FROM wc_users u
 		LEFT JOIN wc_predictions b ON b.wc_user_id = u.id
-		GROUP BY u.id, u.name
+		GROUP BY u.id, u.name, u.avatar_url
 		HAVING COUNT(b.id) > 0
 		ORDER BY net_points DESC, correct DESC, u.name ASC
 	`).Scan(&rows).Error
@@ -460,7 +461,7 @@ func (r *WcRepository) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, er
 func (r *WcRepository) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic, error) {
 	var bets []*model.WcBetPublic
 	err := r.db.Table("wc_bets b").
-		Select("b.id, b.wc_user_id, u.name, b.bet_type, b.bet_choice, b.stake, b.odds_snapshot, b.predicted_home_score, b.predicted_away_score, b.result, b.payout, b.created_at").
+		Select("b.id, b.wc_user_id, u.name, u.avatar_url, b.bet_type, b.bet_choice, b.stake, b.odds_snapshot, b.predicted_home_score, b.predicted_away_score, b.result, b.payout, b.created_at").
 		Joins("JOIN wc_users u ON u.id = b.wc_user_id").
 		Where("b.match_id = ?", matchID).
 		Order("b.created_at ASC").

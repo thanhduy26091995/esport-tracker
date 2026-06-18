@@ -129,6 +129,7 @@ export interface WcPredictionPublic {
   id: string
   wc_user_id: string
   name: string
+  avatar_url: string | null
   prediction_type: WcPredictionType
   prediction_choice?: string
   points: number
@@ -143,6 +144,7 @@ export interface WcPredictionPublic {
 export interface WcLeaderboardEntry {
   wc_user_id: string
   name: string
+  avatar_url: string | null
   net_points: number
   total_predictions: number
   correct: number
@@ -217,6 +219,7 @@ export interface WcBetPublic {
   id: string
   wc_user_id: string
   name: string
+  avatar_url: string | null
   bet_type: WcBetType
   bet_choice?: string
   stake: number
@@ -241,6 +244,8 @@ export interface WcAuthUser {
   id: string
   name: string
   isAdmin: boolean
+  avatarUrl: string | null
+  googleLinked: boolean
 }
 
 export interface WcLoginResponse {
@@ -248,6 +253,17 @@ export interface WcLoginResponse {
   user_id: string
   name: string
   is_admin: boolean
+  avatar_url: string | null
+  google_linked: boolean
+}
+
+export interface WcProfile {
+  id: string
+  name: string
+  avatar_url: string | null
+  is_admin: boolean
+  google_linked: boolean
+  created_at: string
 }
 
 export interface WcSubmitPredictionRequest {

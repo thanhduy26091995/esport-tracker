@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -86,12 +87,30 @@ func seedWcMatch(t *testing.T, db *gorm.DB, opts ...func(*model.WcMatch)) *model
 	return m
 }
 
-// seedWcUser registers a WC user + wallet and returns the user.
+// seedWcUserWithGoogle creates a WC user with a google_id already set + wallet.
+func seedWcUserWithGoogle(t *testing.T, db *gorm.DB, svc *WcAuthService, name, googleID string) *model.WcUser {
+	t.Helper()
+	user := &model.WcUser{Name: name, GoogleID: &googleID}
+	require.NoError(t, db.Create(user).Error, "seed google-linked user %s", name)
+	require.NoError(t, svc.wcRepo.CreateWallet(db, user.ID))
+	t.Cleanup(func() {
+		db.Where("wc_user_id = ?", user.ID).Delete(&model.WcWalletLog{})
+		db.Where("wc_user_id = ?", user.ID).Delete(&model.WcWallet{})
+		db.Delete(user)
+	})
+	return user
+}
+
+// seedWcUser creates a WC user + wallet directly via DB (Register was removed).
 func seedWcUser(t *testing.T, svc *WcAuthService, name, password string) *model.WcUser {
 	t.Helper()
 	db := svc.wcRepo.DB()
-	_, user, err := svc.Register(name, password)
-	require.NoError(t, err, "seed user %s", name)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 4) // cost 4 for test speed
+	require.NoError(t, err)
+	hashStr := string(hash)
+	user := &model.WcUser{Name: name, PasswordHash: &hashStr}
+	require.NoError(t, db.Create(user).Error, "seed user %s", name)
+	require.NoError(t, svc.wcRepo.CreateWallet(db, user.ID))
 	t.Cleanup(func() {
 		db.Where("wc_user_id = ?", user.ID).Delete(&model.WcWalletLog{})
 		db.Where("wc_user_id = ?", user.ID).Delete(&model.WcBet{})
@@ -99,39 +118,6 @@ func seedWcUser(t *testing.T, svc *WcAuthService, name, password string) *model.
 		db.Delete(user)
 	})
 	return user
-}
-
-// ─── Auth: Register ───────────────────────────────────────────────────────────
-
-func TestWcAuth_Register_CreatesUserAndWallet(t *testing.T) {
-	db := openWcTestDB(t)
-	_, authSvc := newWcServices(db)
-
-	_, user, err := authSvc.Register("Alice_WC", "pass1234")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		db.Where("wc_user_id = ?", user.ID).Delete(&model.WcWallet{})
-		db.Delete(user)
-	})
-
-	assert.Equal(t, "Alice_WC", user.Name)
-	assert.False(t, user.IsAdmin)
-
-	var wallet model.WcWallet
-	require.NoError(t, db.Where("wc_user_id = ?", user.ID).First(&wallet).Error)
-	assert.Equal(t, 0, wallet.Balance)
-}
-
-func TestWcAuth_Register_DuplicateName(t *testing.T) {
-	db := openWcTestDB(t)
-	_, authSvc := newWcServices(db)
-
-	user := seedWcUser(t, authSvc, "Bob_WC_Dup", "pass1234")
-	_ = user
-
-	_, _, err := authSvc.Register("Bob_WC_Dup", "other")
-	assert.Error(t, err, "duplicate name must fail")
-	assert.Contains(t, err.Error(), "already taken")
 }
 
 // ─── Auth: Login ──────────────────────────────────────────────────────────────
@@ -142,10 +128,11 @@ func TestWcAuth_Login_Success(t *testing.T) {
 
 	seedWcUser(t, authSvc, "Carol_WC", "mypassword")
 
-	token, user, err := authSvc.Login("Carol_WC", "mypassword")
+	resp, err := authSvc.Login("Carol_WC", "mypassword")
 	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-	assert.Equal(t, "Carol_WC", user.Name)
+	assert.NotEmpty(t, resp.Token)
+	assert.Equal(t, "Carol_WC", resp.Name)
+	assert.False(t, resp.GoogleLinked)
 }
 
 func TestWcAuth_Login_WrongPassword(t *testing.T) {
@@ -154,7 +141,7 @@ func TestWcAuth_Login_WrongPassword(t *testing.T) {
 
 	seedWcUser(t, authSvc, "Dave_WC", "correct")
 
-	_, _, err := authSvc.Login("Dave_WC", "wrong")
+	_, err := authSvc.Login("Dave_WC", "wrong")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid name or password")
 }
@@ -163,7 +150,7 @@ func TestWcAuth_Login_UnknownUser(t *testing.T) {
 	db := openWcTestDB(t)
 	_, authSvc := newWcServices(db)
 
-	_, _, err := authSvc.Login("nobody_"+uuid.NewString()[:8], "pass")
+	_, err := authSvc.Login("nobody_"+uuid.NewString()[:8], "pass")
 	assert.Error(t, err)
 }
 
@@ -175,10 +162,10 @@ func TestWcAuth_Token_RoundTrip(t *testing.T) {
 
 	seedWcUser(t, authSvc, "Eve_WC", "secret")
 
-	token, _, err := authSvc.Login("Eve_WC", "secret")
+	resp, err := authSvc.Login("Eve_WC", "secret")
 	require.NoError(t, err)
 
-	claims, err := authSvc.VerifyToken(token)
+	claims, err := authSvc.VerifyToken(resp.Token)
 	require.NoError(t, err)
 	assert.Equal(t, "Eve_WC", claims.Name)
 	assert.False(t, claims.IsAdmin)
@@ -189,28 +176,6 @@ func TestWcAuth_Token_InvalidString(t *testing.T) {
 	_, authSvc := newWcServices(db)
 
 	_, err := authSvc.VerifyToken("not.a.valid.jwt")
-	assert.Error(t, err)
-}
-
-// ─── Auth: Reset password ─────────────────────────────────────────────────────
-
-func TestWcAuth_ResetPassword_CanLoginWithNewPassword(t *testing.T) {
-	db := openWcTestDB(t)
-	_, authSvc := newWcServices(db)
-
-	seedWcUser(t, authSvc, "Frank_WC", "original")
-
-	require.NoError(t, authSvc.ResetPassword("Frank_WC"))
-
-	_, _, err := authSvc.Login("Frank_WC", "Frank_WC_@123")
-	assert.NoError(t, err, "should log in with reset password {name}_@123")
-}
-
-func TestWcAuth_ResetPassword_UnknownUser(t *testing.T) {
-	db := openWcTestDB(t)
-	_, authSvc := newWcServices(db)
-
-	err := authSvc.ResetPassword("ghost_" + uuid.NewString()[:8])
 	assert.Error(t, err)
 }
 

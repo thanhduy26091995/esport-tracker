@@ -57,6 +57,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, tierService, db)
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 	wcAuthService := service.NewWcAuthService(wcUserRepo, wcRepo)
+	wcProfileService := service.NewWcProfileService(wcUserRepo)
 	wcService := service.NewWcService(wcRepo, wcUserRepo)
 	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo)
 	statsApiKey := os.Getenv("ODDSAPI_KEY")
@@ -85,6 +86,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	settlementHandler := NewSettlementHandler(settlementService)
 	tournamentHandler := NewTournamentHandler(tournamentService)
 	wcAuthHandler := NewWcAuthHandler(wcAuthService)
+	wcProfileHandler := NewWcProfileHandler(wcProfileService)
 	wcHandler := NewWcHandler(wcService, wcAuthService)
 	wcSyncHandler := NewWcSyncHandler(statsApiSyncService, poissonService)
 	wcChampionHandler := NewWcChampionHandler(wcChampionService)
@@ -187,9 +189,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		// Auth — public (no feature flag, no JWT required)
 		auth := wc.Group("/auth")
 		{
-			auth.POST("/register", wcAuthHandler.Register)
 			auth.POST("/login", wcAuthHandler.Login)
-			auth.POST("/reset-password", wcAuthHandler.ResetPassword)
+			auth.POST("/google", wcAuthHandler.GoogleLoginOrCreate)
+			// Google link: requires JWT only (this IS the endpoint that satisfies the link requirement)
+			auth.POST("/google/link", middleware.WcJWTMiddleware(wcAuthService), wcAuthHandler.GoogleLink)
 		}
 
 		// Admin — always accessible regardless of feature flag
@@ -210,8 +213,15 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			wcFeature.GET("/champion/teams", wcChampionHandler.GetTeams)
 			wcFeature.GET("/champion/predictions", wcChampionHandler.GetAllPredictions)
 
-			// JWT required
-			wcAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService))
+			// JWT + Google-linked required (player profile)
+			wcPlayerAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService), middleware.WcGoogleLinkedMiddleware(db))
+			{
+				wcPlayerAuth.GET("/profile", wcProfileHandler.GetProfile)
+				wcPlayerAuth.PUT("/profile", wcProfileHandler.UpdateProfile)
+			}
+
+			// JWT + Google-linked required
+			wcAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService), middleware.WcGoogleLinkedMiddleware(db))
 			{
 				wcAuth.GET("/wallet", wcHandler.GetWallet)
 				wcAuth.POST("/predictions", wcHandler.SubmitPrediction)

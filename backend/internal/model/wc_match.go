@@ -178,9 +178,9 @@ type WcPrediction struct {
 	PredictedAwayScore *int `gorm:"uniqueIndex:idx_prediction_es_dedup" json:"predicted_away_score,omitempty"`
 
 	// Result
-	Result      *string `gorm:"type:varchar(10)" json:"result,omitempty"`
-	PointsEarned *int   `json:"points_earned,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	Result       *string  `gorm:"type:varchar(10)" json:"result,omitempty"`
+	PointsEarned *float64 `gorm:"type:numeric(10,2)" json:"points_earned,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 func (WcPrediction) TableName() string {
@@ -267,6 +267,7 @@ type WcBetPublic struct {
 	ID                 uuid.UUID `json:"id"`
 	WcUserID           uuid.UUID `json:"wc_user_id"`
 	Name               string    `json:"name"`
+	AvatarURL          *string   `json:"avatar_url"`
 	BetType            string    `json:"bet_type"`
 	BetChoice          *string   `json:"bet_choice,omitempty"`
 	Stake              int       `json:"stake"`
@@ -289,7 +290,8 @@ type WcLeaderboardEntry struct {
 	Rank             int       `json:"rank"`
 	WcUserID         uuid.UUID `json:"wc_user_id"`
 	Name             string    `json:"name"`
-	NetPoints        int       `json:"net_points"`
+	AvatarURL        *string   `json:"avatar_url"`
+	NetPoints        float64   `json:"net_points"`
 	TotalPredictions int       `json:"total_predictions"`
 	Correct          int       `json:"correct"`
 	WinHalf          int       `json:"win_half"`
@@ -319,6 +321,7 @@ type WcPredictionPublic struct {
 	ID                 uuid.UUID `json:"id"`
 	WcUserID           uuid.UUID `json:"wc_user_id"`
 	Name               string    `json:"name"`
+	AvatarURL          *string   `json:"avatar_url"`
 	PredictionType     string    `json:"prediction_type"`
 	PredictionChoice   *string   `json:"prediction_choice,omitempty"`
 	PredictedHomeScore *int      `json:"predicted_home_score,omitempty"`
@@ -326,7 +329,7 @@ type WcPredictionPublic struct {
 	Points             int       `json:"points"`
 	MultiplierSnapshot float64   `json:"multiplier_snapshot"`
 	Result             *string   `json:"result,omitempty"`
-	PointsEarned       *int      `json:"points_earned,omitempty"`
+	PointsEarned       *float64  `json:"points_earned,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 

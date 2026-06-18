@@ -61,13 +61,13 @@
             {{ t('wc.resultPending') }}
           </span>
           <span v-else-if="pred.result === 'correct'" class="wc-result-badge wc-result--correct">
-            +{{ (pred.points_earned ?? 0) - pred.points }} {{ t('wc.resultCorrect') }}
+            +{{ fmtPts((pred.points_earned ?? 0) - pred.points) }} {{ t('wc.resultCorrect') }}
           </span>
           <span v-else-if="pred.result === 'win_half'" class="wc-result-badge wc-result--win-half">
-            +{{ (pred.points_earned ?? 0) - pred.points }} {{ t('wc.resultWinHalf') }}
+            +{{ fmtPts((pred.points_earned ?? 0) - pred.points) }} {{ t('wc.resultWinHalf') }}
           </span>
           <span v-else-if="pred.result === 'lose_half'" class="wc-result-badge wc-result--lose-half">
-            -{{ pred.points - (pred.points_earned ?? 0) }} {{ t('wc.resultLoseHalf') }}
+            -{{ fmtPts(pred.points - (pred.points_earned ?? 0)) }} {{ t('wc.resultLoseHalf') }}
           </span>
           <span v-else-if="pred.result === 'incorrect'" class="wc-result-badge wc-result--incorrect">
             -{{ pred.points }} {{ t('wc.resultIncorrect') }}
@@ -90,6 +90,10 @@ import type { WcPredictionWithMatch } from '@/types/wc'
 
 const { t } = useI18n()
 const store = useWcStore()
+
+function fmtPts(v: number): string {
+  return parseFloat(v.toFixed(2)).toString()
+}
 
 defineProps<{ predictions: WcPredictionWithMatch[] }>()
 

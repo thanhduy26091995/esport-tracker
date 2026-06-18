@@ -86,10 +86,16 @@ func runSchemaMigrations(db *gorm.DB) error {
 		`ALTER TABLE wc_wallet_logs ALTER COLUMN balance_before TYPE NUMERIC(10,2)`,
 		`ALTER TABLE wc_wallet_logs ALTER COLUMN balance_after TYPE NUMERIC(10,2)`,
 		`ALTER TABLE wc_settlement_details ALTER COLUMN final_balance TYPE NUMERIC(10,2)`,
+		// Float points: allow fractional points_earned for win_half / multiplier precision
+		`ALTER TABLE wc_predictions ALTER COLUMN points_earned TYPE NUMERIC(10,2) USING points_earned::numeric`,
+		// Google OAuth: make password_hash nullable for Google-only accounts
+		`ALTER TABLE wc_users ALTER COLUMN password_hash DROP NOT NULL`,
+		// Partial unique index so NULL google_id values don't conflict
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_users_google_id ON wc_users (google_id) WHERE google_id IS NOT NULL`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {
-			log.Printf("Schema migration skipped (table may not exist yet): %v", err)
+			log.Printf("Schema migration skipped (may not exist yet or already applied): %v", err)
 		}
 	}
 	return nil
@@ -114,9 +120,10 @@ func seedWcConfig(db *gorm.DB) {
 				log.Printf("⚠️  Failed to hash WC admin password: %v", hashErr)
 				return
 			}
+			hashStr := string(hash)
 			db.Create(&model.WcUser{
 				Name:         adminName,
-				PasswordHash: string(hash),
+				PasswordHash: &hashStr,
 				IsAdmin:      true,
 			})
 			log.Printf("Seeded WC admin user: %s", adminName)

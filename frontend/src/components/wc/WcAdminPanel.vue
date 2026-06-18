@@ -195,7 +195,7 @@
           </div>
           <div class="wc-user-wallet-col">
             <span class="wc-user-balance">
-              {{ walletBalance(user.id) }} pts
+              {{ fmtPts(walletBalance(user.id)) }} pts
             </span>
           </div>
           <div class="wc-user-actions-col">
@@ -345,7 +345,7 @@
             :min="0.5"
             :max="10"
             :step="0.25"
-            :precision="1"
+            :precision="2"
             style="width: 100%"
           />
         </el-form-item>
@@ -543,6 +543,10 @@ const walletMap = computed(() => {
 
 function walletBalance(userId: string) {
   return walletMap.value[userId] ?? 0;
+}
+
+function fmtPts(v: number): string {
+  return parseFloat(v.toFixed(2)).toString()
 }
 
 async function handleSync() {

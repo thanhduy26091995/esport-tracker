@@ -14,10 +14,16 @@
               {{ store.wallet?.balance ?? 0 }} {{ t('wc.points') }}
             </span>
           </div>
-          <div class="wc-user-info">
+          <router-link to="/world-cup/profile" class="wc-user-info">
+            <img
+              :src="authStore.avatarUrl || DEFAULT_AVATAR"
+              class="wc-user-avatar"
+              :alt="authStore.userName"
+              @error="(e: Event) => ((e.target as HTMLImageElement).src = DEFAULT_AVATAR)"
+            />
             <span class="wc-user-name">{{ authStore.userName }}</span>
             <span v-if="authStore.isAdmin" class="wc-admin-badge">Admin</span>
-          </div>
+          </router-link>
           <el-button size="small" text @click="handleLogout">{{ t('wc.logout') }}</el-button>
         </div>
       </div>
@@ -126,6 +132,8 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWcStore } from '@/stores/wcStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
+
+const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23374151"/%3E%3Ccircle cx="16" cy="13" r="6" fill="%236b7280"/%3E%3Cellipse cx="16" cy="29" rx="9" ry="7" fill="%236b7280"/%3E%3C/svg%3E'
 import { useMatchFilter } from '@/composables/useMatchFilter'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import WcPredictionForm from '@/components/wc/WcPredictionForm.vue'
@@ -256,8 +264,21 @@ onMounted(async () => {
 
 .wc-user-info {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.wc-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(22, 163, 74, 0.4);
+  background: #374151;
+  flex-shrink: 0;
 }
 
 .wc-user-name {

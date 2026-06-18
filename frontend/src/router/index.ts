@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useWcAuthStore } from '@/stores/wcAuthStore'
 
 const WC_API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
 
@@ -30,22 +31,35 @@ const router = createRouter({
       name: 'wc-login',
       component: () => import('../views/WcLoginView.vue')
     },
+    // /world-cup/register removed — redirect to login
     {
       path: '/world-cup/register',
-      name: 'wc-register',
-      component: () => import('../views/WcRegisterView.vue')
+      redirect: '/world-cup/login'
+    },
+    {
+      path: '/world-cup/link-google',
+      name: 'wc-link-google',
+      component: () => import('../views/WcLinkGoogleView.vue'),
+      // Requires JWT but NOT google link (it's the page that satisfies the link requirement)
+      meta: { requiresWcAuth: true, skipGoogleLinkCheck: true }
+    },
+    {
+      path: '/world-cup/profile',
+      name: 'wc-profile',
+      component: () => import('../views/WcProfileView.vue'),
+      meta: { requiresWcAuth: true, requiresGoogleLink: true }
     },
     {
       path: '/world-cup/predict',
       name: 'wc-predict',
       component: () => import('../views/WcPredictView.vue'),
-      meta: { requiresWcAuth: true, requiresWcFeature: true }
+      meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
     },
     {
       path: '/world-cup/bet',
       name: 'wc-bet',
       component: () => import('../views/WcBettingView.vue'),
-      meta: { requiresWcAuth: true, requiresWcFeature: true }
+      meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
     },
     {
       path: '/world-cup/admin',
@@ -106,10 +120,12 @@ router.beforeEach(async (to) => {
     const enabled = await isWcFeatureEnabled()
     if (!enabled) return { name: 'not-found' }
   }
+
   if (to.meta.requiresWcAuth) {
     const token = localStorage.getItem('wc_token')
     if (!token) return { name: 'wc-login' }
   }
+
   if (to.meta.requiresWcAdmin) {
     try {
       const raw = localStorage.getItem('wc_user')
@@ -117,6 +133,19 @@ router.beforeEach(async (to) => {
       if (!user?.isAdmin) return { name: 'wc-schedule' }
     } catch {
       return { name: 'wc-schedule' }
+    }
+  }
+
+  // Google link gate: block access if user hasn't linked Google yet
+  if (to.meta.requiresGoogleLink) {
+    try {
+      const raw = localStorage.getItem('wc_user')
+      const user = raw ? JSON.parse(raw) : null
+      if (user && !user.googleLinked) {
+        return { name: 'wc-link-google' }
+      }
+    } catch {
+      return { name: 'wc-login' }
     }
   }
 })

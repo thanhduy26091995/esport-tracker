@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -12,16 +13,40 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/api/idtoken"
 	"gorm.io/gorm"
 )
 
+var (
+	ErrInvalidGoogleToken  = errors.New("invalid or expired Google token")
+	ErrGoogleAlreadyLinked = errors.New("this Google account is already linked to another player")
+	ErrAlreadyLinked       = errors.New("this account already has a Google account linked")
+)
+
+// googleVerifier is a function that validates a Google ID token and returns its payload.
+// The default is idtoken.Validate; tests inject a fake to avoid real network calls.
+type googleVerifier func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error)
+
 type WcAuthService struct {
-	userRepo *repository.WcUserRepository
-	wcRepo   *repository.WcRepository
+	userRepo     *repository.WcUserRepository
+	wcRepo       *repository.WcRepository
+	verifyGoogle googleVerifier
 }
 
 func NewWcAuthService(userRepo *repository.WcUserRepository, wcRepo *repository.WcRepository) *WcAuthService {
-	return &WcAuthService{userRepo: userRepo, wcRepo: wcRepo}
+	return &WcAuthService{
+		userRepo:     userRepo,
+		wcRepo:       wcRepo,
+		verifyGoogle: idtoken.Validate,
+	}
+}
+
+// withVerifier returns a shallow copy of the service with the given token verifier.
+// Intended for tests only.
+func (s *WcAuthService) withVerifier(v googleVerifier) *WcAuthService {
+	cp := *s
+	cp.verifyGoogle = v
+	return &cp
 }
 
 type WcClaims struct {
@@ -31,91 +56,133 @@ type WcClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (s *WcAuthService) Register(name, password string) (string, *model.WcUser, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "", nil, fmt.Errorf("name cannot be empty")
-	}
-	if len(name) < 2 {
-		return "", nil, fmt.Errorf("name must be at least 2 characters")
+type WcAuthResponse struct {
+	Token        string    `json:"token"`
+	UserID       uuid.UUID `json:"user_id"`
+	Name         string    `json:"name"`
+	AvatarURL    *string   `json:"avatar_url"`
+	IsAdmin      bool      `json:"is_admin"`
+	GoogleLinked bool      `json:"google_linked"`
+}
+
+func (s *WcAuthService) Login(name, password string) (*WcAuthResponse, error) {
+	user, err := s.userRepo.GetByName(strings.TrimSpace(name))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("invalid name or password")
+		}
+		return nil, err
 	}
 
-	_, err := s.userRepo.GetByName(name)
+	if user.PasswordHash == nil {
+		return nil, fmt.Errorf("invalid name or password")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)); err != nil {
+		return nil, fmt.Errorf("invalid name or password")
+	}
+
+	token, err := s.signToken(user)
+	if err != nil {
+		return nil, err
+	}
+	return &WcAuthResponse{
+		Token:        token,
+		UserID:       user.ID,
+		Name:         user.Name,
+		AvatarURL:    user.AvatarURL,
+		IsAdmin:      user.IsAdmin,
+		GoogleLinked: user.GoogleLinked(),
+	}, nil
+}
+
+// GoogleLoginOrCreate logs in an existing Google-linked account or creates a new one.
+func (s *WcAuthService) GoogleLoginOrCreate(ctx context.Context, idTokenStr string) (*WcAuthResponse, error) {
+	payload, err := s.verifyGoogleToken(ctx, idTokenStr)
+	if err != nil {
+		return nil, ErrInvalidGoogleToken
+	}
+
+	user, err := s.userRepo.GetByGoogleID(payload.Subject)
 	if err == nil {
-		return "", nil, fmt.Errorf("name '%s' is already taken", name)
+		token, err := s.signToken(user)
+		if err != nil {
+			return nil, err
+		}
+		return &WcAuthResponse{
+			Token:        token,
+			UserID:       user.ID,
+			Name:         user.Name,
+			AvatarURL:    user.AvatarURL,
+			IsAdmin:      user.IsAdmin,
+			GoogleLinked: true,
+		}, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", nil, err
+		return nil, err
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to hash password: %w", err)
+	// Auto-create new account
+	googleName, _ := payload.Claims["name"].(string)
+	googlePic, _ := payload.Claims["picture"].(string)
+	if googleName == "" {
+		googleName = "Player"
 	}
+	name := s.uniqueName(googleName)
 
-	user := &model.WcUser{
-		Name:         name,
-		PasswordHash: string(hash),
-		IsAdmin:      false,
+	newUser := &model.WcUser{
+		GoogleID:  &payload.Subject,
+		Name:      name,
+		AvatarURL: &googlePic,
 	}
-
-	// Create user + wallet in one transaction
 	db := s.wcRepo.DB()
 	err = db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(user).Error; err != nil {
+		if err := tx.Create(newUser).Error; err != nil {
 			return err
 		}
-		return s.wcRepo.CreateWallet(tx, user.ID)
+		return s.wcRepo.CreateWallet(tx, newUser.ID)
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to register: %w", err)
+		return nil, fmt.Errorf("failed to create account: %w", err)
 	}
 
-	token, err := s.signToken(user)
+	token, err := s.signToken(newUser)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	return token, user, nil
+	return &WcAuthResponse{
+		Token:        token,
+		UserID:       newUser.ID,
+		Name:         newUser.Name,
+		AvatarURL:    newUser.AvatarURL,
+		IsAdmin:      newUser.IsAdmin,
+		GoogleLinked: true,
+	}, nil
 }
 
-func (s *WcAuthService) Login(name, password string) (string, *model.WcUser, error) {
-	user, err := s.userRepo.GetByName(strings.TrimSpace(name))
+// LinkGoogleToAccount links a Google identity to an already-authenticated WC account.
+func (s *WcAuthService) LinkGoogleToAccount(ctx context.Context, userID uuid.UUID, idTokenStr string) (*string, error) {
+	payload, err := s.verifyGoogleToken(ctx, idTokenStr)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", nil, fmt.Errorf("invalid name or password")
+		return nil, ErrInvalidGoogleToken
+	}
+
+	avatarURL, _ := payload.Claims["picture"].(string)
+	result := s.wcRepo.DB().Model(&model.WcUser{}).
+		Where("id = ? AND google_id IS NULL", userID).
+		Updates(map[string]interface{}{
+			"google_id":  payload.Subject,
+			"avatar_url": avatarURL,
+		})
+	if result.Error != nil {
+		if isUniqueViolation(result.Error) {
+			return nil, ErrGoogleAlreadyLinked
 		}
-		return "", nil, err
+		return nil, result.Error
 	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return "", nil, fmt.Errorf("invalid name or password")
+	if result.RowsAffected == 0 {
+		return nil, ErrAlreadyLinked
 	}
-
-	token, err := s.signToken(user)
-	if err != nil {
-		return "", nil, err
-	}
-	return token, user, nil
-}
-
-func (s *WcAuthService) ResetPassword(name string) error {
-	user, err := s.userRepo.GetByName(strings.TrimSpace(name))
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("user '%s' not found", name)
-		}
-		return err
-	}
-
-	newPassword := user.Name + "_@123"
-	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	return s.wcRepo.DB().Model(&model.WcUser{}).
-		Where("id = ?", user.ID).
-		Update("password_hash", string(hash)).Error
+	return &avatarURL, nil
 }
 
 func (s *WcAuthService) VerifyToken(tokenStr string) (*WcClaims, error) {
@@ -136,6 +203,11 @@ func (s *WcAuthService) VerifyToken(tokenStr string) (*WcClaims, error) {
 	return claims, nil
 }
 
+func (s *WcAuthService) verifyGoogleToken(ctx context.Context, idTokenStr string) (*idtoken.Payload, error) {
+	clientID := os.Getenv("GOOGLE_CLIENT_ID")
+	return s.verifyGoogle(ctx, idTokenStr, clientID)
+}
+
 func (s *WcAuthService) signToken(user *model.WcUser) (string, error) {
 	secret := os.Getenv("WC_JWT_SECRET")
 	claims := WcClaims{
@@ -149,4 +221,20 @@ func (s *WcAuthService) signToken(user *model.WcUser) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secret))
+}
+
+// uniqueName returns name if available, otherwise appends a numeric suffix.
+func (s *WcAuthService) uniqueName(base string) string {
+	name := base
+	for i := 1; i <= 99; i++ {
+		if _, err := s.userRepo.GetByName(name); errors.Is(err, gorm.ErrRecordNotFound) {
+			return name
+		}
+		name = fmt.Sprintf("%s%d", base, i)
+	}
+	return fmt.Sprintf("%s_%s", base, uuid.New().String()[:4])
+}
+
+func isUniqueViolation(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "unique")
 }

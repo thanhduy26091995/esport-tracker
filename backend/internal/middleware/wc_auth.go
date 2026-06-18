@@ -4,14 +4,17 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 const (
-	WcUserIDKey  = "wc_user_id"
+	WcUserIDKey   = "wc_user_id"
 	WcUserNameKey = "wc_user_name"
-	WcIsAdminKey = "wc_is_admin"
+	WcIsAdminKey  = "wc_is_admin"
 )
 
 func WcJWTMiddleware(authSvc *service.WcAuthService) gin.HandlerFunc {
@@ -31,6 +34,25 @@ func WcJWTMiddleware(authSvc *service.WcAuthService) gin.HandlerFunc {
 		c.Set(WcUserIDKey, claims.WcUserID)
 		c.Set(WcUserNameKey, claims.Name)
 		c.Set(WcIsAdminKey, claims.IsAdmin)
+		c.Next()
+	}
+}
+
+// WcGoogleLinkedMiddleware blocks access for players who have not yet linked a Google account.
+// Admin accounts bypass this check.
+func WcGoogleLinkedMiddleware(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetBool(WcIsAdminKey) {
+			c.Next()
+			return
+		}
+		userID := c.MustGet(WcUserIDKey).(uuid.UUID)
+		var u struct{ GoogleID *string }
+		db.Model(&model.WcUser{}).Select("google_id").Where("id = ?", userID).Scan(&u)
+		if u.GoogleID == nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "google_not_linked"})
+			return
+		}
 		c.Next()
 	}
 }

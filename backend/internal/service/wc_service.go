@@ -293,7 +293,7 @@ func (s *WcService) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 
 // FinalizeMatch evaluates all predictions on a match, credits/debits wallets, and marks settled_at.
 // Returns an error if the match has already been finalized.
-func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
+func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, float64, error) {
 	m, err := s.repo.GetMatch(matchID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("match not found")
@@ -311,13 +311,13 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 	}
 
 	db := s.repo.DB()
-	var totalPointsEarned int
+	var totalPointsEarned float64
 	processed := 0
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, bet := range bets {
 			var result string
-			var pointsEarned int
+			var pointsEarned float64
 
 			switch bet.PredictionType {
 			case model.WcPredictionTypeHandicap:
@@ -334,7 +334,7 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 
 			// Credit wallet with pointsEarned (0 for losses)
 			if pointsEarned > 0 {
-				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, float64(pointsEarned)); err != nil {
+				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, pointsEarned); err != nil {
 					return err
 				}
 			}
@@ -361,9 +361,9 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, int, error) {
 
 // FinalizeAllResult summarises a bulk-finalize run.
 type FinalizeAllResult struct {
-	Processed          int `json:"processed"`
-	Skipped            int `json:"skipped"`
-	TotalPointsAwarded int `json:"total_points_awarded"`
+	Processed          int     `json:"processed"`
+	Skipped            int     `json:"skipped"`
+	TotalPointsAwarded float64 `json:"total_points_awarded"`
 }
 
 // FinalizeAllMatches finalizes every scored-but-not-yet-settled match in one call.
@@ -763,6 +763,11 @@ func isFinished(m *model.WcMatch) bool {
 	return m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled
 }
 
+// round2 rounds a float64 to 2 decimal places.
+func round2(v float64) float64 {
+	return math.Round(v*100) / 100
+}
+
 // isQuarterHandicap returns true for .25/.75 handicaps which use split-bet (Asian quarter-ball) rules.
 func isQuarterHandicap(h float64) bool {
 	frac := math.Mod(math.Abs(h), 0.5)
@@ -795,7 +800,7 @@ func evalSubHandicap(homeScore, awayScore int, h float64, handicapTeam, betChoic
 
 // evaluateHandicapPrediction applies Asian handicap rules for the prediction system.
 // Quarter handicaps (e.g. 1.25, 0.75) split the stake across two lines.
-func evaluateHandicapPrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, int) {
+func evaluateHandicapPrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, float64) {
 	if bet.HandicapSnapshot == nil || bet.HandicapTeamSnapshot == nil || bet.PredictionChoice == nil {
 		return model.WcResultIncorrect, 0
 	}
@@ -810,15 +815,15 @@ func evaluateHandicapPrediction(bet *model.WcPrediction, homeScore, awayScore in
 		half := float64(bet.Points) / 2
 		switch {
 		case r1 == "win" && r2 == "win":
-			return model.WcResultCorrect, int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
+			return model.WcResultCorrect, round2(float64(bet.Points) * bet.MultiplierSnapshot)
 		case r1 == "lose" && r2 == "lose":
 			return model.WcResultIncorrect, 0
 		case (r1 == "win" || r2 == "win"):
 			// one win + one push
-			return model.WcResultWinHalf, int(math.Floor(half*bet.MultiplierSnapshot)) + int(math.Floor(half))
+			return model.WcResultWinHalf, round2(half*bet.MultiplierSnapshot + half)
 		default:
 			// one push + one lose
-			return model.WcResultLoseHalf, int(math.Floor(half))
+			return model.WcResultLoseHalf, round2(half)
 		}
 	}
 
@@ -836,23 +841,22 @@ func evaluateHandicapPrediction(bet *model.WcPrediction, homeScore, awayScore in
 	} else if adjustedHome < adjustedAway {
 		winner = model.WcTeamAway
 	} else {
-		return model.WcResultVoid, bet.Points
+		return model.WcResultVoid, float64(bet.Points)
 	}
 
 	if winner == choice {
-		return model.WcResultCorrect, int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
+		return model.WcResultCorrect, round2(float64(bet.Points) * bet.MultiplierSnapshot)
 	}
 	return model.WcResultIncorrect, 0
 }
 
 // evaluateExactScorePrediction checks exact score for the prediction system.
-func evaluateExactScorePrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, int) {
+func evaluateExactScorePrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, float64) {
 	if bet.PredictedHomeScore == nil || bet.PredictedAwayScore == nil {
 		return model.WcResultIncorrect, 0
 	}
 	if *bet.PredictedHomeScore == homeScore && *bet.PredictedAwayScore == awayScore {
-		pointsEarned := int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
-		return model.WcResultCorrect, pointsEarned
+		return model.WcResultCorrect, round2(float64(bet.Points) * bet.MultiplierSnapshot)
 	}
 	return model.WcResultIncorrect, 0
 }
@@ -860,7 +864,7 @@ func evaluateExactScorePrediction(bet *model.WcPrediction, homeScore, awayScore 
 // evaluateOverUnderPrediction checks total goals vs the O/U line.
 // HandicapSnapshot stores the OU line; PredictionChoice is "over" or "under".
 // Exact hit on the line = void (stake refunded).
-func evaluateOverUnderPrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, int) {
+func evaluateOverUnderPrediction(bet *model.WcPrediction, homeScore, awayScore int) (string, float64) {
 	if bet.PredictionChoice == nil || bet.HandicapSnapshot == nil {
 		return model.WcResultIncorrect, 0
 	}
@@ -868,10 +872,10 @@ func evaluateOverUnderPrediction(bet *model.WcPrediction, homeScore, awayScore i
 	line := *bet.HandicapSnapshot
 	choice := *bet.PredictionChoice
 	if total == line {
-		return model.WcResultVoid, bet.Points
+		return model.WcResultVoid, float64(bet.Points)
 	}
 	if (total > line && choice == model.WcChoiceOver) || (total < line && choice == model.WcChoiceUnder) {
-		return model.WcResultCorrect, int(math.Floor(float64(bet.Points) * bet.MultiplierSnapshot))
+		return model.WcResultCorrect, round2(float64(bet.Points) * bet.MultiplierSnapshot)
 	}
 	return model.WcResultIncorrect, 0
 }

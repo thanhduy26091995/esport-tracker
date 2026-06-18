@@ -16,6 +16,12 @@
           <span v-else-if="index === 2" class="wc-lb-medal wc-lb-medal--bronze">🥉</span>
           <span v-else class="wc-lb-rank-num">{{ index + 1 }}</span>
         </div>
+        <img
+          :src="entry.avatar_url || DEFAULT_AVATAR"
+          class="wc-lb-avatar"
+          :alt="entry.name"
+          @error="(e: Event) => ((e.target as HTMLImageElement).src = DEFAULT_AVATAR)"
+        />
         <div class="wc-lb-name">{{ entry.name }}</div>
         <div class="wc-lb-stats">
           <span class="wc-lb-stat wc-stat--win">{{ entry.correct }}W</span>
@@ -25,7 +31,7 @@
           <span class="wc-lb-stat wc-stat--total">/ {{ entry.total_predictions }}</span>
         </div>
         <div class="wc-lb-profit" :class="entry.net_points >= 0 ? 'wc-profit--pos' : 'wc-profit--neg'">
-          {{ entry.net_points >= 0 ? '+' : '' }}{{ entry.net_points }}
+          {{ entry.net_points >= 0 ? '+' : '' }}{{ fmtPts(entry.net_points) }}
         </div>
       </div>
     </div>
@@ -35,6 +41,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { WcLeaderboardEntry } from '@/types/wc'
+
+const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23374151"/%3E%3Ccircle cx="16" cy="13" r="6" fill="%236b7280"/%3E%3Cellipse cx="16" cy="29" rx="9" ry="7" fill="%236b7280"/%3E%3C/svg%3E'
+
+function fmtPts(v: number): string {
+  return parseFloat(v.toFixed(2)).toString()
+}
 
 const { t } = useI18n()
 defineProps<{ entries: WcLeaderboardEntry[] }>()
@@ -71,6 +83,15 @@ defineProps<{ entries: WcLeaderboardEntry[] }>()
   width: 32px;
   flex-shrink: 0;
   text-align: center;
+}
+
+.wc-lb-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #374151;
 }
 
 .wc-lb-medal {

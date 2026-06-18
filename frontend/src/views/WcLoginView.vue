@@ -44,37 +44,16 @@
           </el-button>
         </el-form>
 
-        <div class="wc-auth-footer">
-          <span class="wc-auth-footer-text">{{ t('wc.noAccount') }}</span>
-          <router-link to="/world-cup/register" class="wc-auth-link">{{ t('wc.registerBtn') }}</router-link>
+        <div class="wc-divider">
+          <span>hoặc</span>
         </div>
 
-        <div class="wc-auth-reset">
-          <button class="wc-reset-trigger" @click="showReset = !showReset">
-            {{ t('wc.forgotPassword') }}
-          </button>
-        </div>
+        <!-- Google Sign-In button rendered by GSI -->
+        <div id="google-signin-btn" class="wc-google-btn-wrapper"></div>
 
-        <transition name="slide-down">
-          <div v-if="showReset" class="wc-reset-panel">
-            <p class="wc-reset-desc">{{ t('wc.resetPasswordTitle') }}</p>
-            <div class="wc-reset-row">
-              <el-input
-                v-model="resetName"
-                :placeholder="t('wc.namePlaceholder')"
-                size="default"
-              />
-              <el-button
-                type="warning"
-                :loading="authStore.loading"
-                @click="handleReset"
-              >
-                {{ t('wc.resetPasswordBtn') }}
-              </el-button>
-            </div>
-            <p class="wc-reset-hint">{{ t('wc.resetPasswordDesc', { name: resetName || '...' }) }}</p>
-          </div>
-        </transition>
+        <p class="wc-google-hint">
+          Người chơi mới? Đăng nhập bằng Google để tạo tài khoản tự động.
+        </p>
       </div>
 
       <div class="wc-auth-back">
@@ -88,9 +67,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 import { Trophy, User, Lock, ArrowLeft } from '@element-plus/icons-vue'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 
@@ -99,23 +79,39 @@ const router = useRouter()
 const authStore = useWcAuthStore()
 
 const form = ref({ name: '', password: '' })
-const showReset = ref(false)
-const resetName = ref('')
 
 async function handleLogin() {
   if (!form.value.name || !form.value.password) return
   try {
     await authStore.login(form.value.name, form.value.password)
+    // Router guard will redirect to /world-cup/link-google if not yet linked,
+    // or to /world-cup/predict if already linked.
     router.push('/world-cup/predict')
-  } catch { /* error shown by store */ }
+  } catch { /* error shown by store/api interceptor */ }
 }
 
-async function handleReset() {
-  if (!resetName.value) return
+onMounted(() => {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  if (!clientId || !window.google) return
+
+  window.google.accounts.id.initialize({
+    client_id: clientId,
+    callback: handleGoogleCredential,
+    auto_select: false,
+  })
+  window.google.accounts.id.renderButton(
+    document.getElementById('google-signin-btn')!,
+    { theme: 'outline', size: 'large', text: 'signin_with', locale: 'vi', width: 356 }
+  )
+})
+
+async function handleGoogleCredential(response: { credential: string }) {
   try {
-    await authStore.resetPassword(resetName.value)
-    showReset.value = false
-  } catch { /* error shown by api */ }
+    await authStore.loginWithGoogle(response.credential)
+    router.push('/world-cup/predict')
+  } catch {
+    ElMessage.error('Đăng nhập Google thất bại. Vui lòng thử lại.')
+  }
 }
 </script>
 
@@ -214,81 +210,33 @@ async function handleReset() {
   background: linear-gradient(135deg, #15803d, #166534) !important;
 }
 
-.wc-auth-footer {
-  text-align: center;
-  margin-top: 20px;
-  font-size: 13px;
-}
-
-.wc-auth-footer-text {
-  color: rgba(255, 255, 255, 0.5);
-  margin-right: 6px;
-}
-
-.wc-auth-link {
-  color: #4ade80;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.wc-auth-link:hover {
-  color: #86efac;
-  text-decoration: underline;
-}
-
-.wc-auth-reset {
-  text-align: center;
-  margin-top: 12px;
-}
-
-.wc-reset-trigger {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: color 0.15s;
-}
-
-.wc-reset-trigger:hover {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.wc-reset-panel {
-  margin-top: 16px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-}
-
-.wc-reset-desc {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
-  margin: 0 0 10px;
-}
-
-.wc-reset-row {
+.wc-divider {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
 }
 
-.wc-reset-row :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.06) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+.wc-divider::before,
+.wc-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
 }
 
-.wc-reset-row :deep(.el-input__inner) {
-  color: #ffffff !important;
+.wc-google-btn-wrapper {
+  display: flex;
+  justify-content: center;
 }
 
-.wc-reset-hint {
+.wc-google-hint {
+  text-align: center;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.35);
-  margin: 8px 0 0;
+  margin: 12px 0 0;
 }
 
 .wc-auth-back {
@@ -307,16 +255,5 @@ async function handleReset() {
 
 .wc-back-link:hover {
   color: rgba(255, 255, 255, 0.7);
-}
-
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.2s ease;
-}
-
-.slide-down-enter-from,
-.slide-down-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 </style>

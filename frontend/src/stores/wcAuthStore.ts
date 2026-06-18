@@ -24,6 +24,8 @@ export const useWcAuthStore = defineStore('wcAuth', () => {
   const isLoggedIn = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.isAdmin ?? false)
   const userName = computed(() => user.value?.name ?? '')
+  const avatarUrl = computed(() => user.value?.avatarUrl ?? null)
+  const googleLinked = computed(() => user.value?.googleLinked ?? false)
 
   function _setAuth(t: string, u: WcAuthUser) {
     token.value = t
@@ -43,29 +45,48 @@ export const useWcAuthStore = defineStore('wcAuth', () => {
     loading.value = true
     try {
       const data = await wcAuthService.login(name, password)
-      _setAuth(data.token, { id: data.user_id, name: data.name, isAdmin: data.is_admin })
+      _setAuth(data.token, {
+        id: data.user_id,
+        name: data.name,
+        isAdmin: data.is_admin,
+        avatarUrl: data.avatar_url,
+        googleLinked: data.google_linked,
+      })
       ElMessage.success(`Xin chào, ${data.name}!`)
     } finally {
       loading.value = false
     }
   }
 
-  async function register(name: string, password: string) {
+  async function loginWithGoogle(idToken: string) {
     loading.value = true
     try {
-      const data = await wcAuthService.register(name, password)
-      _setAuth(data.token, { id: data.user_id, name: data.name, isAdmin: data.is_admin })
-      ElMessage.success(`Đăng ký thành công! Xin chào, ${data.name}!`)
+      const data = await wcAuthService.googleLogin(idToken)
+      _setAuth(data.token, {
+        id: data.user_id,
+        name: data.name,
+        isAdmin: data.is_admin,
+        avatarUrl: data.avatar_url,
+        googleLinked: data.google_linked,
+      })
+      ElMessage.success(`Xin chào, ${data.name}!`)
     } finally {
       loading.value = false
     }
   }
 
-  async function resetPassword(name: string) {
+  async function linkGoogle(idToken: string): Promise<boolean> {
     loading.value = true
     try {
-      await wcAuthService.resetPassword(name)
-      ElMessage.success(`Mật khẩu đã được đặt lại thành ${name}_@123`)
+      const data = await wcAuthService.googleLink(idToken)
+      if (user.value) {
+        user.value = { ...user.value, googleLinked: data.google_linked, avatarUrl: data.avatar_url }
+        localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+      }
+      ElMessage.success('Liên kết Google thành công!')
+      return true
+    } catch {
+      return false
     } finally {
       loading.value = false
     }
@@ -78,9 +99,11 @@ export const useWcAuthStore = defineStore('wcAuth', () => {
     isLoggedIn,
     isAdmin,
     userName,
+    avatarUrl,
+    googleLinked,
     login,
-    register,
-    resetPassword,
+    loginWithGoogle,
+    linkGoogle,
     logout,
   }
 })

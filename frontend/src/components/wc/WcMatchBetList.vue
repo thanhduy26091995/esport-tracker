@@ -7,6 +7,12 @@
     <div v-if="bets.length === 0" class="wc-mb-empty">{{ t('wc.noBets') }}</div>
     <div v-else class="wc-mb-list">
       <div v-for="bet in bets" :key="bet.id" class="wc-mb-row">
+        <img
+          :src="bet.avatar_url || DEFAULT_AVATAR"
+          class="wc-mb-avatar"
+          :alt="bet.name"
+          @error="(e: Event) => ((e.target as HTMLImageElement).src = DEFAULT_AVATAR)"
+        />
         <span class="wc-mb-user">{{ bet.name }}</span>
         <span class="wc-mb-type">
           {{ bet.bet_type === 'handicap' ? t('wc.betTypeHandicap') : t('wc.betTypeExactScore') }}
@@ -32,6 +38,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { WcBetPublic } from '@/types/wc'
+
+const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23374151"/%3E%3Ccircle cx="16" cy="13" r="6" fill="%236b7280"/%3E%3C/svg%3E'
 
 const { t } = useI18n()
 defineProps<{ bets: WcBetPublic[] }>()
@@ -95,6 +103,15 @@ defineProps<{ bets: WcBetPublic[] }>()
 
 .wc-mb-row:last-child {
   border-bottom: none;
+}
+
+.wc-mb-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #374151;
 }
 
 .wc-mb-user {

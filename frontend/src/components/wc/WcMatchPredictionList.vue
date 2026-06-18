@@ -7,6 +7,12 @@
     <div v-if="predictions.length === 0" class="wc-mb-empty">{{ t('wc.noPredictions') }}</div>
     <div v-else class="wc-mb-list">
       <div v-for="pred in predictions" :key="pred.id" class="wc-mb-row">
+        <img
+          :src="pred.avatar_url || DEFAULT_AVATAR"
+          class="wc-mb-avatar"
+          :alt="pred.name"
+          @error="(e: Event) => ((e.target as HTMLImageElement).src = DEFAULT_AVATAR)"
+        />
         <span class="wc-mb-user">{{ pred.name }}</span>
         <span class="wc-mb-type">
           {{ pred.prediction_type === 'handicap' ? t('wc.predictionTypeHandicap') : t('wc.predictionTypeExactScore') }}
@@ -21,7 +27,7 @@
         </span>
         <span class="wc-mb-stake">{{ pred.points }}</span>
         <span v-if="pred.result" class="wc-mb-result" :class="`wc-mb-result--${pred.result}`">
-          {{ pred.result === 'correct' ? '+' + pred.points_earned : pred.result === 'incorrect' ? '-' + pred.points : '±0' }}
+          {{ pred.result === 'correct' ? '+' + fmtPts(pred.points_earned ?? 0) : pred.result === 'incorrect' ? '-' + pred.points : '±0' }}
         </span>
         <span v-else class="wc-mb-result wc-mb-result--pending">?</span>
       </div>
@@ -32,6 +38,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { WcPredictionPublic } from '@/types/wc'
+
+const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23374151"/%3E%3Ccircle cx="16" cy="13" r="6" fill="%236b7280"/%3E%3Cellipse cx="16" cy="29" rx="9" ry="7" fill="%236b7280"/%3E%3C/svg%3E'
+
+function fmtPts(v: number): string {
+  return parseFloat(v.toFixed(2)).toString()
+}
 
 const { t } = useI18n()
 defineProps<{ predictions: WcPredictionPublic[] }>()
@@ -95,6 +107,15 @@ defineProps<{ predictions: WcPredictionPublic[] }>()
 
 .wc-mb-row:last-child {
   border-bottom: none;
+}
+
+.wc-mb-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #374151;
 }
 
 .wc-mb-user {
