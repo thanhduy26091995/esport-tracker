@@ -5,6 +5,9 @@ import type {
   RecordMatchResultRequest,
 } from '@/types/tournament'
 
+// Backend wraps round_robin_top4 detail in TournamentDetailResponse which adds standings
+type TournamentDetail = Tournament
+
 export const tournamentService = {
   async getAll(): Promise<Tournament[]> {
     const response = await api.get<Tournament[]>('/tournaments')
@@ -38,6 +41,13 @@ export const tournamentService = {
     const response = await api.post(
       `/tournaments/${tournamentId}/matches/${matchId}/result`,
       data
+    )
+    return response.data
+  },
+
+  async generateKnockouts(tournamentId: string): Promise<TournamentDetail> {
+    const response = await api.post<TournamentDetail>(
+      `/tournaments/${tournamentId}/generate-knockouts`
     )
     return response.data
   },

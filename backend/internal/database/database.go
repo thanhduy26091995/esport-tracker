@@ -46,6 +46,7 @@ func Connect() (*gorm.DB, error) {
 		&model.Config{},
 		&model.Tournament{},
 		&model.TournamentParticipant{},
+		&model.TournamentTeam{},
 		&model.TournamentMatch{},
 		// WC2026 models
 		&model.WcUser{},
@@ -80,6 +81,14 @@ func Connect() (*gorm.DB, error) {
 
 func runSchemaMigrations(db *gorm.DB) error {
 	sqls := []string{
+		// tournament_round_robin_top4: add format + champion to tournaments
+		`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS format VARCHAR(30) NOT NULL DEFAULT 'classic'`,
+		`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS champion_team_id UUID`,
+		`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS knockout_size INT NOT NULL DEFAULT 4`,
+		// tournament_round_robin_top4: add stage + team FK columns to tournament_matches
+		`ALTER TABLE tournament_matches ADD COLUMN IF NOT EXISTS stage VARCHAR(20) NOT NULL DEFAULT 'group'`,
+		`ALTER TABLE tournament_matches ADD COLUMN IF NOT EXISTS team1_team_id UUID`,
+		`ALTER TABLE tournament_matches ADD COLUMN IF NOT EXISTS team2_team_id UUID`,
 		`ALTER TABLE wc_bets ALTER COLUMN payout TYPE NUMERIC(10,2)`,
 		`ALTER TABLE wc_wallets ALTER COLUMN balance TYPE NUMERIC(10,2)`,
 		`ALTER TABLE wc_wallet_logs ALTER COLUMN delta TYPE NUMERIC(10,2)`,

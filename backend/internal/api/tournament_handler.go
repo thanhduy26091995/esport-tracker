@@ -39,6 +39,20 @@ func (h *TournamentHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, t)
 }
 
+func (h *TournamentHandler) GenerateKnockouts(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "Invalid tournament ID"})
+		return
+	}
+	t, err := h.tournamentService.GenerateKnockouts(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "GENERATE_KNOCKOUTS_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, t)
+}
+
 func (h *TournamentHandler) Create(c *gin.Context) {
 	var req service.CreateTournamentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

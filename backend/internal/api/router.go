@@ -171,6 +171,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			tournaments.DELETE("/:id", tournamentHandler.Delete)
 			tournaments.PUT("/:id/complete", tournamentHandler.Complete)
 			tournaments.POST("/:id/matches/:matchId/result", tournamentHandler.RecordResult)
+			tournaments.POST("/:id/generate-knockouts", tournamentHandler.GenerateKnockouts)
 		}
 	}
 

@@ -58,6 +58,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | VI localization hardcode cleanup | `docs/ai/design/feature-vi-localization-hardcode-cleanup.md` |
 | Esport score tracker (base system) | `docs/ai/design/feature-esport-score-tracker.md` |
 | Frontend integration | `docs/ai/design/feature-frontend-integration.md` |
+| Tournament round-robin + top 4 knockout format | `docs/ai/design/feature-tournament-round-robin-knockout.md` |
 
 ## Dev Commands
 

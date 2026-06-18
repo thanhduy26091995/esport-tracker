@@ -569,8 +569,8 @@ func TestPoisson_GetMatchWithOdds_EmptyBeforeUpsert_ReturnsEmptySlice(t *testing
 	require.NoError(t, err)
 
 	// Must be empty slice — not nil — so JSON serializes as [] not null.
-	require.NotNil(t, result.ScoreOdds, "ScoreOdds must be initialized to empty slice, not nil")
-	assert.Empty(t, result.ScoreOdds)
+	require.NotNil(t, result.ScoreMultipliers, "ScoreMultipliers must be initialized to empty slice, not nil")
+	assert.Empty(t, result.ScoreMultipliers)
 }
 
 func TestPoisson_BulkUpsert_ThenGetMatchWithOdds_ReturnsOdds(t *testing.T) {
@@ -591,12 +591,12 @@ func TestPoisson_BulkUpsert_ThenGetMatchWithOdds_ReturnsOdds(t *testing.T) {
 	})
 	require.NotEmpty(t, dbOdds)
 
-	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds))
+	require.NoError(t, wcRepo.BulkUpsertScoreMultipliers(dbOdds))
 
 	result, err := wcRepo.GetMatchWithOdds(m.ID)
 	require.NoError(t, err)
-	assert.NotEmpty(t, result.ScoreOdds, "score_odds must be non-empty after BulkUpsert")
-	assert.Equal(t, len(dbOdds), len(result.ScoreOdds))
+	assert.NotEmpty(t, result.ScoreMultipliers, "score_multipliers must be non-empty after BulkUpsert")
+	assert.Equal(t, len(dbOdds), len(result.ScoreMultipliers))
 }
 
 func TestPoisson_BulkUpsert_Idempotent(t *testing.T) {
@@ -617,10 +617,10 @@ func TestPoisson_BulkUpsert_Idempotent(t *testing.T) {
 	_, dbOdds := poissonSvc.GenerateScoreOdds(input)
 	require.NotEmpty(t, dbOdds)
 
-	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds))
-	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds), "second upsert must not fail")
+	require.NoError(t, wcRepo.BulkUpsertScoreMultipliers(dbOdds))
+	require.NoError(t, wcRepo.BulkUpsertScoreMultipliers(dbOdds), "second upsert must not fail")
 
-	listed, err := wcRepo.ListScoreOdds(m.ID)
+	listed, err := wcRepo.ListScoreMultipliers(m.ID)
 	require.NoError(t, err)
 	assert.Equal(t, len(dbOdds), len(listed), "duplicate upsert must not create extra rows")
 }
@@ -633,20 +633,20 @@ func TestPoisson_BulkUpsert_UpdatesOddsOnConflict(t *testing.T) {
 
 	m := seedWcMatch(t, db)
 
-	first := []model.WcScoreOdds{
-		{ID: uuid.New(), MatchID: m.ID, HomeScore: 1, AwayScore: 0, Odds: 5.00},
+	first := []model.WcScoreMultiplier{
+		{ID: uuid.New(), MatchID: m.ID, HomeScore: 1, AwayScore: 0, Multiplier: 5.00},
 	}
-	require.NoError(t, wcRepo.BulkUpsertScoreOdds(first))
+	require.NoError(t, wcRepo.BulkUpsertScoreMultipliers(first))
 
-	updated := []model.WcScoreOdds{
-		{ID: uuid.New(), MatchID: m.ID, HomeScore: 1, AwayScore: 0, Odds: 6.50},
+	updated := []model.WcScoreMultiplier{
+		{ID: uuid.New(), MatchID: m.ID, HomeScore: 1, AwayScore: 0, Multiplier: 6.50},
 	}
-	require.NoError(t, wcRepo.BulkUpsertScoreOdds(updated))
+	require.NoError(t, wcRepo.BulkUpsertScoreMultipliers(updated))
 
 	result, err := wcRepo.GetMatchWithOdds(m.ID)
 	require.NoError(t, err)
-	require.Len(t, result.ScoreOdds, 1)
-	assert.InDelta(t, 6.50, result.ScoreOdds[0].Odds, 0.001, "odds must be updated on conflict")
+	require.Len(t, result.ScoreMultipliers, 1)
+	assert.InDelta(t, 6.50, result.ScoreMultipliers[0].Multiplier, 0.001, "multiplier must be updated on conflict")
 }
 
 func TestPoisson_BulkUpsert_ExactScoreBetCanBePlaced(t *testing.T) {
@@ -668,7 +668,7 @@ func TestPoisson_BulkUpsert_ExactScoreBetCanBePlaced(t *testing.T) {
 		MinProb:     0.01,
 	})
 	require.NotEmpty(t, dbOdds)
-	require.NoError(t, wcRepo.BulkUpsertScoreOdds(dbOdds))
+	require.NoError(t, wcRepo.BulkUpsertScoreMultipliers(dbOdds))
 
 	// Pick the first generated scoreline to bet on.
 	target := dbOdds[0]
@@ -683,5 +683,5 @@ func TestPoisson_BulkUpsert_ExactScoreBetCanBePlaced(t *testing.T) {
 	})
 	require.NoError(t, err, "exact score bet must succeed after Poisson odds are saved")
 	assert.Equal(t, model.WcBetTypeExactScore, bet.BetType)
-	assert.InDelta(t, target.Odds, bet.OddsSnapshot, 0.001)
+	assert.InDelta(t, target.Multiplier, bet.OddsSnapshot, 0.001)
 }

@@ -48,9 +48,10 @@
               :empty-text="t('tournaments.empty')"
             >
             <el-table-column prop="name" :label="t('tournaments.colName')" min-width="180" />
-            <el-table-column prop="match_type" :label="t('tournaments.colType')" width="100">
+            <el-table-column :label="t('tournaments.colType')" width="160">
               <template #default="{ row }">
-                <el-tag size="small">{{ getMatchTypeLabel(row.match_type) }}</el-tag>
+                <TournamentFormatBadge :format="row.format || 'classic'" />
+                <el-tag v-if="row.format !== 'round_robin_top4'" size="small" class="ml-1">{{ getMatchTypeLabel(row.match_type) }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column :label="t('tournaments.colPlayers')" width="100">
@@ -101,6 +102,7 @@ import { Plus, Trophy, CircleCheck, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useTournamentStore } from '@/stores/tournamentStore'
 import StatCard from '@/components/shared/StatCard.vue'
+import TournamentFormatBadge from '@/components/TournamentFormatBadge.vue'
 import type { Tournament } from '@/types/tournament'
 import { formatDate } from '@/utils/date'
 import { getMatchTypeLabel, getTournamentAffectsScoreLabel, getTournamentStatusLabel } from '@/utils/tournamentLabels'

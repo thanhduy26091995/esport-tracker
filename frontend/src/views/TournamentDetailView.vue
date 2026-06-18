@@ -24,6 +24,10 @@
               <el-tag v-if="store.currentTournament.entry_fee > 0" type="default" size="small">
                 {{ t('tournaments.detail.entryFee', { amount: formatNumber(store.currentTournament.entry_fee) }) }}
               </el-tag>
+              <TournamentFormatBadge
+                v-if="store.currentTournament.format"
+                :format="store.currentTournament.format"
+              />
             </div>
           </div>
         </div>
@@ -44,10 +48,29 @@
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
       </div>
 
-      <template v-else-if="store.currentTournament">
+      <!-- Champion banner (round_robin_top4 only) -->
+      <div
+        v-if="store.currentTournament?.champion_team"
+        class="champion-banner"
+      >
+        <el-icon :size="22"><Trophy /></el-icon>
+        <span class="champion-text">
+          {{ t('tournaments.detail.champion', 'Champion') }}:
+          {{ store.currentTournament.champion_team.player1?.name }}
+          &amp;
+          {{ store.currentTournament.champion_team.player2?.name }}
+        </span>
+      </div>
+
+      <template v-if="store.currentTournament">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 detail-layout">
           <!-- Left: Schedule -->
           <div class="lg:col-span-2">
+            <!-- Group stage section label for round_robin_top4 -->
+            <div v-if="isTop4Format" class="mb-2 flex items-center justify-between">
+              <h3 class="section-title">{{ t('tournaments.detail.groupStage', 'Group Stage') }}</h3>
+            </div>
+
             <div v-for="round in groupedRounds" :key="round.number" class="mb-6">
               <h3 class="section-title">{{ t('tournaments.detail.round', { number: round.number }) }}</h3>
               <div class="round-matches">
@@ -124,6 +147,11 @@
                     </el-tag>
                   </div>
 
+                  <!-- Locked group match (knockouts already generated) -->
+                  <div v-else-if="isGroupMatchLocked(match)" class="match-result-label">
+                    <el-tag type="info" size="small">{{ t('tournaments.detail.locked', 'Locked') }}</el-tag>
+                  </div>
+
                   <!-- Pending: score input -->
                   <div
                     v-else-if="store.currentTournament?.status === 'active'"
@@ -183,65 +211,187 @@
               </div>
               </div>
             </div>
+
+            <!-- Generate Knockouts button -->
+            <div v-if="isTop4Format && allGroupMatchesDone && !hasKnockouts" class="mb-6 text-center">
+              <el-button
+                type="primary"
+                size="large"
+                :loading="generatingKnockouts"
+                @click="handleGenerateKnockouts"
+              >
+                {{ t('tournaments.detail.generateKnockouts', 'Generate Knockout Stage') }}
+              </el-button>
+            </div>
+
+            <!-- Knockout bracket -->
+            <template v-if="isTop4Format && hasKnockouts">
+              <div class="mb-2 flex items-center justify-between">
+                <h3 class="section-title">{{ t('tournaments.detail.knockoutStage', 'Knockout Stage') }}</h3>
+              </div>
+              <div class="card mb-6">
+                <div class="card-body">
+                  <TournamentKnockoutBracket
+                    :matches="knockoutMatches"
+                    :teams="store.currentTournament!.teams"
+                    :knockout-size="store.currentTournament!.knockout_size ?? 4"
+                  />
+                </div>
+              </div>
+              <!-- Knockout match result inputs -->
+              <div v-for="km in knockoutMatches" :key="km.id" class="match-card card mb-4">
+                <div class="card-body">
+                  <p class="section-title" style="margin-bottom:8px">
+                    {{ t(`tournaments.knockout.${km.stage}`, km.stage) }}
+                  </p>
+                  <div class="match-teams">
+                    <div class="team team--left">
+                      <div class="team-players">
+                        <span v-for="pid in getTeam1Ids(km)" :key="pid" class="player-name">
+                          {{ getPlayerName(pid) }}<PlayerTierBadge :tier="getPlayerTier(pid)" />
+                        </span>
+                      </div>
+                      <div v-if="km.handicap_team1 !== 0" class="handicap-badge handicap--red">-{{ km.handicap_team1 }}</div>
+                    </div>
+                    <div class="match-vs">
+                      <template v-if="km.status === 'completed'">
+                        <span class="score-display" :class="{ 'score--winner': km.effective_winner === 1 }">{{ km.actual_score1 }}</span>
+                        <span class="vs-sep">:</span>
+                        <span class="score-display" :class="{ 'score--winner': km.effective_winner === 2 }">{{ km.actual_score2 }}</span>
+                      </template>
+                      <template v-else><span class="vs-text">{{ t('common.vs') }}</span></template>
+                    </div>
+                    <div class="team team--right">
+                      <div v-if="km.handicap_team2 !== 0" class="handicap-badge handicap--blue">-{{ km.handicap_team2 }}</div>
+                      <div class="team-players">
+                        <span v-for="pid in getTeam2Ids(km)" :key="pid" class="player-name">
+                          {{ getPlayerName(pid) }}<PlayerTierBadge :tier="getPlayerTier(pid)" />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="km.status === 'completed'" class="match-result-label">
+                    <el-tag v-if="km.effective_winner === 0" type="info" size="small">{{ t('tournaments.detail.draw') }}</el-tag>
+                    <el-tag v-else-if="km.effective_winner === 1" type="success" size="small">{{ t('tournaments.detail.wins', { team: getTeam1Label(km) }) }}</el-tag>
+                    <el-tag v-else type="success" size="small">{{ t('tournaments.detail.wins', { team: getTeam2Label(km) }) }}</el-tag>
+                  </div>
+                  <div v-else-if="store.currentTournament?.status === 'active'" class="result-input-row">
+                    <div class="score-input-grid">
+                      <div class="score-input-cell">
+                        <span class="score-input-label">{{ getTeam1Label(km) }}</span>
+                        <el-input-number v-model="scoreInputs[km.id].score1" :min="0" :max="99" size="small" class="score-input-number" />
+                      </div>
+                      <div class="score-input-cell">
+                        <span class="score-input-label">{{ getTeam2Label(km) }}</span>
+                        <el-input-number v-model="scoreInputs[km.id].score2" :min="0" :max="99" size="small" class="score-input-number" />
+                      </div>
+                    </div>
+                    <div class="result-input-actions">
+                      <el-tag v-if="effectiveWinnerPreview(km) !== null" :type="effectiveWinnerPreview(km) === 0 ? 'info' : 'warning'" size="small">
+                        →
+                        <template v-if="effectiveWinnerPreview(km) === 0">{{ t('tournaments.detail.draw') }}</template>
+                        <template v-else-if="effectiveWinnerPreview(km) === 1">{{ t('tournaments.detail.wins', { team: getTeam1Label(km) }) }}</template>
+                        <template v-else>{{ t('tournaments.detail.wins', { team: getTeam2Label(km) }) }}</template>
+                      </el-tag>
+                      <el-button size="small" type="primary" :loading="store.loading" @click="handleRecordResult(km)">
+                        {{ t('tournaments.detail.submitResult') }}
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- Right: Participants + Standings -->
           <div>
-            <!-- Participants -->
-            <div class="card mb-4">
-              <div class="card-body">
-                <h3 class="section-title">{{ t('tournaments.detail.participants', { count: store.currentTournament.participants.length }) }}</h3>
-                <div
-                  v-for="p in store.currentTournament.participants"
-                  :key="p.id"
-                  class="participant-row"
-                >
-                  {{ p.user?.name }}
-                  <PlayerTierBadge :tier="p.tier_snapshot || p.user?.tier || 'normal'" />
-                  <span
-                    v-if="p.handicap_rate_snapshot > 0"
-                    style="font-size: 11px; color: #909399; margin-left: 4px"
+            <!-- round_robin_top4: Teams list -->
+            <template v-if="isTop4Format">
+              <div class="card mb-4">
+                <div class="card-body">
+                  <h3 class="section-title">{{ t('tournaments.detail.teams', 'Teams') }}</h3>
+                  <div
+                    v-for="team in store.currentTournament.teams"
+                    :key="team.id"
+                    class="participant-row"
                   >
-                    -{{ p.handicap_rate_snapshot }}
-                  </span>
+                    <span>{{ team.player1?.name }}</span>
+                    <PlayerTierBadge :tier="team.player1?.tier || 'normal'" />
+                    <span style="color: var(--text-muted); margin: 0 4px">&amp;</span>
+                    <span>{{ team.player2?.name }}</span>
+                    <PlayerTierBadge :tier="team.player2?.tier || 'normal'" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Standings -->
-            <div class="card">
-              <div class="card-body">
-                <h3 class="section-title">{{ t('tournaments.detail.standings') }}</h3>
-                <div class="standings-table-wrap">
-                  <el-table :data="standings" size="small" class="standings-table">
-                  <el-table-column label="#" type="index" width="36" />
-                  <el-table-column :label="t('tournaments.detail.player')" min-width="110">
-                    <template #default="{ row }">
-                      <div class="flex items-center gap-1 flex-wrap">
-                        <span>{{ row.user?.name }}</span>
-                        <PlayerTierBadge :tier="row.user?.tier || 'normal'" />
-                      </div>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="wins" :label="t('tournaments.detail.winsShort')" width="38" align="center" />
-                  <el-table-column prop="draws" :label="t('tournaments.detail.drawsShort')" width="38" align="center" />
-                  <el-table-column prop="losses" :label="t('tournaments.detail.lossesShort')" width="38" align="center" />
-                  <el-table-column :label="t('tournaments.detail.goalDifference')" width="50" align="center">
-                    <template #default="{ row }">
-                      <span :class="row.goals_for - row.goals_against >= 0 ? 'text-success' : 'text-danger'">
-                        {{ row.goals_for - row.goals_against >= 0 ? '+' : '' }}{{ row.goals_for - row.goals_against }}
-                      </span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="points" :label="t('tournaments.detail.pointsShort')" width="56" align="center">
-                    <template #default="{ row }">
-                      <strong>{{ row.points }}</strong>
-                    </template>
-                  </el-table-column>
-                  </el-table>
+              <!-- Team standings table -->
+              <div class="card">
+                <div class="card-body">
+                  <h3 class="section-title">{{ t('tournaments.detail.standings') }}</h3>
+                  <TournamentStandingsTable
+                    :standings="store.currentTournament.standings ?? []"
+                    :knockout-size="store.currentTournament.knockout_size ?? 4"
+                  />
                 </div>
               </div>
-            </div>
+            </template>
+
+            <!-- Classic: Participants + per-player standings -->
+            <template v-else>
+              <div class="card mb-4">
+                <div class="card-body">
+                  <h3 class="section-title">{{ t('tournaments.detail.participants', { count: store.currentTournament.participants.length }) }}</h3>
+                  <div
+                    v-for="p in store.currentTournament.participants"
+                    :key="p.id"
+                    class="participant-row"
+                  >
+                    {{ p.user?.name }}
+                    <PlayerTierBadge :tier="p.tier_snapshot || p.user?.tier || 'normal'" />
+                    <span
+                      v-if="p.handicap_rate_snapshot > 0"
+                      style="font-size: 11px; color: #909399; margin-left: 4px"
+                    >
+                      -{{ p.handicap_rate_snapshot }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-body">
+                  <h3 class="section-title">{{ t('tournaments.detail.standings') }}</h3>
+                  <div class="standings-table-wrap">
+                    <el-table :data="standings" size="small" class="standings-table">
+                    <el-table-column label="#" type="index" width="36" />
+                    <el-table-column :label="t('tournaments.detail.player')" min-width="110">
+                      <template #default="{ row }">
+                        <div class="flex items-center gap-1 flex-wrap">
+                          <span>{{ row.user?.name }}</span>
+                          <PlayerTierBadge :tier="row.user?.tier || 'normal'" />
+                        </div>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="wins" :label="t('tournaments.detail.winsShort')" width="38" align="center" />
+                    <el-table-column prop="draws" :label="t('tournaments.detail.drawsShort')" width="38" align="center" />
+                    <el-table-column prop="losses" :label="t('tournaments.detail.lossesShort')" width="38" align="center" />
+                    <el-table-column :label="t('tournaments.detail.goalDifference')" width="50" align="center">
+                      <template #default="{ row }">
+                        <span :class="row.goals_for - row.goals_against >= 0 ? 'text-success' : 'text-danger'">
+                          {{ row.goals_for - row.goals_against >= 0 ? '+' : '' }}{{ row.goals_for - row.goals_against }}
+                        </span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="points" :label="t('tournaments.detail.pointsShort')" width="56" align="center">
+                      <template #default="{ row }">
+                        <strong>{{ row.points }}</strong>
+                      </template>
+                    </el-table-column>
+                    </el-table>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </template>
@@ -250,16 +400,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, CircleCheck, Loading } from '@element-plus/icons-vue'
-import { ElMessageBox } from 'element-plus'
+import { ArrowLeft, CircleCheck, Loading, Trophy } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { useTournamentStore } from '@/stores/tournamentStore'
 import PlayerTierBadge from '@/components/PlayerTierBadge.vue'
+import TournamentFormatBadge from '@/components/TournamentFormatBadge.vue'
+import TournamentStandingsTable from '@/components/TournamentStandingsTable.vue'
+import TournamentKnockoutBracket from '@/components/TournamentKnockoutBracket.vue'
 import type { Tournament, TournamentMatch, TournamentStanding } from '@/types/tournament'
 import { formatNumber } from '@/utils/formatters'
 import { getMatchTypeLabel, getTournamentAffectsScoreLabel, getTournamentStatusLabel } from '@/utils/tournamentLabels'
+import { tournamentService } from '@/services/tournamentService'
 
 const router = useRouter()
 const route = useRoute()
@@ -289,6 +443,10 @@ const participantMap = computed(() => {
   for (const p of store.currentTournament?.participants ?? []) {
     map.set(p.user_id, { name: p.user?.name ?? p.user_id, tier: p.tier_snapshot || p.user?.tier || 'normal' })
   }
+  // Also index team players for round_robin_top4
+  for (const [id, info] of teamMap.value) {
+    if (!map.has(id)) map.set(id, info)
+  }
   return map
 })
 
@@ -306,10 +464,17 @@ const groupedRounds = computed(() => {
   const tournament = store.currentTournament
   if (!tournament) return []
 
+  // For round_robin_top4, only show group matches in the rounds section
+  const source = isTop4Format.value ? groupMatches.value : tournament.matches
+
   const rounds = new Map<number, TournamentMatch[]>()
-  for (const m of tournament.matches) {
+  for (const m of source) {
     if (!rounds.has(m.round)) rounds.set(m.round, [])
     rounds.get(m.round)!.push(m)
+    ensureInput(m.id)
+  }
+  // Also ensure knockout match inputs exist
+  for (const m of knockoutMatches.value) {
     ensureInput(m.id)
   }
 
@@ -359,6 +524,50 @@ const handleComplete = () => {
     .then(() => store.completeTournament(tournamentId))
     .catch(() => {})
 }
+
+// ── Round Robin Top 4 helpers ─────────────────────────────────────────────────
+const isTop4Format = computed(() => store.currentTournament?.format === 'round_robin_top4')
+
+const groupMatches = computed(() =>
+  store.currentTournament?.matches.filter(m => m.stage === 'group') ?? []
+)
+
+const knockoutMatches = computed(() =>
+  store.currentTournament?.matches.filter(m => m.stage !== 'group') ?? []
+)
+
+const allGroupMatchesDone = computed(() =>
+  groupMatches.value.length > 0 && groupMatches.value.every(m => m.status === 'completed')
+)
+
+const hasKnockouts = computed(() => knockoutMatches.value.length > 0)
+
+const teamMap = computed(() => {
+  const map = new Map<string, { name: string; tier: string }>()
+  for (const team of store.currentTournament?.teams ?? []) {
+    if (team.player1) map.set(team.player1_id, { name: team.player1.name, tier: team.player1.tier || 'normal' })
+    if (team.player2) map.set(team.player2_id, { name: team.player2.name, tier: team.player2.tier || 'normal' })
+  }
+  return map
+})
+
+const generatingKnockouts = ref(false)
+
+const handleGenerateKnockouts = async () => {
+  generatingKnockouts.value = true
+  try {
+    const updated = await tournamentService.generateKnockouts(tournamentId)
+    store.currentTournament = updated as any
+    ElMessage.success(t('tournaments.knockout.generated', 'Knockout stage generated!'))
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message ?? t('common.error', 'Error'))
+  } finally {
+    generatingKnockouts.value = false
+  }
+}
+
+const isGroupMatchLocked = (match: TournamentMatch) =>
+  isTop4Format.value && match.stage === 'group' && hasKnockouts.value
 
 // ── Standings calculation ─────────────────────────────────────────────────────
 const standings = computed((): TournamentStanding[] => {
@@ -421,6 +630,23 @@ function computeStandings(tournament: Tournament): TournamentStanding[] {
 </script>
 
 <style scoped>
+.champion-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #fef9c3, #fde68a);
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #92400e;
+}
+
+.champion-text {
+  font-size: 15px;
+  font-weight: 700;
+}
+
 .section-title {
   font-size: 14px;
   font-weight: 700;

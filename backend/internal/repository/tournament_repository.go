@@ -32,12 +32,48 @@ func (r *TournamentRepository) GetByID(id uuid.UUID) (*model.Tournament, error) 
 	err := r.db.
 		Preload("Participants").
 		Preload("Participants.User").
+		Preload("Teams").
+		Preload("Teams.Player1").
+		Preload("Teams.Player2").
+		Preload("ChampionTeam").
+		Preload("ChampionTeam.Player1").
+		Preload("ChampionTeam.Player2").
 		Preload("Matches").
 		First(&t, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}
 	return &t, nil
+}
+
+func (r *TournamentRepository) CreateTeams(teams []model.TournamentTeam) error {
+	return r.db.Create(&teams).Error
+}
+
+func (r *TournamentRepository) GetTeamsByTournamentID(tournamentID uuid.UUID) ([]model.TournamentTeam, error) {
+	var teams []model.TournamentTeam
+	err := r.db.
+		Preload("Player1").
+		Preload("Player2").
+		Where("tournament_id = ?", tournamentID).
+		Find(&teams).Error
+	return teams, err
+}
+
+func (r *TournamentRepository) HasKnockoutMatches(tournamentID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.TournamentMatch{}).
+		Where("tournament_id = ? AND stage != 'group'", tournamentID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *TournamentRepository) GetMatchesByStage(tournamentID uuid.UUID, stage string) ([]*model.TournamentMatch, error) {
+	var matches []*model.TournamentMatch
+	err := r.db.Where("tournament_id = ? AND stage = ?", tournamentID, stage).
+		Order("round ASC, match_order ASC").
+		Find(&matches).Error
+	return matches, err
 }
 
 func (r *TournamentRepository) Update(t *model.Tournament) error {

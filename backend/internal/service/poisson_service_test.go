@@ -80,7 +80,7 @@ func TestGenerateScoreOdds_AllOddsPositive(t *testing.T) {
 	}
 	_, odds := svc.GenerateScoreOdds(input)
 	for _, o := range odds {
-		assert.Greater(t, o.Odds, 0.0, "odds must be positive for %d-%d", o.HomeScore, o.AwayScore)
+		assert.Greater(t, o.Multiplier, 0.0, "multiplier must be positive for %d-%d", o.HomeScore, o.AwayScore)
 	}
 }
 
@@ -128,7 +128,7 @@ func TestGenerateScoreOdds_HigherMargin_HigherOdds(t *testing.T) {
 
 	require.NotEmpty(t, oddsSmallMargin)
 	require.NotEmpty(t, oddsLargeMargin)
-	assert.Greater(t, oddsLargeMargin[0].Odds, oddsSmallMargin[0].Odds, "larger HouseMargin must produce higher posted odds")
+	assert.Greater(t, oddsLargeMargin[0].Multiplier, oddsSmallMargin[0].Multiplier, "larger HouseMargin must produce higher posted multiplier")
 }
 
 func TestGenerateScoreOdds_ZeroZeroIncluded(t *testing.T) {
