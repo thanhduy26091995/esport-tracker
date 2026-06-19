@@ -140,6 +140,14 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 		return nil, fmt.Errorf("predictions are closed for this match")
 	}
 
+	user, err := s.userRepo.GetByID(wcUserID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	if user.IsBlocked {
+		return nil, fmt.Errorf("user is blocked from placing predictions")
+	}
+
 	if req.Points <= 0 {
 		return nil, fmt.Errorf("points must be greater than 0")
 	}
@@ -469,6 +477,133 @@ func (s *WcService) RefinalizeAllMatches() (*FinalizeAllResult, error) {
 	return result, nil
 }
 
+// --- Preview (dry-run) ---
+
+func buildPreviewRow(bet *model.WcPrediction, homeScore, awayScore int) model.FinalizePreviewRow {
+	var result string
+	var pointsEarned float64
+	switch bet.PredictionType {
+	case model.WcPredictionTypeHandicap:
+		result, pointsEarned = evaluateHandicapPrediction(bet, homeScore, awayScore)
+	case model.WcPredictionTypeExactScore:
+		result, pointsEarned = evaluateExactScorePrediction(bet, homeScore, awayScore)
+	case model.WcPredictionTypeOverUnder:
+		result, pointsEarned = evaluateOverUnderPrediction(bet, homeScore, awayScore)
+	default:
+		result = "void"
+	}
+	return model.FinalizePreviewRow{
+		WcUserID:        bet.WcUserID,
+		UserName:        "",      // populated by caller
+		PredictionType:  bet.PredictionType,
+		Points:          bet.Points,
+		Multiplier:      bet.MultiplierSnapshot,
+		NewResult:       result,
+		NewPointsEarned: pointsEarned,
+		NetDelta:        pointsEarned - float64(bet.Points),
+	}
+}
+
+func buildPreviewResult(matches []*model.WcMatch, getPredictions func(uuid.UUID) ([]*model.WcPrediction, error), getUserName func(uuid.UUID) string) (*model.FinalizePreviewResult, error) {
+	result := &model.FinalizePreviewResult{
+		Matches: []model.FinalizePreviewMatch{},
+	}
+	for _, m := range matches {
+		if m.HomeScore == nil || m.AwayScore == nil {
+			continue
+		}
+		bets, err := getPredictions(m.ID)
+		if err != nil {
+			return nil, err
+		}
+		pm := model.FinalizePreviewMatch{
+			MatchID:        m.ID.String(),
+			HomeTeam:       m.HomeTeam,
+			AwayTeam:       m.AwayTeam,
+			HomeScore:      *m.HomeScore,
+			AwayScore:      *m.AwayScore,
+			Stage:          m.Stage,
+			AlreadySettled: m.SettledAt != nil,
+			Predictions:    []model.FinalizePreviewRow{},
+		}
+		for _, bet := range bets {
+			row := buildPreviewRow(bet, *m.HomeScore, *m.AwayScore)
+			row.UserName = getUserName(bet.WcUserID)
+			pm.Predictions = append(pm.Predictions, row)
+			result.HouseSummary.TotalStaked += float64(bet.Points)
+			result.HouseSummary.TotalPaidOut += row.NewPointsEarned
+			result.HouseSummary.PredictionCount++
+		}
+		result.Matches = append(result.Matches, pm)
+		result.HouseSummary.MatchCount++
+	}
+	result.HouseSummary.HouseNet = result.HouseSummary.TotalStaked - result.HouseSummary.TotalPaidOut
+	return result, nil
+}
+
+// PreviewFinalizeMatch computes what FinalizeMatch would do for a single match (read-only).
+func (s *WcService) PreviewFinalizeMatch(matchID uuid.UUID) (*model.FinalizePreviewResult, error) {
+	m, err := s.repo.GetMatch(matchID)
+	if err != nil {
+		return nil, fmt.Errorf("match not found")
+	}
+	if m.HomeScore == nil || m.AwayScore == nil {
+		return nil, fmt.Errorf("match score not set — cannot preview")
+	}
+	users, _ := s.userRepo.GetAll()
+	nameMap := make(map[uuid.UUID]string, len(users))
+	for _, u := range users {
+		nameMap[u.ID] = u.Name
+	}
+	return buildPreviewResult(
+		[]*model.WcMatch{m},
+		func(id uuid.UUID) ([]*model.WcPrediction, error) {
+			return s.repo.ListPredictionsForMatch(id)
+		},
+		func(id uuid.UUID) string { return nameMap[id] },
+	)
+}
+
+// PreviewFinalizeAll computes what FinalizeAllMatches would do (read-only).
+func (s *WcService) PreviewFinalizeAll() (*model.FinalizePreviewResult, error) {
+	matches, err := s.repo.ListUnfinalizedScoredMatches()
+	if err != nil {
+		return nil, err
+	}
+	users, _ := s.userRepo.GetAll()
+	nameMap := make(map[uuid.UUID]string, len(users))
+	for _, u := range users {
+		nameMap[u.ID] = u.Name
+	}
+	return buildPreviewResult(
+		matches,
+		func(id uuid.UUID) ([]*model.WcPrediction, error) {
+			return s.repo.ListPredictionsForMatch(id)
+		},
+		func(id uuid.UUID) string { return nameMap[id] },
+	)
+}
+
+// PreviewRefinalizeAll computes what RefinalizeAllMatches would do (read-only).
+func (s *WcService) PreviewRefinalizeAll() (*model.FinalizePreviewResult, error) {
+	matches, err := s.repo.ListAllScoredMatches()
+	if err != nil {
+		return nil, err
+	}
+	users, _ := s.userRepo.GetAll()
+	nameMap := make(map[uuid.UUID]string, len(users))
+	for _, u := range users {
+		nameMap[u.ID] = u.Name
+	}
+	return buildPreviewResult(
+		matches,
+		func(id uuid.UUID) ([]*model.WcPrediction, error) {
+			return s.repo.ListPredictionsForMatch(id)
+		},
+		func(id uuid.UUID) string { return nameMap[id] },
+	)
+}
+
 // --- Tournament settlement ---
 
 func (s *WcService) PreviewSettlement(pointRate float64) ([]*model.WcSettlementPreviewRow, error) {
@@ -582,6 +717,39 @@ func (s *WcService) SetAdminRole(wcUserID uuid.UUID, isAdmin bool) error {
 	return s.userRepo.SetAdminRole(wcUserID, isAdmin)
 }
 
+// --- User block/unblock ---
+
+// BlockUser blocks targetID: voids all pending bets (refunds wallet), then sets is_blocked=true.
+// Returns the count of bets voided.
+func (s *WcService) BlockUser(adminID, targetID uuid.UUID) (int, error) {
+	if adminID == targetID {
+		return 0, fmt.Errorf("cannot block yourself")
+	}
+	db := s.repo.DB()
+	voidedCount := 0
+	err := db.Transaction(func(tx *gorm.DB) error {
+		pendingBets, err := s.repo.ListPendingBetsForUser(tx, targetID)
+		if err != nil {
+			return err
+		}
+		for _, bet := range pendingBets {
+			if err := s.repo.VoidBet(tx, bet.ID, bet.Stake); err != nil {
+				return err
+			}
+			if err := s.repo.UpdateWalletBalance(tx, targetID, float64(bet.Stake)); err != nil {
+				return err
+			}
+			voidedCount++
+		}
+		return s.userRepo.SetBlockedTx(tx, targetID, true)
+	})
+	return voidedCount, err
+}
+
+func (s *WcService) UnblockUser(targetID uuid.UUID) error {
+	return s.userRepo.SetBlocked(targetID, false)
+}
+
 // --- Bets ---
 
 type PlaceBetRequest struct {
@@ -600,6 +768,13 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 	}
 	if isBetLocked(m) {
 		return nil, fmt.Errorf("betting is closed for this match")
+	}
+	user, err := s.userRepo.GetByID(wcUserID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	if user.IsBlocked {
+		return nil, fmt.Errorf("user is blocked from placing bets")
 	}
 	if req.Stake <= 0 {
 		return nil, fmt.Errorf("stake must be greater than 0")

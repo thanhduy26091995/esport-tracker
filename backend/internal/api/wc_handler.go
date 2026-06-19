@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/duyb/esport-score-tracker/internal/middleware"
 	"github.com/duyb/esport-score-tracker/internal/repository"
@@ -170,6 +171,10 @@ func (h *WcHandler) SubmitPrediction(c *gin.Context) {
 		Points:             req.Points,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "blocked") {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -264,6 +269,10 @@ func (h *WcHandler) PlaceBet(c *gin.Context) {
 		PredictedAwayScore: req.PredictedAwayScore,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "blocked") {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -548,6 +557,41 @@ func (h *WcHandler) FinalizeMatch(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"predictions_processed": processed, "total_points_awarded": totalPointsAwarded})
 }
 
+// PreviewFinalizeMatch handles GET /api/v1/wc/admin/matches/:id/finalize-preview
+func (h *WcHandler) PreviewFinalizeMatch(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID"})
+		return
+	}
+	result, err := h.svc.PreviewFinalizeMatch(id)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// PreviewFinalizeAll handles GET /api/v1/wc/admin/matches/finalize-all-preview
+func (h *WcHandler) PreviewFinalizeAll(c *gin.Context) {
+	result, err := h.svc.PreviewFinalizeAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build preview"})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// PreviewRefinalizeAll handles GET /api/v1/wc/admin/matches/refinalize-all-preview
+func (h *WcHandler) PreviewRefinalizeAll(c *gin.Context) {
+	result, err := h.svc.PreviewRefinalizeAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build preview"})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 // AdminTopUp handles PUT /api/v1/wc/admin/wallets/:wc_user_id
 func (h *WcHandler) AdminTopUp(c *gin.Context) {
 	targetID, err := uuid.Parse(c.Param("wc_user_id"))
@@ -696,6 +740,36 @@ func (h *WcHandler) GetHousePnL(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, pnl)
+}
+
+// BlockUser handles PUT /api/v1/wc/admin/users/:wc_user_id/block
+func (h *WcHandler) BlockUser(c *gin.Context) {
+	adminID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	targetID, err := uuid.Parse(c.Param("wc_user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	voidedCount, err := h.svc.BlockUser(adminID, targetID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "voided_bets": voidedCount})
+}
+
+// UnblockUser handles PUT /api/v1/wc/admin/users/:wc_user_id/unblock
+func (h *WcHandler) UnblockUser(c *gin.Context) {
+	targetID, err := uuid.Parse(c.Param("wc_user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	if err := h.svc.UnblockUser(targetID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unblock user"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // MarkSettlementDone handles PUT /api/v1/wc/admin/settlements/:id/details/:wc_user_id

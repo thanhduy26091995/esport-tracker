@@ -489,6 +489,30 @@ func (r *WcRepository) ListBetsForSettlement(matchID uuid.UUID) ([]*model.WcBet,
 	return bets, err
 }
 
+// ListPendingBetsForUser returns all unsettled bets for a user (used when blocking).
+func (r *WcRepository) ListPendingBetsForUser(tx *gorm.DB, userID uuid.UUID) ([]*model.WcBet, error) {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	var bets []*model.WcBet
+	err := db.Where("wc_user_id = ? AND result IS NULL", userID).Find(&bets).Error
+	return bets, err
+}
+
+// VoidBet sets result='void' and payout=stake for a bet (used when blocking a user).
+func (r *WcRepository) VoidBet(tx *gorm.DB, betID uuid.UUID, stake int) error {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	return db.Model(&model.WcBet{}).Where("id = ?", betID).
+		Updates(map[string]interface{}{
+			"result": "void",
+			"payout": float64(stake),
+		}).Error
+}
+
 func (r *WcRepository) UpdateBetStake(id uuid.UUID, stake int) error {
 	return r.db.Model(&model.WcBet{}).Where("id = ?", id).
 		Updates(map[string]interface{}{"stake": stake, "updated_at": time.Now()}).Error

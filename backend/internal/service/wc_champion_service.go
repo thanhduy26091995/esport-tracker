@@ -10,12 +10,13 @@ import (
 )
 
 type WcChampionService struct {
-	repo   *repository.WcChampionRepository
-	wcRepo *repository.WcRepository
+	repo     *repository.WcChampionRepository
+	wcRepo   *repository.WcRepository
+	userRepo *repository.WcUserRepository
 }
 
-func NewWcChampionService(repo *repository.WcChampionRepository, wcRepo *repository.WcRepository) *WcChampionService {
-	return &WcChampionService{repo: repo, wcRepo: wcRepo}
+func NewWcChampionService(repo *repository.WcChampionRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository) *WcChampionService {
+	return &WcChampionService{repo: repo, wcRepo: wcRepo, userRepo: userRepo}
 }
 
 // --- Config ---
@@ -75,6 +76,13 @@ func (s *WcChampionService) GetMyPrediction(wcUserID uuid.UUID) (*model.WcChampi
 }
 
 func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, points int) (*model.WcChampionPredictionMine, error) {
+	user, err := s.userRepo.GetByID(wcUserID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	if user.IsBlocked {
+		return nil, fmt.Errorf("user is blocked from placing predictions")
+	}
 	cfg, err := s.repo.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("champion config not found")

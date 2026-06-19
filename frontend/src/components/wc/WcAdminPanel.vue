@@ -36,7 +36,7 @@
         <el-button
           type="success"
           plain
-          :loading="finalizingAll"
+          :loading="previewLoading && pendingAction === 'finalize-all'"
           @click="handleFinalizeAll"
         >
           Tính điểm toàn bộ
@@ -44,7 +44,7 @@
         <el-button
           type="warning"
           plain
-          :loading="refinalizingAll"
+          :loading="previewLoading && pendingAction === 'refinalize-all'"
           @click="handleRefinalizeAll"
         >
           Tính lại toàn bộ (fix điểm float)
@@ -200,6 +200,7 @@
           <div class="wc-user-info-col">
             <span class="wc-user-name-col">{{ user.name }}</span>
             <span v-if="user.is_admin" class="wc-admin-tag">Admin</span>
+            <span v-if="user.is_blocked" class="wc-blocked-tag">Bị khóa</span>
           </div>
           <div class="wc-user-wallet-col">
             <span class="wc-user-balance">
@@ -217,6 +218,15 @@
               @click="handleRoleToggle(user)"
             >
               {{ user.is_admin ? t("wc.removeAdmin") : t("wc.makeAdmin") }}
+            </el-button>
+            <el-button
+              size="small"
+              :type="user.is_blocked ? 'success' : 'danger'"
+              text
+              :disabled="user.id === authStore.user?.id"
+              @click="handleToggleBlock(user)"
+            >
+              {{ user.is_blocked ? 'Mở khóa' : 'Khóa' }}
             </el-button>
           </div>
         </div>
@@ -241,6 +251,17 @@
         </el-tab-pane>
       </el-tabs>
     </div>
+
+    <!-- Finalize Preview Dialog -->
+    <WcFinalizePreviewDialog
+      v-model="previewDialogVisible"
+      :title="previewTitle"
+      :preview="previewData"
+      :loading="previewLoading"
+      :confirming="previewConfirming"
+      @confirm="handleConfirmPreview"
+      @cancel="previewDialogVisible = false"
+    />
 
     <!-- Top-Up Dialog -->
     <el-dialog v-model="topUpVisible" :title="t('wc.topUp')" width="360px">
@@ -465,9 +486,10 @@ import { useI18n } from "vue-i18n";
 import { Refresh, Lock } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { useWcStore } from "@/stores/wcStore";
+import { useWcAuthStore } from "@/stores/wcAuthStore";
 import { wcService } from "@/services/wcService";
 import { useMatchFilter } from "@/composables/useMatchFilter";
-import type { WcUser, WcMatch, WcScoreMultiplier } from "@/types/wc";
+import type { WcUser, WcMatch, WcScoreMultiplier, FinalizePreviewResult } from "@/types/wc";
 import WcSettlementPreview from "./WcSettlementPreview.vue";
 import WcSettlementHistory from "./WcSettlementHistory.vue";
 import WcHousePnL from "./WcHousePnL.vue";
@@ -477,9 +499,11 @@ import WcImportOUDialog from "./WcImportOUDialog.vue";
 import WcGeneratePoissonDialog from "./WcGeneratePoissonDialog.vue";
 import WcSyncLogsPanel from "./WcSyncLogsPanel.vue";
 import WcChampionAdminPanel from "./WcChampionAdminPanel.vue";
+import WcFinalizePreviewDialog from "./WcFinalizePreviewDialog.vue";
 
 const { t } = useI18n();
 const store = useWcStore();
+const authStore = useWcAuthStore();
 
 const storeMatches = computed(() => store.matches);
 const {
@@ -516,6 +540,15 @@ const syncLogsRef = ref<InstanceType<typeof WcSyncLogsPanel> | null>(null);
 const syncing = ref(false);
 const togglingFeature = ref(false);
 const configEnabled = ref(store.config?.is_enabled ?? false);
+
+type PendingAction = 'finalize-match' | 'finalize-all' | 'refinalize-all'
+const previewDialogVisible = ref(false);
+const previewData = ref<FinalizePreviewResult | null>(null);
+const previewTitle = ref('');
+const previewLoading = ref(false);
+const previewConfirming = ref(false);
+const pendingAction = ref<PendingAction | null>(null);
+const pendingMatchId = ref<string | null>(null);
 
 const topUpVisible = ref(false);
 const topUpTarget = ref<WcUser | null>(null);
@@ -585,29 +618,87 @@ async function handleClose(matchId: string) {
 }
 
 async function handleSettle(matchId: string) {
-  await store.finalizeMatch(matchId);
-  pnlRef.value?.load();
-}
-
-const finalizingAll = ref(false)
-async function handleFinalizeAll() {
-  finalizingAll.value = true
+  previewTitle.value = t('wc.finalizeMatch');
+  pendingAction.value = 'finalize-match';
+  pendingMatchId.value = matchId;
+  previewData.value = null;
+  previewLoading.value = true;
+  previewDialogVisible.value = true;
   try {
-    await store.finalizeAll()
-    pnlRef.value?.load()
+    previewData.value = await wcService.previewFinalizeMatch(matchId);
+  } catch (e: unknown) {
+    ElMessage.error((e as Error)?.message ?? 'Không thể tải preview');
+    previewDialogVisible.value = false;
   } finally {
-    finalizingAll.value = false
+    previewLoading.value = false;
   }
 }
 
-const refinalizingAll = ref(false)
-async function handleRefinalizeAll() {
-  refinalizingAll.value = true
+async function handleFinalizeAll() {
+  previewTitle.value = 'Tính điểm toàn bộ';
+  pendingAction.value = 'finalize-all';
+  pendingMatchId.value = null;
+  previewData.value = null;
+  previewLoading.value = true;
+  previewDialogVisible.value = true;
   try {
-    await store.refinalizeAll()
-    pnlRef.value?.load()
+    previewData.value = await wcService.previewFinalizeAll();
+  } catch (e: unknown) {
+    ElMessage.error((e as Error)?.message ?? 'Không thể tải preview');
+    previewDialogVisible.value = false;
   } finally {
-    refinalizingAll.value = false
+    previewLoading.value = false;
+  }
+}
+
+async function handleRefinalizeAll() {
+  previewTitle.value = 'Tính lại toàn bộ';
+  pendingAction.value = 'refinalize-all';
+  pendingMatchId.value = null;
+  previewData.value = null;
+  previewLoading.value = true;
+  previewDialogVisible.value = true;
+  try {
+    previewData.value = await wcService.previewRefinalizeAll();
+  } catch (e: unknown) {
+    ElMessage.error((e as Error)?.message ?? 'Không thể tải preview');
+    previewDialogVisible.value = false;
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
+async function handleConfirmPreview() {
+  previewConfirming.value = true;
+  try {
+    if (pendingAction.value === 'finalize-match' && pendingMatchId.value) {
+      await store.finalizeMatch(pendingMatchId.value);
+    } else if (pendingAction.value === 'finalize-all') {
+      await store.finalizeAll();
+    } else if (pendingAction.value === 'refinalize-all') {
+      await store.refinalizeAll();
+    }
+    previewDialogVisible.value = false;
+    pnlRef.value?.load();
+  } catch (e: unknown) {
+    ElMessage.error((e as Error)?.message ?? 'Lỗi khi tính điểm');
+  } finally {
+    previewConfirming.value = false;
+  }
+}
+
+async function handleToggleBlock(user: WcUser) {
+  try {
+    if (user.is_blocked) {
+      await wcService.unblockUser(user.id);
+      ElMessage.success(`Đã mở khóa ${user.name}`);
+    } else {
+      const res = await wcService.blockUser(user.id);
+      ElMessage.success(`Đã khóa ${user.name}` + (res.voided_bets > 0 ? ` (void ${res.voided_bets} cược)` : ''));
+    }
+    await store.fetchAllUsers();
+  } catch (e: unknown) {
+    ElMessage.error((e as Error)?.message ?? 'Lỗi khi thay đổi trạng thái');
   }
 }
 
@@ -964,6 +1055,15 @@ onMounted(async () => {
   font-weight: 700;
   background: rgba(217, 119, 6, 0.12);
   color: #d97706;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.wc-blocked-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
   padding: 1px 6px;
   border-radius: 4px;
 }

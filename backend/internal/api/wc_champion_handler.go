@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/duyb/esport-score-tracker/internal/middleware"
 	"github.com/duyb/esport-score-tracker/internal/service"
@@ -72,6 +73,10 @@ func (h *WcChampionHandler) PlacePredict(c *gin.Context) {
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
 	pred, err := h.svc.PlaceOrUpdatePrediction(wcUserID, req.TeamID, req.Points)
 	if err != nil {
+		if strings.Contains(err.Error(), "blocked") {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

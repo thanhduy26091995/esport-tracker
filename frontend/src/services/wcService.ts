@@ -32,6 +32,7 @@ import type {
   WcChampionPredictionMine,
   WcChampionPredictionPublic,
   WcChampionSettleResult,
+  FinalizePreviewResult,
 } from '@/types/wc'
 
 export const wcService = {
@@ -89,6 +90,18 @@ export const wcService = {
   },
   async refinalizeAllMatches(): Promise<{ processed: number; skipped: number; total_points_awarded: number }> {
     const r = await wcApi.post('/admin/matches/refinalize-all')
+    return r.data
+  },
+  async previewFinalizeMatch(matchId: string): Promise<FinalizePreviewResult> {
+    const r = await wcApi.get<FinalizePreviewResult>(`/admin/matches/${matchId}/finalize-preview`)
+    return r.data
+  },
+  async previewFinalizeAll(): Promise<FinalizePreviewResult> {
+    const r = await wcApi.get<FinalizePreviewResult>('/admin/matches/finalize-all-preview')
+    return r.data
+  },
+  async previewRefinalizeAll(): Promise<FinalizePreviewResult> {
+    const r = await wcApi.get<FinalizePreviewResult>('/admin/matches/refinalize-all-preview')
     return r.data
   },
 
@@ -182,6 +195,13 @@ export const wcService = {
   },
   async setUserRole(wcUserId: string, isAdmin: boolean): Promise<void> {
     await wcApi.put(`/admin/users/${wcUserId}/role`, { is_admin: isAdmin })
+  },
+  async blockUser(userId: string): Promise<{ ok: boolean; voided_bets: number }> {
+    const r = await wcApi.put<{ ok: boolean; voided_bets: number }>(`/admin/users/${userId}/block`)
+    return r.data
+  },
+  async unblockUser(userId: string): Promise<void> {
+    await wcApi.put(`/admin/users/${userId}/unblock`)
   },
 
   // --- Settlements (admin) ---

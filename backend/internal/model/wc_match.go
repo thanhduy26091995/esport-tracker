@@ -392,3 +392,42 @@ type WcSettlementPreviewRow struct {
 	Direction string    `json:"direction"`
 	Amount    float64   `json:"amount"`
 }
+
+// FinalizePreviewRow is one prediction row in the preview response.
+type FinalizePreviewRow struct {
+	WcUserID        uuid.UUID `json:"wc_user_id"`
+	UserName        string    `json:"user_name"`
+	PredictionType  string    `json:"prediction_type"`  // handicap | exact_score | over_under
+	Points          int       `json:"points"`           // stake
+	Multiplier      float64   `json:"multiplier"`       // MultiplierSnapshot
+	NewResult       string    `json:"new_result"`       // correct | incorrect | void | win_half | lose_half
+	NewPointsEarned float64   `json:"new_points_earned"`
+	NetDelta        float64   `json:"net_delta"` // new_points_earned - float64(points)
+}
+
+// FinalizePreviewMatch is the per-match section of a preview.
+type FinalizePreviewMatch struct {
+	MatchID        string               `json:"match_id"`
+	HomeTeam       string               `json:"home_team"`
+	AwayTeam       string               `json:"away_team"`
+	HomeScore      int                  `json:"home_score"`
+	AwayScore      int                  `json:"away_score"`
+	Stage          string               `json:"stage"`
+	AlreadySettled bool                 `json:"already_settled"`
+	Predictions    []FinalizePreviewRow `json:"predictions"`
+}
+
+// FinalizePreviewHouse is the admin summary section of a preview.
+type FinalizePreviewHouse struct {
+	TotalStaked     float64 `json:"total_staked"`
+	TotalPaidOut    float64 `json:"total_paid_out"`
+	HouseNet        float64 `json:"house_net"`
+	PredictionCount int     `json:"prediction_count"`
+	MatchCount      int     `json:"match_count"`
+}
+
+// FinalizePreviewResult is returned by all preview endpoints.
+type FinalizePreviewResult struct {
+	Matches      []FinalizePreviewMatch `json:"matches"`
+	HouseSummary FinalizePreviewHouse   `json:"house_summary"`
+}

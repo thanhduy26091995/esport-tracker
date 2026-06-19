@@ -58,3 +58,11 @@ func (r *WcUserRepository) SetAdminRole(id uuid.UUID, isAdmin bool) error {
 		Where("id = ?", id).
 		Update("is_admin", isAdmin).Error
 }
+
+func (r *WcUserRepository) SetBlocked(userID uuid.UUID, blocked bool) error {
+	return r.db.Model(&model.WcUser{}).Where("id = ?", userID).Update("is_blocked", blocked).Error
+}
+
+func (r *WcUserRepository) SetBlockedTx(tx *gorm.DB, userID uuid.UUID, blocked bool) error {
+	return tx.Model(&model.WcUser{}).Where("id = ?", userID).Update("is_blocked", blocked).Error
+}

@@ -218,8 +218,8 @@ async function handlePlace() {
     myPrediction.value = await wcService.placeChampionPrediction(selectedTeamId.value, selectedPoints.value)
     allPredictions.value = await wcService.getChampionPredictions()
     ElMessage.success('Đã đặt dự đoán!')
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.error ?? 'Lỗi khi đặt dự đoán')
+  } catch {
+    // errors handled by wcApi interceptor
   } finally {
     placing.value = false
   }
@@ -232,8 +232,8 @@ async function handleDelete() {
     myPrediction.value = null
     allPredictions.value = await wcService.getChampionPredictions()
     ElMessage.success('Đã xóa dự đoán')
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.error ?? 'Lỗi khi xóa')
+  } catch {
+    // errors handled by wcApi interceptor
   }
 }
 

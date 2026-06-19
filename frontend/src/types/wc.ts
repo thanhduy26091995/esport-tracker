@@ -11,6 +11,7 @@ export interface WcUser {
   id: string
   name: string
   is_admin: boolean
+  is_blocked: boolean
   created_at: string
   updated_at: string
 }
@@ -433,4 +434,41 @@ export interface WcChampionSettleResult {
   settled_count: number
   correct_count: number
   total_points_awarded: number
+}
+
+// --- Finalize Preview ---
+
+export interface FinalizePreviewRow {
+  wc_user_id: string
+  user_name: string
+  prediction_type: string  // handicap | exact_score | over_under
+  points: number
+  multiplier: number
+  new_result: string       // correct | incorrect | void | win_half | lose_half
+  new_points_earned: number
+  net_delta: number        // new_points_earned - points
+}
+
+export interface FinalizePreviewMatch {
+  match_id: string
+  home_team: string
+  away_team: string
+  home_score: number
+  away_score: number
+  stage: string
+  already_settled: boolean
+  predictions: FinalizePreviewRow[]
+}
+
+export interface FinalizePreviewHouse {
+  total_staked: number
+  total_paid_out: number
+  house_net: number
+  prediction_count: number
+  match_count: number
+}
+
+export interface FinalizePreviewResult {
+  matches: FinalizePreviewMatch[]
+  house_summary: FinalizePreviewHouse
 }

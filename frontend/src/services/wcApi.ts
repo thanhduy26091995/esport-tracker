@@ -17,6 +17,9 @@ const ERROR_MAP: [string, string][] = [
   ['already taken',                              'Tài khoản này đã tồn tại'],
   ['name cannot be empty',                       'Vui lòng nhập email'],
   ['name must be at least',                      'Email phải có ít nhất 2 ký tự'],
+  // Blocked user
+  ['user is blocked from placing predictions',   'Tài khoản của bạn đang bị khoá, không thể dự đoán. Vui lòng liên hệ admin.'],
+  ['user is blocked from placing bets',          'Tài khoản của bạn đang bị khoá, không thể đặt cược. Vui lòng liên hệ admin.'],
   // Predictions
   ['predictions are closed for this match',      'Trận đấu hiện không mở dự đoán'],
   ['cannot modify prediction: match is locked',  'Trận đấu đã khóa, không thể chỉnh sửa'],
