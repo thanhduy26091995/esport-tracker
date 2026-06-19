@@ -41,6 +41,14 @@
         >
           Tính điểm toàn bộ
         </el-button>
+        <el-button
+          type="warning"
+          plain
+          :loading="refinalizingAll"
+          @click="handleRefinalizeAll"
+        >
+          Tính lại toàn bộ (fix điểm float)
+        </el-button>
       </div>
 
       <!-- Admin match filter bar -->
@@ -589,6 +597,17 @@ async function handleFinalizeAll() {
     pnlRef.value?.load()
   } finally {
     finalizingAll.value = false
+  }
+}
+
+const refinalizingAll = ref(false)
+async function handleRefinalizeAll() {
+  refinalizingAll.value = true
+  try {
+    await store.refinalizeAll()
+    pnlRef.value?.load()
+  } finally {
+    refinalizingAll.value = false
   }
 }
 

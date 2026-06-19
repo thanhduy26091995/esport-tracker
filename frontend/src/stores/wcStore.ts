@@ -112,6 +112,12 @@ export const useWcStore = defineStore('wc', () => {
     await fetchMatches()
   }
 
+  async function refinalizeAll() {
+    const res = await wcService.refinalizeAllMatches()
+    ElMessage.success(`Tính lại toàn bộ: ${res.processed} trận, bỏ qua ${res.skipped}, tổng ${res.total_points_awarded} điểm`)
+    await fetchMatches()
+  }
+
   async function fetchBets() {
     try {
       bets.value = (await wcService.listBets()) ?? []
@@ -249,6 +255,7 @@ export const useWcStore = defineStore('wc', () => {
     closeMatch,
     finalizeMatch,
     finalizeAll,
+    refinalizeAll,
     fetchBets,
     fetchMatchBets,
     updateBetStake,

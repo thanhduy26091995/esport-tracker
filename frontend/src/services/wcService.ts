@@ -87,6 +87,10 @@ export const wcService = {
     const r = await wcApi.post('/admin/matches/finalize-all')
     return r.data
   },
+  async refinalizeAllMatches(): Promise<{ processed: number; skipped: number; total_points_awarded: number }> {
+    const r = await wcApi.post('/admin/matches/refinalize-all')
+    return r.data
+  },
 
   // --- Score Multipliers ---
   async getScoreMultipliers(matchId: string): Promise<WcScoreMultiplier[]> {

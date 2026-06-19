@@ -522,6 +522,17 @@ func (h *WcHandler) FinalizeAll(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// RefinalizeAll handles POST /api/v1/wc/admin/matches/refinalize-all
+// Re-calculates points_earned for all scored matches, correcting any rounded/integer values.
+func (h *WcHandler) RefinalizeAll(c *gin.Context) {
+	result, err := h.svc.RefinalizeAllMatches()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 // FinalizeMatch handles POST /api/v1/wc/admin/matches/:id/finalize
 func (h *WcHandler) FinalizeMatch(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))

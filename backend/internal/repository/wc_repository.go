@@ -100,6 +100,14 @@ func (r *WcRepository) ListUnfinalizedScoredMatches() ([]*model.WcMatch, error) 
 		Find(&matches).Error
 }
 
+func (r *WcRepository) ListAllScoredMatches() ([]*model.WcMatch, error) {
+	var matches []*model.WcMatch
+	return matches, r.db.
+		Where("home_score IS NOT NULL AND away_score IS NOT NULL").
+		Order("match_date ASC").
+		Find(&matches).Error
+}
+
 func (r *WcRepository) GetMatch(id uuid.UUID) (*model.WcMatch, error) {
 	var m model.WcMatch
 	err := r.db.First(&m, "id = ?", id).Error

@@ -12,7 +12,7 @@
           </div>
           <div class="wc-bet-details">
             <span class="wc-bet-type">
-              {{ pred.prediction_type === 'handicap' ? t('wc.predictionTypeHandicap') : t('wc.predictionTypeExactScore') }}
+              {{ pred.prediction_type === 'handicap' ? t('wc.predictionTypeHandicap') : pred.prediction_type === 'over_under' ? t('wc.predictionTypeOverUnder') : t('wc.predictionTypeExactScore') }}
             </span>
             <span class="wc-bet-choice">
               <template v-if="pred.prediction_type === 'handicap'">

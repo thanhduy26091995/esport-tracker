@@ -386,6 +386,89 @@ func (s *WcService) FinalizeAllMatches() (*FinalizeAllResult, error) {
 	return result, nil
 }
 
+// RefinalizeAllMatches re-calculates points_earned for every scored match (including already settled).
+// For already-settled predictions, it reverses the old wallet change before applying the correct value.
+// Use this to fix data from before fractional points_earned was supported.
+func (s *WcService) RefinalizeAllMatches() (*FinalizeAllResult, error) {
+	matches, err := s.repo.ListAllScoredMatches()
+	if err != nil {
+		return nil, err
+	}
+	result := &FinalizeAllResult{}
+	db := s.repo.DB()
+
+	for _, m := range matches {
+		if m.HomeScore == nil || m.AwayScore == nil {
+			result.Skipped++
+			continue
+		}
+		bets, err := s.repo.ListPredictionsForMatch(m.ID)
+		if err != nil {
+			result.Skipped++
+			continue
+		}
+
+		var totalPointsEarned float64
+		err = db.Transaction(func(tx *gorm.DB) error {
+			for _, bet := range bets {
+				// Determine new result first; skip unknown types without touching wallet
+				var res string
+				var pointsEarned float64
+				switch bet.PredictionType {
+				case model.WcPredictionTypeHandicap:
+					res, pointsEarned = evaluateHandicapPrediction(bet, *m.HomeScore, *m.AwayScore)
+				case model.WcPredictionTypeExactScore:
+					res, pointsEarned = evaluateExactScorePrediction(bet, *m.HomeScore, *m.AwayScore)
+				case model.WcPredictionTypeOverUnder:
+					res, pointsEarned = evaluateOverUnderPrediction(bet, *m.HomeScore, *m.AwayScore)
+				default:
+					continue
+				}
+
+				// Reverse old wallet change if already settled.
+				// Treat NULL points_earned as 0 (covers old data that stored NULL for losses).
+				if bet.Result != nil {
+					var prevEarned float64
+					if bet.PointsEarned != nil {
+						prevEarned = *bet.PointsEarned
+					}
+					prevNet := prevEarned - float64(bet.Points)
+					if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, -prevNet); err != nil {
+						return err
+					}
+				}
+
+				if err := s.repo.UpdatePredictionResult(tx, bet.ID, res, pointsEarned); err != nil {
+					return err
+				}
+				if pointsEarned > 0 {
+					if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, pointsEarned); err != nil {
+						return err
+					}
+				}
+				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, float64(-bet.Points)); err != nil {
+					return err
+				}
+				totalPointsEarned += pointsEarned
+			}
+
+			now := time.Now()
+			return s.repo.UpdateMatch(m.ID, map[string]interface{}{
+				"settled_at": now,
+				"status":     model.WcStatusCompleted,
+			})
+		})
+
+		if err != nil {
+			result.Skipped++
+			continue
+		}
+		result.Processed++
+		result.TotalPointsAwarded += totalPointsEarned
+	}
+	return result, nil
+}
+
 // --- Tournament settlement ---
 
 func (s *WcService) PreviewSettlement(pointRate float64) ([]*model.WcSettlementPreviewRow, error) {
