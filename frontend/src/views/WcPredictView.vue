@@ -144,7 +144,7 @@ import WcPredictionHistoryList from '@/components/wc/WcPredictionHistoryList.vue
 import WcMatchPredictionList from '@/components/wc/WcMatchPredictionList.vue'
 import WcLeaderboard from '@/components/wc/WcLeaderboard.vue'
 import WcChampionPanel from '@/components/wc/WcChampionPanel.vue'
-import type { WcMatchWithOdds, WcScoreMultiplier, WcMatch, WcPrediction } from '@/types/wc'
+import type { WcMatchWithOdds, WcScoreMultiplier, WcMatch, WcPredictionPublic } from '@/types/wc'
 import { wcService } from '@/services/wcService'
 
 const { t } = useI18n()
@@ -157,7 +157,7 @@ const predictionFormVisible = ref(false)
 const selectedMatch = ref<WcMatchWithOdds | null>(null)
 const selectedScoreMultipliers = ref<WcScoreMultiplier[]>([])
 const expandedMatchIds = ref<Set<string>>(new Set())
-const matchPredictionsMap = ref<Record<string, WcPrediction[]>>({})
+const matchPredictionsMap = ref<Record<string, WcPredictionPublic[]>>({})
 const matchPredictionCounts = ref<Record<string, number>>({})
 
 const selectedMatchPredictions = computed(() =>
