@@ -16,6 +16,7 @@ Read the relevant file before making changes in that domain:
 | Go backend patterns (DI, models, repository, errors) | [`docs/ai/knowledge/backend-patterns.md`](docs/ai/knowledge/backend-patterns.md) |
 | Vue frontend patterns (Pinia, services, route meta, GSI) | [`docs/ai/knowledge/frontend-patterns.md`](docs/ai/knowledge/frontend-patterns.md) |
 | i18n / multi-language (vue-i18n, locale files, conventions) | [`docs/ai/knowledge/frontend-i18n.md`](docs/ai/knowledge/frontend-i18n.md) |
+| **Full database schema** (all tables, columns, FK relationships, enums, seeds) | [`docs/ai/knowledge/database-schema.md`](docs/ai/knowledge/database-schema.md) |
 
 ### Core Esport System
 | Topic | File |
