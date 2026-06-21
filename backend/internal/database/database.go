@@ -101,6 +101,9 @@ func runSchemaMigrations(db *gorm.DB) error {
 		`ALTER TABLE wc_users ALTER COLUMN password_hash DROP NOT NULL`,
 		// Partial unique index so NULL google_id values don't conflict
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_users_google_id ON wc_users (google_id) WHERE google_id IS NOT NULL`,
+		// Champion multi-pick: drop old per-user unique constraint, add (user, team) composite
+		`DROP INDEX IF EXISTS idx_wc_champion_predictions_wc_user_id`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_champion_pred_user_team ON wc_champion_predictions (wc_user_id, team_id)`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {

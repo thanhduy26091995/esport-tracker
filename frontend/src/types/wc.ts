@@ -432,6 +432,7 @@ export interface WcChampionPredictionPublic {
 export interface WcChampionSettleResult {
   winner: string
   settled_count: number
+  settled_user_count: number
   correct_count: number
   total_points_awarded: number
 }

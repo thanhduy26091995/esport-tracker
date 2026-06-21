@@ -235,7 +235,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAuth.DELETE("/bets/:id", wcHandler.DeleteBet)
 				wcAuth.GET("/champion/my-prediction", wcChampionHandler.GetMyPrediction)
 				wcAuth.POST("/champion/predict", wcChampionHandler.PlacePredict)
-				wcAuth.DELETE("/champion/predict", wcChampionHandler.DeletePredict)
+				wcAuth.DELETE("/champion/predict/:id", wcChampionHandler.DeletePredict)
 			}
 
 			// Admin required

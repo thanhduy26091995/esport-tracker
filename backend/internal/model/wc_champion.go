@@ -31,17 +31,17 @@ type WcChampionConfig struct {
 
 func (WcChampionConfig) TableName() string { return "wc_champion_config" }
 
-// WcChampionPrediction stores each user's champion prediction (max 1 per user).
+// WcChampionPrediction stores champion predictions. Users may pick multiple teams (one per team).
 type WcChampionPrediction struct {
-	ID           uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	WcUserID     uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex" json:"wc_user_id"`
-	TeamID       uuid.UUID  `gorm:"type:uuid;not null" json:"team_id"`
-	Points       int        `gorm:"not null" json:"points"`
-	OddsSnapshot float64    `gorm:"type:numeric(6,2);not null" json:"odds_snapshot"`
-	Result       *string    `gorm:"type:varchar(20)" json:"result,omitempty"`
-	PointsEarned *int       `json:"points_earned,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	WcUserID     uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_wc_champion_pred_user_team" json:"wc_user_id"`
+	TeamID       uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_wc_champion_pred_user_team" json:"team_id"`
+	Points       int       `gorm:"not null" json:"points"`
+	OddsSnapshot float64   `gorm:"type:numeric(6,2);not null" json:"odds_snapshot"`
+	Result       *string   `gorm:"type:varchar(20)" json:"result,omitempty"`
+	PointsEarned *int      `json:"points_earned,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 func (WcChampionPrediction) TableName() string { return "wc_champion_predictions" }
@@ -76,10 +76,11 @@ type WcChampionPredictionMine struct {
 }
 
 type WcChampionSettleResult struct {
-	Winner            string `json:"winner"`
-	SettledCount      int    `json:"settled_count"`
-	CorrectCount      int    `json:"correct_count"`
-	TotalPointsAwarded int   `json:"total_points_awarded"`
+	Winner             string `json:"winner"`
+	SettledCount       int    `json:"settled_count"`
+	SettledUserCount   int    `json:"settled_user_count"`
+	CorrectCount       int    `json:"correct_count"`
+	TotalPointsAwarded int    `json:"total_points_awarded"`
 }
 
 type WcChampionConfigPublic struct {

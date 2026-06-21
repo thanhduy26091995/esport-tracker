@@ -101,7 +101,7 @@
     >
       <div>
         🏆 <strong>{{ settleResult.winner }}</strong> vô địch!
-        Đã settle {{ settleResult.settled_count }} dự đoán,
+        Đã settle {{ settleResult.settled_count }} dự đoán từ {{ settleResult.settled_user_count }} người,
         {{ settleResult.correct_count }} đúng,
         tổng {{ settleResult.total_points_awarded }} điểm được trao.
       </div>

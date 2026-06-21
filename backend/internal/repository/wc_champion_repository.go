@@ -86,6 +86,38 @@ func (r *WcChampionRepository) GetMyPrediction(wcUserID uuid.UUID) (*model.WcCha
 	return &row, nil
 }
 
+func (r *WcChampionRepository) GetMyPredictions(wcUserID uuid.UUID) ([]*model.WcChampionPredictionMine, error) {
+	var rows []*model.WcChampionPredictionMine
+	err := r.db.Table("wc_champion_predictions p").
+		Select("p.id, p.team_id, t.name AS team_name, t.code AS team_code, t.flag_emoji, p.points, p.odds_snapshot, p.result, p.points_earned, p.created_at, p.updated_at").
+		Joins("JOIN wc_champion_teams t ON t.id = p.team_id").
+		Where("p.wc_user_id = ?", wcUserID).
+		Order("p.created_at ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		row.PayoutIfCorrect = int(float64(row.Points) * row.OddsSnapshot)
+	}
+	return rows, nil
+}
+
+func (r *WcChampionRepository) CreatePrediction(p *model.WcChampionPrediction) error {
+	return r.db.Create(p).Error
+}
+
+func (r *WcChampionRepository) DeletePredictionByID(id, wcUserID uuid.UUID) error {
+	res := r.db.Where("id = ? AND wc_user_id = ?", id, wcUserID).Delete(&model.WcChampionPrediction{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func (r *WcChampionRepository) GetAllPredictions() ([]*model.WcChampionPredictionPublic, error) {
 	rows := make([]*model.WcChampionPredictionPublic, 0)
 	err := r.db.Table("wc_champion_predictions p").

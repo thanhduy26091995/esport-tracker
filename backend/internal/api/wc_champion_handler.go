@@ -49,15 +49,15 @@ func (h *WcChampionHandler) GetAllPredictions(c *gin.Context) {
 }
 
 // GetMyPrediction handles GET /api/v1/wc/champion/my-prediction
-// Returns the prediction object when found, or null when the user has no prediction.
+// Returns all predictions for the current user (array, may be empty).
 func (h *WcChampionHandler) GetMyPrediction(c *gin.Context) {
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	pred, err := h.svc.GetMyPrediction(wcUserID)
+	preds, err := h.svc.GetMyPredictions(wcUserID)
 	if err != nil {
-		c.JSON(http.StatusOK, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load predictions"})
 		return
 	}
-	c.JSON(http.StatusOK, pred)
+	c.JSON(http.StatusOK, preds)
 }
 
 // PlacePredict handles POST /api/v1/wc/champion/predict
@@ -83,10 +83,15 @@ func (h *WcChampionHandler) PlacePredict(c *gin.Context) {
 	c.JSON(http.StatusOK, pred)
 }
 
-// DeletePredict handles DELETE /api/v1/wc/champion/predict
+// DeletePredict handles DELETE /api/v1/wc/champion/predict/:id
 func (h *WcChampionHandler) DeletePredict(c *gin.Context) {
+	predID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prediction id"})
+		return
+	}
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	if err := h.svc.DeletePrediction(wcUserID); err != nil {
+	if err := h.svc.DeletePredictionByID(wcUserID, predID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

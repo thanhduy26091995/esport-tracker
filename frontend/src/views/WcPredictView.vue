@@ -8,6 +8,9 @@
           <p class="page-subtitle">{{ t('wc.predicting') }}</p>
         </div>
         <div class="wc-user-header">
+          <router-link :to="{ name: 'wc-schedule', query: { direct: '1' } }" class="wc-schedule-link">
+            📅 Lịch thi đấu
+          </router-link>
           <div class="wc-wallet-badge">
             <span class="wc-wallet-label">{{ t('wc.balance') }}</span>
             <span class="wc-wallet-value" :class="walletClass">
@@ -85,8 +88,8 @@
                   </el-button>
                 </template>
               </WcMatchCard>
-              <div v-if="expandedMatchId === match.id" class="wc-match-bets-panel">
-                <WcMatchPredictionList :predictions="store.matchPredictions" />
+              <div v-if="expandedMatchIds.has(match.id)" class="wc-match-bets-panel">
+                <WcMatchPredictionList :predictions="matchPredictionsMap[match.id] ?? []" />
               </div>
             </div>
           </div>
@@ -141,7 +144,7 @@ import WcPredictionHistoryList from '@/components/wc/WcPredictionHistoryList.vue
 import WcMatchPredictionList from '@/components/wc/WcMatchPredictionList.vue'
 import WcLeaderboard from '@/components/wc/WcLeaderboard.vue'
 import WcChampionPanel from '@/components/wc/WcChampionPanel.vue'
-import type { WcMatchWithOdds, WcScoreMultiplier, WcMatch } from '@/types/wc'
+import type { WcMatchWithOdds, WcScoreMultiplier, WcMatch, WcPrediction } from '@/types/wc'
 import { wcService } from '@/services/wcService'
 
 const { t } = useI18n()
@@ -153,7 +156,8 @@ const activeTab = ref('predictions')
 const predictionFormVisible = ref(false)
 const selectedMatch = ref<WcMatchWithOdds | null>(null)
 const selectedScoreMultipliers = ref<WcScoreMultiplier[]>([])
-const expandedMatchId = ref<string | null>(null)
+const expandedMatchIds = ref<Set<string>>(new Set())
+const matchPredictionsMap = ref<Record<string, WcPrediction[]>>({})
 const matchPredictionCounts = ref<Record<string, number>>({})
 
 const selectedMatchPredictions = computed(() =>
@@ -198,13 +202,19 @@ async function openPredictionForm(match: WcMatch) {
 }
 
 async function toggleMatchPredictions(matchId: string) {
-  if (expandedMatchId.value === matchId) {
-    expandedMatchId.value = null
+  const ids = new Set(expandedMatchIds.value)
+  if (ids.has(matchId)) {
+    ids.delete(matchId)
+    expandedMatchIds.value = ids
     return
   }
-  expandedMatchId.value = matchId
-  await store.fetchMatchPredictions(matchId)
-  matchPredictionCounts.value[matchId] = store.matchPredictions.length
+  ids.add(matchId)
+  expandedMatchIds.value = ids
+  if (!matchPredictionsMap.value[matchId]) {
+    await store.fetchMatchPredictions(matchId)
+    matchPredictionsMap.value[matchId] = [...store.matchPredictions]
+    matchPredictionCounts.value[matchId] = store.matchPredictions.length
+  }
 }
 
 async function onPredictionPlaced() {
@@ -237,6 +247,22 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+.wc-schedule-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border-default);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.wc-schedule-link:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .wc-wallet-badge {

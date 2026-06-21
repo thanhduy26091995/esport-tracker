@@ -9,8 +9,13 @@ import (
 	"github.com/duyb/esport-score-tracker/internal/service"
 )
 
-// StartWcMatchSync runs SyncMatches immediately then on a fixed interval.
-// Interval is read from WC_SYNC_INTERVAL_MINUTES (default: 30).
+// StartWcMatchSync runs SyncMatches immediately then on an adaptive schedule.
+// It checks every minute whether enough time has elapsed based on current match state:
+//   - Live matches present → sync every 5 minutes
+//   - No live matches      → sync every intervalMinutes (default: 30)
+//
+// This means the interval adapts within 1 minute of matches going live,
+// rather than waiting until the current sleep window expires.
 func StartWcMatchSync(svc *service.WcService) {
 	intervalMinutes := 30
 	if v := os.Getenv("WC_SYNC_INTERVAL_MINUTES"); v != "" {
@@ -18,6 +23,9 @@ func StartWcMatchSync(svc *service.WcService) {
 			intervalMinutes = n
 		}
 	}
+
+	idleInterval := time.Duration(intervalMinutes) * time.Minute
+	liveInterval := 5 * time.Minute
 
 	sync := func() {
 		count, err := svc.SyncMatches()
@@ -28,15 +36,28 @@ func StartWcMatchSync(svc *service.WcService) {
 		log.Printf("✅ WC sync: %d matches upserted", count)
 	}
 
+	desiredInterval := func() time.Duration {
+		summary, err := svc.GetMatchScheduleSummary()
+		if err != nil || summary.LiveCount > 0 {
+			return liveInterval
+		}
+		return idleInterval
+	}
+
 	// Run once immediately at startup
 	sync()
 
-	ticker := time.NewTicker(time.Duration(intervalMinutes) * time.Minute)
 	go func() {
+		lastSync := time.Now()
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
 		for range ticker.C {
-			sync()
+			if time.Since(lastSync) >= desiredInterval() {
+				sync()
+				lastSync = time.Now()
+			}
 		}
 	}()
 
-	log.Printf("🔄 WC match sync scheduled every %d minutes", intervalMinutes)
+	log.Printf("🔄 WC match sync started (idle: %d min, live: 5 min)", intervalMinutes)
 }

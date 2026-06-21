@@ -75,6 +75,10 @@ func (s *WcChampionService) GetMyPrediction(wcUserID uuid.UUID) (*model.WcChampi
 	return s.repo.GetMyPrediction(wcUserID)
 }
 
+func (s *WcChampionService) GetMyPredictions(wcUserID uuid.UUID) ([]*model.WcChampionPredictionMine, error) {
+	return s.repo.GetMyPredictions(wcUserID)
+}
+
 func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, points int) (*model.WcChampionPredictionMine, error) {
 	user, err := s.userRepo.GetByID(wcUserID)
 	if err != nil {
@@ -103,8 +107,8 @@ func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, 
 		Points:       points,
 		OddsSnapshot: team.Odds,
 	}
-	if err := s.repo.UpsertPrediction(pred); err != nil {
-		return nil, err
+	if err := s.repo.CreatePrediction(pred); err != nil {
+		return nil, fmt.Errorf("already predicted this team — each team can only be picked once")
 	}
 	return s.repo.GetMyPrediction(wcUserID)
 }
@@ -120,7 +124,25 @@ func (s *WcChampionService) DeletePrediction(wcUserID uuid.UUID) error {
 	return s.repo.DeletePrediction(wcUserID)
 }
 
+func (s *WcChampionService) DeletePredictionByID(wcUserID, predID uuid.UUID) error {
+	cfg, err := s.repo.GetConfig()
+	if err != nil {
+		return fmt.Errorf("champion config not found")
+	}
+	if !cfg.IsOpen {
+		return fmt.Errorf("champion prediction window is closed — cannot delete")
+	}
+	if err := s.repo.DeletePredictionByID(predID, wcUserID); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("prediction not found")
+		}
+		return err
+	}
+	return nil
+}
+
 // SettleChampion declares the winner and settles all predictions.
+// Winners receive payout; losers are deducted their wagered points.
 // Idempotent: returns error if already settled.
 func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*model.WcChampionSettleResult, error) {
 	cfg, err := s.repo.GetConfig()
@@ -144,6 +166,7 @@ func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*mo
 	}
 
 	result := &model.WcChampionSettleResult{Winner: winnerTeam.Name, SettledCount: len(preds)}
+	settledUsers := make(map[uuid.UUID]struct{})
 
 	db := s.repo.DB()
 	txErr := db.Transaction(func(tx *gorm.DB) error {
@@ -151,41 +174,52 @@ func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*mo
 			isCorrect := p.TeamID == winnerTeamID
 			resStr := model.WcResultIncorrect
 			pointsEarned := 0
+			var delta float64
+
 			if isCorrect {
 				resStr = model.WcResultCorrect
 				pointsEarned = int(float64(p.Points) * p.OddsSnapshot)
+				delta = float64(pointsEarned)
 				result.CorrectCount++
 				result.TotalPointsAwarded += pointsEarned
+			} else {
+				delta = -float64(p.Points)
 			}
+
 			if err := s.repo.SettlePrediction(tx, p.ID, resStr, pointsEarned); err != nil {
 				return err
 			}
-			if isCorrect {
-				wallet, err := s.wcRepo.GetWallet(p.WcUserID)
-				if err != nil {
-					return fmt.Errorf("wallet not found for user %v", p.WcUserID)
-				}
-				delta := float64(pointsEarned)
-				balanceBefore := wallet.Balance
-				if err := s.wcRepo.UpdateWalletBalance(tx, p.WcUserID, delta); err != nil {
-					return err
-				}
-				if err := s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
-					WcUserID:      p.WcUserID,
-					AdminID:       adminID,
-					Delta:         delta,
-					BalanceBefore: balanceBefore,
-					BalanceAfter:  balanceBefore + delta,
-					Note:          "champion settle",
-				}); err != nil {
-					return err
-				}
+
+			wallet, err := s.wcRepo.GetWallet(p.WcUserID)
+			if err != nil {
+				return fmt.Errorf("wallet not found for user %v", p.WcUserID)
 			}
+			balanceBefore := wallet.Balance
+			if err := s.wcRepo.UpdateWalletBalance(tx, p.WcUserID, delta); err != nil {
+				return err
+			}
+			note := "champion settle — incorrect"
+			if isCorrect {
+				note = "champion settle — correct"
+			}
+			if err := s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
+				WcUserID:      p.WcUserID,
+				AdminID:       adminID,
+				Delta:         delta,
+				BalanceBefore: balanceBefore,
+				BalanceAfter:  balanceBefore + delta,
+				Note:          note,
+			}); err != nil {
+				return err
+			}
+
+			settledUsers[p.WcUserID] = struct{}{}
 		}
 		return s.repo.MarkSettled(winnerTeamID)
 	})
 	if txErr != nil {
 		return nil, txErr
 	}
+	result.SettledUserCount = len(settledUsers)
 	return result, nil
 }

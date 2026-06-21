@@ -14,36 +14,43 @@
       <!-- LEFT: my prediction + place form -->
       <div class="champion-left">
 
-        <!-- My prediction card (already placed) -->
-        <el-card v-if="myPrediction" class="champion-card" shadow="never">
-          <div class="my-pred-header">
-            <span class="my-pred-label">Dự đoán của bạn</span>
-            <el-button
-              v-if="config?.is_open && !config.settled_at"
-              size="small" type="danger" text
-              @click="handleDelete"
-            >Xóa</el-button>
-          </div>
-          <div class="my-pred-body">
-            <span class="pred-flag">{{ myPrediction.flag_emoji }}</span>
-            <div>
-              <span class="pred-team">{{ myPrediction.team_name }}</span>
-              <div class="pred-meta">
-                <el-tag size="small" type="warning">{{ myPrediction.odds_snapshot }}x</el-tag>
-                <span class="pred-points">{{ myPrediction.points }} điểm</span>
-                <span class="pred-payout">→ <strong>{{ myPrediction.payout_if_correct }}</strong> nếu đúng</span>
+        <!-- My prediction cards -->
+        <template v-if="myPredictions.length > 0">
+          <el-card
+            v-for="pred in myPredictions"
+            :key="pred.id"
+            class="champion-card"
+            shadow="never"
+          >
+            <div class="my-pred-header">
+              <span class="my-pred-label">Dự đoán của bạn</span>
+              <el-button
+                v-if="config?.is_open && !config.settled_at"
+                size="small" type="danger" text
+                @click="handleDelete(pred.id)"
+              >Xóa</el-button>
+            </div>
+            <div class="my-pred-body">
+              <span class="pred-flag">{{ pred.flag_emoji }}</span>
+              <div>
+                <span class="pred-team">{{ pred.team_name }}</span>
+                <div class="pred-meta">
+                  <el-tag size="small" type="warning">{{ pred.odds_snapshot }}x</el-tag>
+                  <span class="pred-points">{{ pred.points }} điểm</span>
+                  <span class="pred-payout">→ <strong>{{ pred.payout_if_correct }}</strong> nếu đúng</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div v-if="myPrediction.result" class="my-pred-result">
-            <el-tag :type="myPrediction.result === 'correct' ? 'success' : 'danger'" size="small">
-              {{ myPrediction.result === 'correct' ? `+${myPrediction.points_earned} điểm` : 'Không đúng' }}
-            </el-tag>
-          </div>
-        </el-card>
+            <div v-if="pred.result" class="my-pred-result">
+              <el-tag :type="pred.result === 'correct' ? 'success' : 'danger'" size="small">
+                {{ pred.result === 'correct' ? `+${pred.points_earned} điểm` : 'Không đúng' }}
+              </el-tag>
+            </div>
+          </el-card>
+        </template>
 
-        <!-- Place form (window open, no prediction yet) -->
-        <el-card v-if="config?.is_open && !config.settled_at && !myPrediction" class="champion-card" shadow="never">
+        <!-- Place form (window open) -->
+        <el-card v-if="config?.is_open && !config.settled_at" class="champion-card" shadow="never">
           <div class="form-title">🏆 Đặt dự đoán Vô địch</div>
           <el-input
             v-model="teamSearch"
@@ -84,8 +91,8 @@
           </div>
         </el-card>
 
-        <!-- Window closed notice (no prediction) -->
-        <el-card v-if="config && !config.is_open && !config.settled_at && !myPrediction" class="champion-card" shadow="never">
+        <!-- Window closed notice (no predictions) -->
+        <el-card v-if="config && !config.is_open && !config.settled_at && myPredictions.length === 0" class="champion-card" shadow="never">
           <div class="closed-notice">🔴 Cửa sổ dự đoán đã đóng — bạn chưa đặt dự đoán.</div>
         </el-card>
 
@@ -94,6 +101,7 @@
           <template #header>
             <span class="card-header-title">Tất cả dự đoán ({{ allPredictions.length }})</span>
           </template>
+          <div style="overflow-x: auto">
           <el-table :data="allPredictions" size="small" max-height="300">
             <el-table-column label="Người dùng" prop="user_name" min-width="100" />
             <el-table-column label="Đội" min-width="110">
@@ -112,6 +120,7 @@
               </template>
             </el-table-column>
           </el-table>
+          </div>
         </el-card>
       </div>
 
@@ -136,7 +145,7 @@
               v-for="team in filteredOddsTeams"
               :key="team.id"
               class="odds-chip"
-              :class="{ 'odds-chip--mine': myPrediction?.team_name === team.name }"
+              :class="{ 'odds-chip--mine': myPredictions.some(p => p.team_name === team.name) }"
             >
               <span class="odds-chip-flag">{{ team.flag_emoji }}</span>
               <span class="odds-chip-name">{{ team.name }}</span>
@@ -157,7 +166,7 @@ import type { WcChampionConfig, WcChampionTeam, WcChampionPredictionMine, WcCham
 
 const config = ref<WcChampionConfig | null>(null)
 const teams = ref<WcChampionTeam[]>([])
-const myPrediction = ref<WcChampionPredictionMine | null>(null)
+const myPredictions = ref<WcChampionPredictionMine[]>([])
 const allPredictions = ref<WcChampionPredictionPublic[]>([])
 
 const selectedTeamId = ref('')
@@ -170,9 +179,12 @@ const selectedTeam = computed(() => teams.value.find(t => t.id === selectedTeamI
 const payoutPreview = computed(() =>
   selectedTeam.value ? Math.floor(selectedPoints.value * selectedTeam.value.odds) : 0
 )
+const pickedTeamIds = computed(() => new Set(myPredictions.value.map(p => p.team_id)))
+
 const filteredTeams = computed(() => {
   const q = teamSearch.value.toLowerCase()
-  return q ? teams.value.filter(t => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q)) : teams.value
+  const base = teams.value.filter(t => !pickedTeamIds.value.has(t.id))
+  return q ? base.filter(t => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q)) : base
 })
 const filteredOddsTeams = computed(() => {
   const q = oddsSearch.value.toLowerCase()
@@ -203,20 +215,22 @@ async function load() {
     wcService.getChampionConfig(),
     wcService.getChampionTeams(),
     wcService.getChampionPredictions(),
-    wcService.getMyChampionPrediction(),
+    wcService.getMyChampionPredictions(),
   ])
   if (cfg.status === 'fulfilled') config.value = cfg.value
   if (teamList.status === 'fulfilled') teams.value = teamList.value ?? []
   if (preds.status === 'fulfilled') allPredictions.value = preds.value ?? []
-  if (mine.status === 'fulfilled') myPrediction.value = mine.value
+  if (mine.status === 'fulfilled') myPredictions.value = mine.value ?? []
 }
 
 async function handlePlace() {
   if (!selectedTeamId.value) { ElMessage.warning('Vui lòng chọn đội'); return }
   placing.value = true
   try {
-    myPrediction.value = await wcService.placeChampionPrediction(selectedTeamId.value, selectedPoints.value)
+    const newPred = await wcService.placeChampionPrediction(selectedTeamId.value, selectedPoints.value)
+    myPredictions.value = [...myPredictions.value, newPred]
     allPredictions.value = await wcService.getChampionPredictions()
+    selectedTeamId.value = ''
     ElMessage.success('Đã đặt dự đoán!')
   } catch {
     // errors handled by wcApi interceptor
@@ -225,11 +239,11 @@ async function handlePlace() {
   }
 }
 
-async function handleDelete() {
-  await ElMessageBox.confirm('Xóa dự đoán vô địch của bạn?', 'Xác nhận', { type: 'warning' })
+async function handleDelete(predId: string) {
+  await ElMessageBox.confirm('Xóa dự đoán vô địch này?', 'Xác nhận', { type: 'warning' })
   try {
-    await wcService.deleteChampionPrediction()
-    myPrediction.value = null
+    await wcService.deleteChampionPrediction(predId)
+    myPredictions.value = myPredictions.value.filter(p => p.id !== predId)
     allPredictions.value = await wcService.getChampionPredictions()
     ElMessage.success('Đã xóa dự đoán')
   } catch {
@@ -270,8 +284,11 @@ onMounted(load)
   gap: 14px;
   align-items: start;
 }
-@media (max-width: 900px) {
+@media (max-width: 700px) {
   .champion-main { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .teams-pick-grid { grid-template-columns: 1fr; }
 }
 .champion-left, .champion-right { display: flex; flex-direction: column; gap: 14px; }
 

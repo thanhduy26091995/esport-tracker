@@ -50,7 +50,7 @@
       </div>
 
       <template v-else-if="groupedMatches.length > 0">
-        <div v-for="group in groupedMatches" :key="group.date" class="wc-date-group">
+        <div v-for="group in groupedMatches" :key="group.date" class="wc-date-group" :data-date="group.date">
           <div class="wc-date-heading">{{ group.dateLabel }}</div>
           <div class="wc-match-list">
             <WcMatchCard
@@ -72,8 +72,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter, useRoute } from 'vue-router'
 import { useWcStore } from '@/stores/wcStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import WcGroupFilter from '@/components/wc/WcGroupFilter.vue'
@@ -81,30 +82,41 @@ import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import type { WcMatch } from '@/types/wc'
 
 const { t } = useI18n()
+const router = useRouter()
+const route = useRoute()
 const store = useWcStore()
 const wcAuthStore = useWcAuthStore()
 
 const selectedFilter = ref('')
 const featureEnabled = ref(false)
+let skipNextWatch = false
 
 function computeDefaultFilter(matches: WcMatch[]): string {
   if (!matches.length) return ''
   const localDate = (iso: string) => new Date(iso).toLocaleDateString('sv') // YYYY-MM-DD
   const todayStr = localDate(new Date().toISOString())
 
-  let candidates = matches.filter(m => localDate(m.match_date) === todayStr)
+  const todayMatches = matches.filter(m => localDate(m.match_date) === todayStr)
 
-  if (!candidates.length) {
-    const future = matches
-      .filter(m => m.status !== 'completed' && m.status !== 'cancelled' && localDate(m.match_date) > todayStr)
-      .sort((a, b) => a.match_date.localeCompare(b.match_date))
-    if (!future.length) return ''
-    const nextDate = localDate(future[0].match_date)
-    candidates = future.filter(m => localDate(m.match_date) === nextDate)
+  if (todayMatches.length) {
+    // Priority: live > scheduled/upcoming (not completed) > completed
+    const live    = todayMatches.filter(m => m.status === 'live')
+    const pending = todayMatches.filter(m => m.status !== 'completed' && m.status !== 'cancelled' && m.status !== 'live')
+    const pool    = live.length ? live : pending.length ? pending : todayMatches
+    const first   = pool.sort((a, b) => a.match_date.localeCompare(b.match_date))[0]
+    if (first.stage === 'group' && first.group_name) {
+      return `group_${first.group_name.replace('Group ', '')}`
+    }
+    return first.stage
   }
 
-  if (!candidates.length) return ''
-  const first = candidates.sort((a, b) => a.match_date.localeCompare(b.match_date))[0]
+  // No matches today → pick the next upcoming date
+  const future = matches
+    .filter(m => m.status !== 'completed' && m.status !== 'cancelled' && localDate(m.match_date) > todayStr)
+    .sort((a, b) => a.match_date.localeCompare(b.match_date))
+  if (!future.length) return ''
+  const nextDate = localDate(future[0].match_date)
+  const first = future.filter(m => localDate(m.match_date) === nextDate)[0]
   if (first.stage === 'group' && first.group_name) {
     return `group_${first.group_name.replace('Group ', '')}`
   }
@@ -141,7 +153,8 @@ const groupedMatches = computed((): DateGroup[] => {
   return groups.sort((a, b) => a.date.localeCompare(b.date))
 })
 
-watch(selectedFilter, () => {
+watch(selectedFilter, async () => {
+  if (skipNextWatch) { skipNextWatch = false; return }
   const filter: Record<string, string> = {}
   if (selectedFilter.value.startsWith('group_')) {
     filter.stage = 'group'
@@ -149,17 +162,53 @@ watch(selectedFilter, () => {
   } else if (selectedFilter.value) {
     filter.stage = selectedFilter.value
   }
-  store.fetchMatches(filter)
+  await store.fetchMatches(filter)
 })
+
+async function scrollToTargetDateGroup() {
+  await nextTick()
+  const todayStr = new Date().toLocaleDateString('sv') // YYYY-MM-DD
+  const groups = document.querySelectorAll<HTMLElement>('.wc-date-group[data-date]')
+  if (!groups.length) return
+  // Find the group for today, or the first group on/after today
+  let target: HTMLElement | null = null
+  for (const el of groups) {
+    if ((el.dataset.date ?? '') >= todayStr) {
+      target = el
+      break
+    }
+  }
+  // Fall back to last group if all dates are in the past
+  if (!target) target = groups[groups.length - 1]
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 onMounted(async () => {
   await store.fetchMatches()
-  selectedFilter.value = computeDefaultFilter(store.matches)
+  const defaultFilter = computeDefaultFilter(store.matches)
+  if (defaultFilter) {
+    // Fetch filtered matches directly so watcher + scroll sequence is clean
+    const filter: Record<string, string> = {}
+    if (defaultFilter.startsWith('group_')) {
+      filter.stage = 'group'
+      filter.group = defaultFilter.replace('group_', 'Group ')
+    } else {
+      filter.stage = defaultFilter
+    }
+    await store.fetchMatches(filter)
+  }
+  // Set filter without triggering watcher (fetch already done above)
+  skipNextWatch = true
+  selectedFilter.value = defaultFilter
+  scrollToTargetDateGroup()
   try {
     const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
     const res = await fetch(`${apiBase}/config`)
     const data = await res.json()
     featureEnabled.value = !!data.is_enabled
+    if (featureEnabled.value && !route.query.direct) {
+      router.replace(wcAuthStore.isLoggedIn ? { name: 'wc-predict' } : { name: 'wc-login' })
+    }
   } catch { /* ignore */ }
 })
 </script>

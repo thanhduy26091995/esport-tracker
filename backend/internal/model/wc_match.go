@@ -342,7 +342,7 @@ type WcSettlementWithDetails struct {
 // WcSettlementDetailWithUser extends WcSettlementDetail with the user's name.
 type WcSettlementDetailWithUser struct {
 	WcSettlementDetail
-	Name string `json:"name"`
+	Name string `json:"user_name"`
 }
 
 // WcSyncLog records each sync operation (manual or cron).
@@ -387,7 +387,7 @@ type HousePnLMatch struct {
 // WcSettlementPreviewRow is returned by GET /admin/settlements/preview.
 type WcSettlementPreviewRow struct {
 	WcUserID  uuid.UUID `json:"wc_user_id"`
-	Name      string    `json:"name"`
+	Name      string    `json:"user_name"`
 	Balance   float64   `json:"balance"`
 	Direction string    `json:"direction"`
 	Amount    float64   `json:"amount"`

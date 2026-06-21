@@ -74,6 +74,20 @@ func (s *WcService) CloseMatch(id uuid.UUID) error {
 	return s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": false})
 }
 
+// MatchScheduleSummary is returned by GetMatchScheduleSummary for cron scheduling decisions.
+type MatchScheduleSummary struct {
+	LiveCount int
+}
+
+// GetMatchScheduleSummary returns a lightweight summary used by the sync cron to decide interval.
+func (s *WcService) GetMatchScheduleSummary() (*MatchScheduleSummary, error) {
+	liveCount, err := s.repo.CountLiveMatches()
+	if err != nil {
+		return nil, err
+	}
+	return &MatchScheduleSummary{LiveCount: liveCount}, nil
+}
+
 // --- Score multipliers ---
 
 func (s *WcService) AddScoreMultiplier(matchID uuid.UUID, homeScore, awayScore int, odds float64) (*model.WcScoreMultiplier, error) {
@@ -504,7 +518,7 @@ func buildPreviewRow(bet *model.WcPrediction, homeScore, awayScore int) model.Fi
 	}
 }
 
-func buildPreviewResult(matches []*model.WcMatch, getPredictions func(uuid.UUID) ([]*model.WcPrediction, error), getUserName func(uuid.UUID) string) (*model.FinalizePreviewResult, error) {
+func buildPreviewResult(matches []*model.WcMatch, getPredictions func(uuid.UUID) ([]*model.WcPrediction, error), getUserName func(uuid.UUID) string, excludeSettled bool) (*model.FinalizePreviewResult, error) {
 	result := &model.FinalizePreviewResult{
 		Matches: []model.FinalizePreviewMatch{},
 	}
@@ -526,16 +540,21 @@ func buildPreviewResult(matches []*model.WcMatch, getPredictions func(uuid.UUID)
 			AlreadySettled: m.SettledAt != nil,
 			Predictions:    []model.FinalizePreviewRow{},
 		}
+		countInSummary := !excludeSettled || m.SettledAt == nil
 		for _, bet := range bets {
 			row := buildPreviewRow(bet, *m.HomeScore, *m.AwayScore)
 			row.UserName = getUserName(bet.WcUserID)
 			pm.Predictions = append(pm.Predictions, row)
-			result.HouseSummary.TotalStaked += float64(bet.Points)
-			result.HouseSummary.TotalPaidOut += row.NewPointsEarned
-			result.HouseSummary.PredictionCount++
+			if countInSummary {
+				result.HouseSummary.TotalStaked += float64(bet.Points)
+				result.HouseSummary.TotalPaidOut += row.NewPointsEarned
+				result.HouseSummary.PredictionCount++
+			}
 		}
 		result.Matches = append(result.Matches, pm)
-		result.HouseSummary.MatchCount++
+		if countInSummary {
+			result.HouseSummary.MatchCount++
+		}
 	}
 	result.HouseSummary.HouseNet = result.HouseSummary.TotalStaked - result.HouseSummary.TotalPaidOut
 	return result, nil
@@ -561,6 +580,7 @@ func (s *WcService) PreviewFinalizeMatch(matchID uuid.UUID) (*model.FinalizePrev
 			return s.repo.ListPredictionsForMatch(id)
 		},
 		func(id uuid.UUID) string { return nameMap[id] },
+		true,
 	)
 }
 
@@ -581,6 +601,7 @@ func (s *WcService) PreviewFinalizeAll() (*model.FinalizePreviewResult, error) {
 			return s.repo.ListPredictionsForMatch(id)
 		},
 		func(id uuid.UUID) string { return nameMap[id] },
+		true,
 	)
 }
 
@@ -601,6 +622,7 @@ func (s *WcService) PreviewRefinalizeAll() (*model.FinalizePreviewResult, error)
 			return s.repo.ListPredictionsForMatch(id)
 		},
 		func(id uuid.UUID) string { return nameMap[id] },
+		false,
 	)
 }
 

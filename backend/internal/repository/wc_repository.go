@@ -652,6 +652,13 @@ func (r *WcRepository) GetHousePnL() (*model.HousePnLResponse, error) {
 	}, nil
 }
 
+// CountLiveMatches returns the number of matches currently in 'live' status.
+func (r *WcRepository) CountLiveMatches() (int, error) {
+	var count int64
+	err := r.db.Model(&model.WcMatch{}).Where("status = ?", model.WcStatusLive).Count(&count).Error
+	return int(count), err
+}
+
 // PreviewSettlement reads all wallet balances and computes direction + amount for each user.
 // Nothing is written to DB.
 func (r *WcRepository) PreviewSettlement(pointRate float64) ([]*model.WcSettlementPreviewRow, error) {

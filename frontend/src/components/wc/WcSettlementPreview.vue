@@ -40,7 +40,7 @@
 
     <div class="wc-sp-actions">
       <el-button @click="handlePreview" :loading="previewing">{{ t('wc.previewSettlement') }}</el-button>
-      <el-button type="success" @click="showCreateDialog = true" :disabled="previewRows.length === 0">
+      <el-button type="success" plain @click="showCreateDialog = true" :disabled="previewRows.length === 0">
         {{ t('wc.createSettlement') }}
       </el-button>
     </div>
@@ -59,7 +59,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showCreateDialog = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="success" :loading="creating" @click="handleCreate">
+        <el-button type="success" plain :loading="creating" @click="handleCreate">
           {{ t('wc.createSettlement') }}
         </el-button>
       </template>

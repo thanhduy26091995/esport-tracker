@@ -269,16 +269,16 @@ export const wcService = {
     const r = await wcApi.get<WcChampionPredictionPublic[]>('/champion/predictions')
     return r.data
   },
-  async getMyChampionPrediction(): Promise<WcChampionPredictionMine | null> {
-    const r = await wcApi.get<WcChampionPredictionMine | null>('/champion/my-prediction')
-    return r.data ?? null
+  async getMyChampionPredictions(): Promise<WcChampionPredictionMine[]> {
+    const r = await wcApi.get<WcChampionPredictionMine[]>('/champion/my-prediction')
+    return r.data ?? []
   },
   async placeChampionPrediction(teamId: string, points: number): Promise<WcChampionPredictionMine> {
     const r = await wcApi.post<WcChampionPredictionMine>('/champion/predict', { team_id: teamId, points })
     return r.data
   },
-  async deleteChampionPrediction(): Promise<void> {
-    await wcApi.delete('/champion/predict')
+  async deleteChampionPrediction(predId: string): Promise<void> {
+    await wcApi.delete(`/champion/predict/${predId}`)
   },
   async adminUpdateChampionConfig(isOpen: boolean): Promise<void> {
     await wcApi.put('/admin/champion/config', { is_open: isOpen })
