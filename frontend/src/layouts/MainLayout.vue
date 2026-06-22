@@ -25,7 +25,7 @@
             :to="item.href"
             @click="mobileMenuOpen = false"
             class="nav-item"
-            :class="{ 'nav-item--active': isActiveRoute(item.href), 'nav-item--wc': item.highlight === 'wc' }"
+            :class="{ 'nav-item--active': isActiveRoute(item), 'nav-item--wc': item.highlight === 'wc' }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
             <span>{{ t(item.navKey) }}</span>
@@ -57,7 +57,7 @@
             :key="item.navKey"
             :to="item.href"
             class="nav-item"
-            :class="{ 'nav-item--active': isActiveRoute(item.href), 'nav-item--wc': item.highlight === 'wc' }"
+            :class="{ 'nav-item--active': isActiveRoute(item), 'nav-item--wc': item.highlight === 'wc' }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
             <span>{{ t(item.navKey) }}</span>
@@ -135,7 +135,7 @@ const reigningPlayerName = computed(() => userStore.users[0]?.name ?? '')
 
 const navigation = isSocSite
   ? [
-      { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion, highlight: 'wc' }
+      { navKey: 'nav.worldCup', href: '/world-cup/predict', activePrefix: '/world-cup', icon: Promotion, highlight: 'wc' }
     ]
   : [
       { navKey: 'nav.dashboard', href: '/', icon: HomeFilled },
@@ -144,14 +144,16 @@ const navigation = isSocSite
       { navKey: 'nav.tournaments', href: '/tournaments', icon: Grid },
       { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
       { navKey: 'nav.fund', href: '/fund', icon: Wallet },
-      { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion, highlight: 'wc' },
+      { navKey: 'nav.worldCup', href: '/world-cup/predict', activePrefix: '/world-cup', icon: Promotion, highlight: 'wc' },
       { navKey: 'nav.settings', href: '/settings', icon: Setting },
     ]
 
-const isActiveRoute = (href: string): boolean =>
-  href === '/' ? route.path === '/' : route.path.startsWith(href)
+const isActiveRoute = (item: { href: string; activePrefix?: string }): boolean => {
+  const prefix = item.activePrefix ?? item.href
+  return prefix === '/' ? route.path === '/' : route.path.startsWith(prefix)
+}
 
-const currentNavItem = computed(() => navigation.find(item => isActiveRoute(item.href)))
+const currentNavItem = computed(() => navigation.find(item => isActiveRoute(item)))
 const currentPageName = computed(() => currentNavItem.value ? t(currentNavItem.value.navKey) : t('common.appName'))
 const currentPageIcon = computed(() => currentNavItem.value?.icon ?? HomeFilled)
 
