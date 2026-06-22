@@ -684,3 +684,137 @@ func (r *WcRepository) PreviewSettlement(pointRate float64) ([]*model.WcSettleme
 	}
 	return rows, nil
 }
+
+// GetGroupStandings computes group-stage standings from wc_matches.
+// All group-stage matches (any status) are fetched to build the team roster.
+// Stats (W/D/L, goals, form) are accumulated only from completed matches.
+func (r *WcRepository) GetGroupStandings() ([]model.WcGroupStanding, error) {
+	var matches []model.WcMatch
+	if err := r.db.Where("stage = ?", model.WcStageGroup).
+		Order("match_date ASC").
+		Find(&matches).Error; err != nil {
+		return nil, err
+	}
+
+	type teamAcc struct {
+		code    string
+		played  int
+		won     int
+		drawn   int
+		lost    int
+		gf      int
+		ga      int
+		results []string // all completed results in chronological order
+	}
+
+	// groupMap[groupName][teamName] → accumulator
+	groupMap := map[string]map[string]*teamAcc{}
+
+	for _, m := range matches {
+		g := m.GroupName
+		if g == "" {
+			continue
+		}
+		if groupMap[g] == nil {
+			groupMap[g] = map[string]*teamAcc{}
+		}
+		// Register team in roster regardless of match status
+		if groupMap[g][m.HomeTeam] == nil {
+			groupMap[g][m.HomeTeam] = &teamAcc{code: m.HomeTeamCode}
+		}
+		if groupMap[g][m.AwayTeam] == nil {
+			groupMap[g][m.AwayTeam] = &teamAcc{code: m.AwayTeamCode}
+		}
+
+		// Only count stats for completed matches with valid scores
+		if m.Status != model.WcStatusCompleted || m.HomeScore == nil || m.AwayScore == nil {
+			continue
+		}
+		hs, as_ := *m.HomeScore, *m.AwayScore
+		h := groupMap[g][m.HomeTeam]
+		a := groupMap[g][m.AwayTeam]
+		h.played++
+		a.played++
+		h.gf += hs
+		h.ga += as_
+		a.gf += as_
+		a.ga += hs
+		switch {
+		case hs > as_:
+			h.won++
+			a.lost++
+			h.results = append(h.results, "W")
+			a.results = append(a.results, "L")
+		case hs < as_:
+			a.won++
+			h.lost++
+			h.results = append(h.results, "L")
+			a.results = append(a.results, "W")
+		default:
+			h.drawn++
+			a.drawn++
+			h.results = append(h.results, "D")
+			a.results = append(a.results, "D")
+		}
+	}
+
+	// Convert map to sorted []WcGroupStanding
+	// Sort groups alphabetically (A, B, C ... L)
+	groupNames := make([]string, 0, len(groupMap))
+	for g := range groupMap {
+		groupNames = append(groupNames, g)
+	}
+	sortStrings(groupNames)
+
+	standings := make([]model.WcGroupStanding, 0, len(groupNames))
+	for _, gName := range groupNames {
+		teams := groupMap[gName]
+		teamNames := make([]string, 0, len(teams))
+		for t := range teams {
+			teamNames = append(teamNames, t)
+		}
+		sortStrings(teamNames)
+
+		teamStandings := make([]model.WcTeamStanding, 0, len(teamNames))
+		for _, tName := range teamNames {
+			acc := teams[tName]
+			// Form = last 5 results (slice is already chronological)
+			form := acc.results
+			if len(form) > 5 {
+				form = form[len(form)-5:]
+			}
+			if form == nil {
+				form = []string{}
+			}
+			pts := acc.won*3 + acc.drawn
+			gd := acc.gf - acc.ga
+			teamStandings = append(teamStandings, model.WcTeamStanding{
+				TeamName:       tName,
+				TeamCode:       acc.code,
+				Played:         acc.played,
+				Won:            acc.won,
+				Drawn:          acc.drawn,
+				Lost:           acc.lost,
+				GoalsFor:       acc.gf,
+				GoalsAgainst:   acc.ga,
+				GoalDifference: gd,
+				Points:         pts,
+				Form:           form,
+			})
+		}
+		standings = append(standings, model.WcGroupStanding{
+			GroupName: gName,
+			Teams:     teamStandings,
+		})
+	}
+	return standings, nil
+}
+
+// sortStrings sorts a string slice in place (insertion sort — small N).
+func sortStrings(s []string) {
+	for i := 1; i < len(s); i++ {
+		for j := i; j > 0 && s[j] < s[j-1]; j-- {
+			s[j], s[j-1] = s[j-1], s[j]
+		}
+	}
+}

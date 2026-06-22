@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { WcMatch, WcMatchFilter } from '@/types/wc'
+import type { WcMatch, WcMatchFilter, WcStandingsResponse } from '@/types/wc'
 
 const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
 
@@ -13,5 +13,10 @@ export const wcPublicApi = axios.create({
 
 export async function listMatchesPublic(filter: WcMatchFilter = {}): Promise<WcMatch[]> {
   const r = await wcPublicApi.get<WcMatch[]>('/matches', { params: filter })
+  return r.data
+}
+
+export async function getStandings(): Promise<WcStandingsResponse> {
+  const r = await wcPublicApi.get<WcStandingsResponse>('/standings')
   return r.data
 }

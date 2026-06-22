@@ -798,3 +798,13 @@ func (h *WcHandler) MarkSettlementDone(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
+
+// GetGroupStandings handles GET /api/v1/wc/standings
+func (h *WcHandler) GetGroupStandings(c *gin.Context) {
+	resp, err := h.svc.GetGroupStandings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch standings"})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}

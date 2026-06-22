@@ -45,12 +45,26 @@
 
       <WcGroupFilter v-model="selectedFilter" />
 
+      <!-- Group standings: all 12 in grid (no filter / knockout), or single group -->
+      <template v-if="standingsData">
+        <div v-if="showAllGroupsStandings" class="wc-standings-grid">
+          <WcGroupStandings
+            v-for="group in standingsData.groups"
+            :key="group.group_name"
+            :standing="group"
+          />
+        </div>
+        <div v-else-if="selectedGroupStanding" class="wc-standings-single">
+          <WcGroupStandings :standing="selectedGroupStanding" />
+        </div>
+      </template>
+
       <div v-if="store.loading" class="wc-loading">
         <el-skeleton :rows="5" animated />
       </div>
 
       <template v-else-if="groupedMatches.length > 0">
-        <div v-for="group in groupedMatches" :key="group.date" class="wc-date-group" :data-date="group.date">
+        <div v-for="group in groupedMatches" :key="group.date" class="wc-date-group mt-4" :data-date="group.date">
           <div class="wc-date-heading">{{ group.dateLabel }}</div>
           <div class="wc-match-list">
             <WcMatchCard
@@ -77,9 +91,11 @@ import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useWcStore } from '@/stores/wcStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
+import { getStandings } from '@/services/wcPublicApi'
 import WcGroupFilter from '@/components/wc/WcGroupFilter.vue'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
-import type { WcMatch } from '@/types/wc'
+import WcGroupStandings from '@/components/wc/WcGroupStandings.vue'
+import type { WcMatch, WcStandingsResponse, WcGroupStanding } from '@/types/wc'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -89,7 +105,19 @@ const wcAuthStore = useWcAuthStore()
 
 const selectedFilter = ref('')
 const featureEnabled = ref(false)
+const standingsData = ref<WcStandingsResponse | null>(null)
 let skipNextWatch = false
+
+// true only on "Tất cả" tab → show all-groups grid; knockout stages show nothing
+const showAllGroupsStandings = computed(() =>
+  selectedFilter.value === ''
+)
+
+const selectedGroupStanding = computed<WcGroupStanding | null>(() => {
+  if (!selectedFilter.value.startsWith('group_')) return null
+  const groupName = selectedFilter.value.replace('group_', 'Group ')
+  return standingsData.value?.groups.find(g => g.group_name === groupName) ?? null
+})
 
 function computeDefaultFilter(matches: WcMatch[]): string {
   if (!matches.length) return ''
@@ -185,6 +213,9 @@ async function scrollToTargetDateGroup() {
 
 onMounted(async () => {
   await store.fetchMatches()
+  try {
+    standingsData.value = await getStandings()
+  } catch { /* standings are supplementary — fail silently */ }
   const defaultFilter = computeDefaultFilter(store.matches)
   if (defaultFilter) {
     // Fetch filtered matches directly so watcher + scroll sequence is clean
@@ -289,6 +320,23 @@ onMounted(async () => {
 .wc-cta-btn:hover {
   box-shadow: 0 6px 18px rgba(22, 163, 74, 0.45);
   transform: translateY(-1px);
+}
+
+.wc-standings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.wc-standings-single {
+  margin-bottom: 20px;
+}
+
+@media (max-width: 640px) {
+  .wc-standings-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .wc-loading {

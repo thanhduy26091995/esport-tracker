@@ -431,3 +431,29 @@ type FinalizePreviewResult struct {
 	Matches      []FinalizePreviewMatch `json:"matches"`
 	HouseSummary FinalizePreviewHouse   `json:"house_summary"`
 }
+
+// WcTeamStanding holds computed standing stats for one team in one group.
+type WcTeamStanding struct {
+	TeamName       string   `json:"team_name"`
+	TeamCode       string   `json:"team_code"`
+	Played         int      `json:"played"`
+	Won            int      `json:"won"`
+	Drawn          int      `json:"drawn"`
+	Lost           int      `json:"lost"`
+	GoalsFor       int      `json:"goals_for"`
+	GoalsAgainst   int      `json:"goals_against"`
+	GoalDifference int      `json:"goal_difference"`
+	Points         int      `json:"points"`
+	Form           []string `json:"form"` // up to 5 most recent results, oldest first e.g. ["W","D","L"]
+}
+
+// WcGroupStanding holds the sorted standings for one group.
+type WcGroupStanding struct {
+	GroupName string           `json:"group_name"`
+	Teams     []WcTeamStanding `json:"teams"`
+}
+
+// WcStandingsResponse is returned by GET /api/v1/wc/standings.
+type WcStandingsResponse struct {
+	Groups []WcGroupStanding `json:"groups"`
+}

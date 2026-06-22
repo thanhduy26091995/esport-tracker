@@ -178,7 +178,19 @@
     "resultLoseHalf": "Lose Half",
     "resultLose": "Lose",
     "resultPush": "Push",
-    "logout": "Sign Out"
+    "logout": "Sign Out",
+    "standings": {
+      "title": "Group Stage Standings",
+      "rank": "#",
+      "team": "Team",
+      "played": "P",
+      "won": "W",
+      "drawn": "D",
+      "lost": "L",
+      "goalDiff": "GD",
+      "points": "Pts",
+      "form": "Form"
+    }
   },
   "dashboard": {
     "title": "Overview",

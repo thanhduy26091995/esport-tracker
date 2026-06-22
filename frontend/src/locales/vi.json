@@ -178,7 +178,19 @@
     "resultLoseHalf": "Thua nửa",
     "resultLose": "Thua",
     "resultPush": "Hoà vốn",
-    "logout": "Đăng xuất"
+    "logout": "Đăng xuất",
+    "standings": {
+      "title": "Bảng xếp hạng vòng bảng",
+      "rank": "Hạng",
+      "team": "Đội",
+      "played": "Trận",
+      "won": "T",
+      "drawn": "H",
+      "lost": "B",
+      "goalDiff": "HS",
+      "points": "Đ",
+      "form": "Phong độ"
+    }
   },
   "dashboard": {
     "title": "Tổng quan",

@@ -1242,3 +1242,44 @@ func evaluateOverUnderBet(bet *model.WcBet, homeScore, awayScore int) (string, f
 	}
 	return model.WcResultLose, 0
 }
+
+// GetGroupStandings computes sorted group-stage standings from match data.
+// Teams are sorted: points DESC → goal_difference DESC → goals_for DESC → team_name ASC.
+func (s *WcService) GetGroupStandings() (*model.WcStandingsResponse, error) {
+	groups, err := s.repo.GetGroupStandings()
+	if err != nil {
+		return nil, err
+	}
+	for i := range groups {
+		sortTeamStandings(groups[i].Teams)
+	}
+	return &model.WcStandingsResponse{Groups: groups}, nil
+}
+
+func sortTeamStandings(teams []model.WcTeamStanding) {
+	n := len(teams)
+	for i := 1; i < n; i++ {
+		for j := i; j > 0; j-- {
+			a, b := teams[j-1], teams[j]
+			if standingLess(b, a) {
+				teams[j-1], teams[j] = teams[j], teams[j-1]
+			} else {
+				break
+			}
+		}
+	}
+}
+
+// standingLess returns true if a ranks higher than b.
+func standingLess(a, b model.WcTeamStanding) bool {
+	if a.Points != b.Points {
+		return a.Points > b.Points
+	}
+	if a.GoalDifference != b.GoalDifference {
+		return a.GoalDifference > b.GoalDifference
+	}
+	if a.GoalsFor != b.GoalsFor {
+		return a.GoalsFor > b.GoalsFor
+	}
+	return a.TeamName < b.TeamName
+}

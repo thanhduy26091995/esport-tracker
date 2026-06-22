@@ -473,3 +473,26 @@ export interface FinalizePreviewResult {
   matches: FinalizePreviewMatch[]
   house_summary: FinalizePreviewHouse
 }
+
+export interface WcTeamStanding {
+  team_name: string
+  team_code: string
+  played: number
+  won: number
+  drawn: number
+  lost: number
+  goals_for: number
+  goals_against: number
+  goal_difference: number
+  points: number
+  form: string[]
+}
+
+export interface WcGroupStanding {
+  group_name: string
+  teams: WcTeamStanding[]
+}
+
+export interface WcStandingsResponse {
+  groups: WcGroupStanding[]
+}

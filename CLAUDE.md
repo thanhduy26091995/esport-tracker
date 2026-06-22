@@ -63,6 +63,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | WC settle preview popup (Tính kết quả / Tính điểm toàn bộ / Tính lại toàn bộ) | `docs/ai/design/feature-wc-settle-preview.md` |
 | WC admin block/unblock user | `docs/ai/design/feature-wc-user-block.md` |
 | Bug fix batch 21-Jun-2026 (8 bugs: redirect, scroll, collapse, P&L, responsive, multi-pick champion, smart cron, settlement name) | `docs/ai/design/feature-fix-bug-21-june-2026.md` |
+| WC group standings table (W/D/L, GF/GA/GD, Points, Form) on /world-cup schedule page | `docs/ai/design/feature-wc-group-standings.md` |
 
 ## Dev Commands
 

@@ -183,9 +183,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		wc.GET("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.GetConfig)
 		wc.PUT("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.UpdateConfig)
 
-		// Matches — always accessible for score tracking (exempt from feature flag)
+		// Matches & standings — always accessible (exempt from feature flag)
 		wc.GET("/matches", wcHandler.ListMatches)
 		wc.GET("/matches/:id", wcHandler.GetMatch)
+		wc.GET("/standings", wcHandler.GetGroupStandings)
 
 		// Auth — public (no feature flag, no JWT required)
 		auth := wc.Group("/auth")
