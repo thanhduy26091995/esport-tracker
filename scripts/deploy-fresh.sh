@@ -15,6 +15,7 @@ BACKEND_PORT=8080
 GO_VERSION="1.22.5"
 NODE_VERSION="20"
 DOMAIN="fifa.sitenow.cloud"
+SOC_DOMAIN="soc.sitenow.cloud"
 SSL_CERT="/etc/nginx/ssl/fullchain.pem"
 SSL_KEY="/etc/nginx/ssl/privatekey.pem"
 
@@ -129,10 +130,14 @@ sed -i 's/\r$//' "$BACKEND_ENV"
 log "backend/.env normalized"
 
 cat > "$FRONTEND_ENV" <<EOF
+VITE_SITE=fifa
+VITE_SITE_TITLE=FC25 Tracker
 VITE_API_BASE_URL=https://${DOMAIN}/api/v1
 EOF
 
 log "frontend/.env ready"
+
+# .env.soc is committed to git (no secrets) — no need to generate it
 
 # load backend env safely
 set -a
@@ -191,8 +196,9 @@ cd "$APP_DIR/frontend"
 
 npm install --silent
 npm run build
-
-log "Frontend built."
+log "Frontend (fifa) built → dist/"
+npm run build:soc
+log "Frontend (soc) built → dist-soc/"
 chmod o+x "$HOME"  # allow nginx to traverse home dir
 
 # ═══════════════════════════════════════════════
@@ -229,14 +235,13 @@ sleep 3
 systemctl is-active --quiet esport-backend || fail "Backend failed"
 
 sudo tee /etc/nginx/sites-available/esport >/dev/null <<EOF
-# HTTP → HTTPS redirect
+# ── fifa.sitenow.cloud ───────────────────────────────────────
 server {
     listen 80;
     server_name ${DOMAIN};
     return 301 https://\$host\$request_uri;
 }
 
-# HTTPS
 server {
     listen 443 ssl;
     server_name ${DOMAIN};
@@ -270,6 +275,41 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
+
+# ── soc.sitenow.cloud (WC prediction only) ───────────────────
+server {
+    listen 80;
+    server_name ${SOC_DOMAIN};
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${SOC_DOMAIN};
+
+    ssl_certificate     ${SSL_CERT};
+    ssl_certificate_key ${SSL_KEY};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    client_max_body_size 5M;
+
+    root ${APP_DIR}/frontend/dist-soc;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
 EOF
 
 sudo ln -sf /etc/nginx/sites-available/esport /etc/nginx/sites-enabled/esport
@@ -285,8 +325,9 @@ echo ""
 log "═══════════════════════════════════════════════"
 log "DEPLOY SUCCESS"
 log ""
-log "App    : https://${DOMAIN}"
-log "Health : https://${DOMAIN}/health"
+log "App (fifa) : https://${DOMAIN}"
+log "App (soc)  : https://${SOC_DOMAIN}"
+log "Health     : https://${DOMAIN}/health"
 log ""
 log "Logs:"
 log "sudo journalctl -u esport-backend -f"

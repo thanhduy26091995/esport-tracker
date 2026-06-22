@@ -1,6 +1,7 @@
 {
   "common": {
     "appName": "FC25 Tracker",
+    "appNameSoc": "WC Prediction",
     "language": "Language",
     "back": "Back",
     "save": "Save",
@@ -34,6 +35,7 @@
   },
   "layout": {
     "sidebarSubtitle": "Esport Score System",
+    "sidebarSubtitleSoc": "World Cup 2026",
     "version": "Version"
   },
   "nav": {

@@ -14,8 +14,8 @@
             <el-icon color="white" :size="20"><Trophy /></el-icon>
           </div>
           <div>
-            <div class="logo-title">{{ t('common.appName') }}</div>
-            <div class="logo-sub">{{ t('layout.sidebarSubtitle') }}</div>
+            <div class="logo-title">{{ appTitle }}</div>
+            <div class="logo-sub">{{ appSubtitle }}</div>
           </div>
         </div>
         <nav class="sidebar-nav">
@@ -47,8 +47,8 @@
             <el-icon color="white" :size="20"><Trophy /></el-icon>
           </div>
           <div>
-            <div class="logo-title">{{ t('common.appName') }}</div>
-            <div class="logo-sub">{{ t('layout.sidebarSubtitle') }}</div>
+            <div class="logo-title">{{ appTitle }}</div>
+            <div class="logo-sub">{{ appSubtitle }}</div>
           </div>
         </div>
         <nav class="sidebar-nav">
@@ -118,6 +118,10 @@ import { CLUBS } from '@/config/clubs'
 
 const { t } = useI18n()
 const route = useRoute()
+
+const isSocSite = import.meta.env.VITE_SITE === 'soc'
+const appTitle = isSocSite ? t('common.appNameSoc') : t('common.appName')
+const appSubtitle = isSocSite ? t('layout.sidebarSubtitleSoc') : t('layout.sidebarSubtitle')
 const mobileMenuOpen = ref(false)
 const userStore = useUserStore()
 
@@ -129,16 +133,20 @@ const reigningClub = computed(() => {
 
 const reigningPlayerName = computed(() => userStore.users[0]?.name ?? '')
 
-const navigation = [
-  { navKey: 'nav.dashboard', href: '/', icon: HomeFilled },
-  { navKey: 'nav.players', href: '/users', icon: UserFilled },
-  { navKey: 'nav.matches', href: '/matches', icon: TrendCharts },
-  { navKey: 'nav.tournaments', href: '/tournaments', icon: Grid },
-  { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
-  { navKey: 'nav.fund', href: '/fund', icon: Wallet },
-  { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion, highlight: 'wc' },
-  { navKey: 'nav.settings', href: '/settings', icon: Setting },
-]
+const navigation = isSocSite
+  ? [
+      { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion, highlight: 'wc' }
+    ]
+  : [
+      { navKey: 'nav.dashboard', href: '/', icon: HomeFilled },
+      { navKey: 'nav.players', href: '/users', icon: UserFilled },
+      { navKey: 'nav.matches', href: '/matches', icon: TrendCharts },
+      { navKey: 'nav.tournaments', href: '/tournaments', icon: Grid },
+      { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
+      { navKey: 'nav.fund', href: '/fund', icon: Wallet },
+      { navKey: 'nav.worldCup', href: '/world-cup', icon: Promotion, highlight: 'wc' },
+      { navKey: 'nav.settings', href: '/settings', icon: Setting },
+    ]
 
 const isActiveRoute = (href: string): boolean =>
   href === '/' ? route.path === '/' : route.path.startsWith(href)

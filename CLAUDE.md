@@ -64,6 +64,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | WC admin block/unblock user | `docs/ai/design/feature-wc-user-block.md` |
 | Bug fix batch 21-Jun-2026 (8 bugs: redirect, scroll, collapse, P&L, responsive, multi-pick champion, smart cron, settlement name) | `docs/ai/design/feature-fix-bug-21-june-2026.md` |
 | WC group standings table (W/D/L, GF/GA/GD, Points, Form) on /world-cup schedule page | `docs/ai/design/feature-wc-group-standings.md` |
+| WC standalone site (soc.sitenow.cloud) — build-time VITE_SITE=soc flag, WC-only routes + nav | `docs/ai/design/feature-wc-soc-site.md` |
 
 ## Dev Commands
 

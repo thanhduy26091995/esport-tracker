@@ -12,106 +12,160 @@ async function isWcFeatureEnabled(): Promise<boolean> {
   }
 }
 
+const isSocSite = import.meta.env.VITE_SITE === 'soc'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/',
-      name: 'dashboard',
-      component: () => import('../views/DashboardView.vue')
-    },
-    {
-      path: '/world-cup',
-      name: 'wc-schedule',
-      component: () => import('../views/WcScheduleView.vue')
-    },
-    {
-      path: '/world-cup/login',
-      name: 'wc-login',
-      component: () => import('../views/WcLoginView.vue')
-    },
-    // /world-cup/register removed — redirect to login
-    {
-      path: '/world-cup/register',
-      redirect: '/world-cup/login'
-    },
-    {
-      path: '/world-cup/link-google',
-      name: 'wc-link-google',
-      component: () => import('../views/WcLinkGoogleView.vue'),
-      // Requires JWT but NOT google link (it's the page that satisfies the link requirement)
-      meta: { requiresWcAuth: true, skipGoogleLinkCheck: true }
-    },
-    {
-      path: '/world-cup/profile',
-      name: 'wc-profile',
-      component: () => import('../views/WcProfileView.vue'),
-      meta: { requiresWcAuth: true, requiresGoogleLink: true }
-    },
-    {
-      path: '/world-cup/predict',
-      name: 'wc-predict',
-      component: () => import('../views/WcPredictView.vue'),
-      meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
-    },
-    {
-      path: '/world-cup/bet',
-      name: 'wc-bet',
-      component: () => import('../views/WcBettingView.vue'),
-      meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
-    },
-    {
-      path: '/world-cup/admin',
-      name: 'wc-admin',
-      component: () => import('../views/WcAdminView.vue'),
-      meta: { requiresWcAuth: true, requiresWcAdmin: true }
-    },
-    {
-      path: '/users',
-      name: 'users',
-      component: () => import('../views/UsersView.vue')
-    },
-    {
-      path: '/matches',
-      name: 'matches',
-      component: () => import('../views/MatchesView.vue')
-    },
-    {
-      path: '/settlements',
-      name: 'settlements',
-      component: () => import('../views/SettlementsView.vue')
-    },
-    {
-      path: '/fund',
-      name: 'fund',
-      component: () => import('../views/FundView.vue')
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('../views/ConfigView.vue')
-    },
-    {
-      path: '/tournaments',
-      name: 'tournaments',
-      component: () => import('../views/TournamentsView.vue')
-    },
-    {
-      path: '/tournaments/create',
-      name: 'tournament-create',
-      component: () => import('../views/CreateTournamentView.vue')
-    },
-    {
-      path: '/tournaments/:id',
-      name: 'tournament-detail',
-      component: () => import('../views/TournamentDetailView.vue')
-    },
-    {
-      path: '/:pathMatch(.*)*',
-      name: 'not-found',
-      component: () => import('../views/NotFoundView.vue')
-    }
-  ]
+  routes: isSocSite
+    ? [
+        { path: '/', redirect: '/world-cup/login' },
+        {
+          path: '/world-cup',
+          name: 'wc-schedule',
+          component: () => import('../views/WcScheduleView.vue')
+        },
+        {
+          path: '/world-cup/login',
+          name: 'wc-login',
+          component: () => import('../views/WcLoginView.vue')
+        },
+        {
+          path: '/world-cup/register',
+          redirect: '/world-cup/login'
+        },
+        {
+          path: '/world-cup/link-google',
+          name: 'wc-link-google',
+          component: () => import('../views/WcLinkGoogleView.vue'),
+          meta: { requiresWcAuth: true, skipGoogleLinkCheck: true }
+        },
+        {
+          path: '/world-cup/profile',
+          name: 'wc-profile',
+          component: () => import('../views/WcProfileView.vue'),
+          meta: { requiresWcAuth: true, requiresGoogleLink: true }
+        },
+        {
+          path: '/world-cup/predict',
+          name: 'wc-predict',
+          component: () => import('../views/WcPredictView.vue'),
+          meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
+        },
+        {
+          path: '/world-cup/bet',
+          name: 'wc-bet',
+          component: () => import('../views/WcBettingView.vue'),
+          meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
+        },
+        {
+          path: '/world-cup/admin',
+          name: 'wc-admin',
+          component: () => import('../views/WcAdminView.vue'),
+          meta: { requiresWcAuth: true, requiresWcAdmin: true }
+        },
+        {
+          path: '/:pathMatch(.*)*',
+          name: 'not-found',
+          component: () => import('../views/NotFoundView.vue')
+        }
+      ]
+    : [
+        {
+          path: '/',
+          name: 'dashboard',
+          component: () => import('../views/DashboardView.vue')
+        },
+        {
+          path: '/world-cup',
+          name: 'wc-schedule',
+          component: () => import('../views/WcScheduleView.vue')
+        },
+        {
+          path: '/world-cup/login',
+          name: 'wc-login',
+          component: () => import('../views/WcLoginView.vue')
+        },
+        // /world-cup/register removed — redirect to login
+        {
+          path: '/world-cup/register',
+          redirect: '/world-cup/login'
+        },
+        {
+          path: '/world-cup/link-google',
+          name: 'wc-link-google',
+          component: () => import('../views/WcLinkGoogleView.vue'),
+          meta: { requiresWcAuth: true, skipGoogleLinkCheck: true }
+        },
+        {
+          path: '/world-cup/profile',
+          name: 'wc-profile',
+          component: () => import('../views/WcProfileView.vue'),
+          meta: { requiresWcAuth: true, requiresGoogleLink: true }
+        },
+        {
+          path: '/world-cup/predict',
+          name: 'wc-predict',
+          component: () => import('../views/WcPredictView.vue'),
+          meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
+        },
+        {
+          path: '/world-cup/bet',
+          name: 'wc-bet',
+          component: () => import('../views/WcBettingView.vue'),
+          meta: { requiresWcAuth: true, requiresGoogleLink: true, requiresWcFeature: true }
+        },
+        {
+          path: '/world-cup/admin',
+          name: 'wc-admin',
+          component: () => import('../views/WcAdminView.vue'),
+          meta: { requiresWcAuth: true, requiresWcAdmin: true }
+        },
+        {
+          path: '/users',
+          name: 'users',
+          component: () => import('../views/UsersView.vue')
+        },
+        {
+          path: '/matches',
+          name: 'matches',
+          component: () => import('../views/MatchesView.vue')
+        },
+        {
+          path: '/settlements',
+          name: 'settlements',
+          component: () => import('../views/SettlementsView.vue')
+        },
+        {
+          path: '/fund',
+          name: 'fund',
+          component: () => import('../views/FundView.vue')
+        },
+        {
+          path: '/settings',
+          name: 'settings',
+          component: () => import('../views/ConfigView.vue')
+        },
+        {
+          path: '/tournaments',
+          name: 'tournaments',
+          component: () => import('../views/TournamentsView.vue')
+        },
+        {
+          path: '/tournaments/create',
+          name: 'tournament-create',
+          component: () => import('../views/CreateTournamentView.vue')
+        },
+        {
+          path: '/tournaments/:id',
+          name: 'tournament-detail',
+          component: () => import('../views/TournamentDetailView.vue')
+        },
+        {
+          path: '/:pathMatch(.*)*',
+          name: 'not-found',
+          component: () => import('../views/NotFoundView.vue')
+        }
+      ]
 })
 
 router.beforeEach(async (to) => {

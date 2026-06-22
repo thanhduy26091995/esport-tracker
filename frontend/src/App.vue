@@ -9,8 +9,11 @@ import { useUserStore } from './stores/userStore'
 import { useGlobalTheme } from './composables/useGlobalTheme'
 
 const userStore = useUserStore()
-useGlobalTheme(computed(() => userStore.users))
+const isSocSite = import.meta.env.VITE_SITE === 'soc'
 
-// Fetch users immediately so the global theme reflects rank #1's club from the first page load.
-onMounted(() => userStore.fetchUsers())
+// On soc build: skip the FC25 user fetch and global club theme (no FC25 players on soc)
+if (!isSocSite) {
+  useGlobalTheme(computed(() => userStore.users))
+  onMounted(() => userStore.fetchUsers())
+}
 </script>

@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:soc": "vite --mode soc",
     "build": "vue-tsc -b && vite build",
+    "build:soc": "vue-tsc -b && vite build --mode soc --outDir dist-soc",
     "preview": "vite preview"
   },
   "dependencies": {

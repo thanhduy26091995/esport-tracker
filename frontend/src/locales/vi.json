@@ -1,6 +1,7 @@
 {
   "common": {
     "appName": "FC25 Tracker",
+    "appNameSoc": "Dự Đoán WC",
     "language": "Ngôn ngữ",
     "back": "Quay lại",
     "save": "Lưu",
@@ -34,6 +35,7 @@
   },
   "layout": {
     "sidebarSubtitle": "Hệ thống điểm Esport",
+    "sidebarSubtitleSoc": "World Cup 2026",
     "version": "Phiên bản"
   },
   "nav": {

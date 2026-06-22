@@ -12,6 +12,7 @@ set -eu
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_PORT=8080
 DOMAIN="fifa.sitenow.cloud"
+SOC_DOMAIN="soc.sitenow.cloud"
 ANALYTICS_DOMAIN="analytics-fifa.sitenow.cloud"
 SSL_CERT="/etc/nginx/ssl/fullchain.pem"
 SSL_KEY="/etc/nginx/ssl/privatekey.pem"
@@ -49,19 +50,20 @@ step "3/4 — Rebuild frontend"
 cd "$APP_DIR/frontend"
 npm install --silent
 npm run build
-log "Frontend rebuilt."
+log "Frontend (fifa) rebuilt → dist/"
+npm run build:soc
+log "Frontend (soc) rebuilt → dist-soc/"
 
 # ── 4. Update Nginx config + Reload ──────────────────────────
 step "4/4 — Update Nginx config and reload"
 sudo tee /etc/nginx/sites-available/esport >/dev/null <<EOF
-# HTTP → HTTPS redirect
+# ── fifa.sitenow.cloud ───────────────────────────────────────
 server {
     listen 80;
     server_name ${DOMAIN};
     return 301 https://\$host\$request_uri;
 }
 
-# HTTPS
 server {
     listen 443 ssl;
     server_name ${DOMAIN};
@@ -94,17 +96,50 @@ server {
         proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
-
 }
 
-# HTTP → HTTPS redirect for analytics subdomain
+# ── soc.sitenow.cloud (WC prediction only) ───────────────────
+server {
+    listen 80;
+    server_name ${SOC_DOMAIN};
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${SOC_DOMAIN};
+
+    ssl_certificate     ${SSL_CERT};
+    ssl_certificate_key ${SSL_KEY};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    client_max_body_size 5M;
+
+    root ${APP_DIR}/frontend/dist-soc;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+
+# ── analytics-fifa.sitenow.cloud — Umami ─────────────────────
 server {
     listen 80;
     server_name ${ANALYTICS_DOMAIN};
     return 301 https://\$host\$request_uri;
 }
 
-# Analytics subdomain — Umami
 server {
     listen 443 ssl;
     server_name ${ANALYTICS_DOMAIN};
