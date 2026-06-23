@@ -43,6 +43,13 @@ function handleLogout() {
   gap: 12px;
 }
 
+@media (max-width: 540px) {
+  .wc-user-header {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
 .wc-user-info {
   display: flex;
   align-items: center;

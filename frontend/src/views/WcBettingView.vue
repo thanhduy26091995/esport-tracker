@@ -331,6 +331,31 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
+@media (max-width: 540px) {
+  .wc-user-header {
+    justify-content: space-between;
+    flex-shrink: 1;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .wc-wallet-badge {
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .wc-wallet-value {
+    font-size: 14px;
+  }
+
+  .wc-user-info {
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+  }
+}
+
 .wc-main-tabs :deep(.el-tabs__nav-wrap::after) {
   height: 1px;
 }

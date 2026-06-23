@@ -25,6 +25,9 @@
               <template v-if="pred.prediction_type === 'handicap'">
                 {{ pred.prediction_choice === 'home' ? pred.home_team : pred.away_team }}
               </template>
+              <template v-else-if="pred.prediction_type === 'over_under'">
+                {{ pred.prediction_choice === 'over' ? 'Tài' : 'Xỉu' }}
+              </template>
               <template v-else-if="pred.prediction_type === 'custom'">
                 <span v-if="pred.bet_title" class="wc-bet-custom-title">{{ pred.bet_title }}</span>
                 {{ pred.prediction_choice }}

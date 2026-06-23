@@ -298,6 +298,31 @@ onMounted(async () => {
   color: inherit;
 }
 
+@media (max-width: 540px) {
+  .wc-user-header {
+    justify-content: space-between;
+    flex-shrink: 1;
+    width: 100%;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .wc-schedule-link {
+    font-size: 11px;
+    padding: 3px 7px;
+  }
+
+  .wc-wallet-badge {
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .wc-wallet-value {
+    font-size: 14px;
+  }
+}
+
 .wc-user-avatar {
   width: 32px;
   height: 32px;
