@@ -23,6 +23,8 @@ import { ElMessage } from 'element-plus'
 export const useWcStore = defineStore('wc', () => {
   const config = ref<WcConfig | null>(null)
   const isEnabled = ref<boolean>(true)
+  const minPoints = ref<number>(1)
+  const maxPoints = ref<number>(5)
   const matches = ref<WcMatch[]>([])
   const currentMatch = ref<WcMatchWithOdds | null>(null)
   const wallet = ref<WcWallet | null>(null)
@@ -44,6 +46,8 @@ export const useWcStore = defineStore('wc', () => {
     try {
       const res = await wcService.getPublicConfig()
       isEnabled.value = res.is_enabled
+      minPoints.value = res.min_points ?? 1
+      maxPoints.value = res.max_points ?? 5
     } catch { /* silently */ }
   }
 
@@ -103,12 +107,18 @@ export const useWcStore = defineStore('wc', () => {
   async function finalizeMatch(id: string) {
     const res = await wcService.finalizeMatch(id)
     ElMessage.success(`Đã tính kết quả: ${res.predictions_processed} dự đoán, tổng điểm ${res.total_points_awarded}`)
+    if (res.unsettled_custom_bets_count > 0) {
+      ElMessage.warning(`Trận này còn ${res.unsettled_custom_bets_count} kèo phụ chưa tất toán`)
+    }
     await fetchMatches()
   }
 
   async function finalizeAll() {
     const res = await wcService.finalizeAllMatches()
     ElMessage.success(`Tính điểm toàn bộ: ${res.processed} trận, bỏ qua ${res.skipped}, tổng ${res.total_points_awarded} điểm`)
+    if (res.matches_with_unsettled_custom_bets > 0) {
+      ElMessage.warning(`Còn ${res.matches_with_unsettled_custom_bets} trận có kèo phụ chưa tất toán`)
+    }
     await fetchMatches()
   }
 
@@ -231,6 +241,8 @@ export const useWcStore = defineStore('wc', () => {
   return {
     config,
     isEnabled,
+    minPoints,
+    maxPoints,
     matches,
     currentMatch,
     wallet,

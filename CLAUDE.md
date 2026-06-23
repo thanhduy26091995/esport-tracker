@@ -30,6 +30,7 @@ Read the relevant file before making changes in that domain:
 | WC base system: tables, feature flag, wallet, match sync | [`docs/ai/knowledge/wc-core-system.md`](docs/ai/knowledge/wc-core-system.md) |
 | WC auth: Google OAuth, JWT, middleware, route guards | [`docs/ai/knowledge/wc-auth-system.md`](docs/ai/knowledge/wc-auth-system.md) |
 | WC betting: handicap, exact score, O/U, payout, settlement, house P&L | [`docs/ai/knowledge/wc-betting-system.md`](docs/ai/knowledge/wc-betting-system.md) |
+| WC custom bet (kèo phụ): admin-defined proposition bets, N options, manual settlement | [`docs/ai/knowledge/wc-custom-bet.md`](docs/ai/knowledge/wc-custom-bet.md) |
 | WC champion prediction | [`docs/ai/knowledge/wc-champion-prediction.md`](docs/ai/knowledge/wc-champion-prediction.md) |
 
 ## Feature Design Docs
@@ -38,6 +39,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 
 | Feature | Design Doc |
 |---------|-----------|
+| WC betting config improvements (configurable min/max, handicap display, label consistency) | `docs/ai/design/feature-wc-betting-config-improvements.md` |
 | WC Google OAuth login | `docs/ai/design/feature-wc-google-oauth-login.md` |
 | WC champion prediction | `docs/ai/design/feature-wc-champion-prediction.md` |
 | WC betting refinements (payout type, VND display) | `docs/ai/design/feature-betting-refinements.md` |
@@ -65,6 +67,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | Bug fix batch 21-Jun-2026 (8 bugs: redirect, scroll, collapse, P&L, responsive, multi-pick champion, smart cron, settlement name) | `docs/ai/design/feature-fix-bug-21-june-2026.md` |
 | WC group standings table (W/D/L, GF/GA/GD, Points, Form) on /world-cup schedule page | `docs/ai/design/feature-wc-group-standings.md` |
 | WC standalone site (soc.sitenow.cloud) — build-time VITE_SITE=soc flag, WC-only routes + nav | `docs/ai/design/feature-wc-soc-site.md` |
+| WC custom bet (kèo phụ) — admin-defined proposition bets with N options, per-option odds, manual settlement | `docs/ai/design/feature-wc-custom-bet.md` |
 
 ## Dev Commands
 

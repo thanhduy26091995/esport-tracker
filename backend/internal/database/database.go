@@ -66,6 +66,10 @@ func Connect() (*gorm.DB, error) {
 		&model.WcChampionConfig{},
 		&model.WcChampionPrediction{},
 		&model.ScoreBonus{},
+		// Custom proposition bets
+		&model.WcCustomBet{},
+		&model.WcCustomBetOption{},
+		&model.WcCustomBetEntry{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
@@ -104,6 +108,9 @@ func runSchemaMigrations(db *gorm.DB) error {
 		// Champion multi-pick: drop old per-user unique constraint, add (user, team) composite
 		`DROP INDEX IF EXISTS idx_wc_champion_predictions_wc_user_id`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_champion_pred_user_team ON wc_champion_predictions (wc_user_id, team_id)`,
+		// Configurable bet limits
+		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS min_points INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS max_points INTEGER NOT NULL DEFAULT 5`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {

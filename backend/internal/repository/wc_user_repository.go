@@ -40,7 +40,10 @@ func (r *WcUserRepository) GetByID(id uuid.UUID) (*model.WcUser, error) {
 
 func (r *WcUserRepository) GetAll() ([]*model.WcUser, error) {
 	var users []*model.WcUser
-	err := r.db.Order("name ASC").Find(&users).Error
+	err := r.db.Table("wc_users u").
+		Joins("LEFT JOIN wc_wallets w ON w.wc_user_id = u.id").
+		Order("CASE WHEN w.balance > 0 THEN 0 WHEN w.balance < 0 THEN 1 ELSE 2 END, w.balance DESC, u.name ASC").
+		Find(&users).Error
 	return users, err
 }
 

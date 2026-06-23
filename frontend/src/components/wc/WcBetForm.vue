@@ -63,8 +63,8 @@
           <div v-if="handicapChoice" class="wc-stake-row">
             <el-input-number
               v-model="handicapStake"
-              :min="1"
-              :max="5"
+              :min="wcStore.minPoints"
+              :max="wcStore.maxPoints"
               :placeholder="t('wc.stake')"
               controls-position="right"
               style="width: 160px"
@@ -95,6 +95,23 @@
         </div>
       </el-tab-pane>
 
+      <!-- CUSTOM BETS TAB -->
+      <el-tab-pane label="Kèo phụ" name="custom">
+        <div v-if="customBetsLoading" class="wc-bet-empty">Đang tải...</div>
+        <div v-else-if="customBets.length === 0" class="wc-bet-empty">
+          <el-icon><InfoFilled /></el-icon>
+          Chưa có kèo phụ cho trận này.
+        </div>
+        <div v-else class="wc-custom-bets-list">
+          <WcCustomBetCard
+            v-for="bet in customBets"
+            :key="bet.id"
+            :bet="bet"
+            @refresh="reloadCustomBets"
+          />
+        </div>
+      </el-tab-pane>
+
       <!-- EXACT SCORE TAB -->
       <el-tab-pane :label="t('wc.betTypeExactScore')" name="exact_score">
         <div v-if="!scoreOdds || scoreOdds.length === 0" class="wc-bet-empty">
@@ -120,8 +137,8 @@
             >
               <el-input-number
                 v-model="selectedScores[so.id].stake"
-                :min="1"
-                :max="5"
+                :min="wcStore.minPoints"
+                :max="wcStore.maxPoints"
                 controls-position="right"
                 size="small"
                 style="width: 110px"
@@ -142,6 +159,7 @@
         </span>
         <el-button @click="visible = false">{{ t("common.cancel") }}</el-button>
         <el-button
+          v-if="activeTab !== 'custom'"
           plain
           type="success"
           :loading="submitting"
@@ -161,9 +179,12 @@ import { useI18n } from "vue-i18n";
 import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { wcService } from "@/services/wcService";
-import type { WcMatchWithOdds, WcScoreOdds, WcBetWithMatch } from "@/types/wc";
+import { useWcStore } from "@/stores/wcStore";
+import WcCustomBetCard from "@/components/wc/WcCustomBetCard.vue";
+import type { WcMatchWithOdds, WcScoreOdds, WcBetWithMatch, WcCustomBetWithOptions } from "@/types/wc";
 
 const { t } = useI18n();
+const wcStore = useWcStore();
 
 const props = defineProps<{
   modelValue: boolean;
@@ -182,11 +203,13 @@ const visible = computed({
   set: (v) => emit("update:modelValue", v),
 });
 
-const activeTab = ref<"handicap" | "exact_score">("handicap");
+const activeTab = ref<"handicap" | "exact_score" | "custom">("handicap");
 const handicapChoice = ref<"home" | "away" | null>(null);
 const handicapStake = ref(2);
 const selectedScores = ref<Record<string, { stake: number; odds: number }>>({});
 const submitting = ref(false);
+const customBets = ref<WcCustomBetWithOptions[]>([]);
+const customBetsLoading = ref(false);
 
 // Existing bet refs — populated from props.existingBets on open
 const existingHandicapBet = ref<WcBetWithMatch | null>(null);
@@ -271,6 +294,23 @@ const canSubmit = computed(() => {
   return Object.keys(selectedScores.value).length > 0;
 });
 
+async function reloadCustomBets() {
+  if (!props.match) return;
+  customBetsLoading.value = true;
+  try {
+    customBets.value = await wcService.listCustomBets(props.match.id);
+    await wcStore.fetchWallet();
+  } finally {
+    customBetsLoading.value = false;
+  }
+}
+
+watch(activeTab, (tab) => {
+  if (tab === 'custom' && customBets.value.length === 0) {
+    reloadCustomBets();
+  }
+});
+
 function reset() {
   handicapChoice.value = null;
   handicapStake.value = 2;
@@ -278,6 +318,7 @@ function reset() {
   activeTab.value = "handicap";
   existingHandicapBet.value = null;
   existingScoreBetMap.value = {};
+  customBets.value = [];
 }
 
 function populateFromExisting() {
@@ -366,6 +407,15 @@ watch(
 </script>
 
 <style scoped>
+.wc-custom-bets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
 .wc-bet-match-header {
   display: flex;
   align-items: center;

@@ -94,8 +94,12 @@ func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, 
 	if !cfg.IsOpen {
 		return nil, fmt.Errorf("champion prediction window is closed")
 	}
-	if points < 1 || points > 5 {
-		return nil, fmt.Errorf("points must be between 1 and 5")
+	betCfg, err := s.wcRepo.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config")
+	}
+	if points < betCfg.MinPoints || points > betCfg.MaxPoints {
+		return nil, fmt.Errorf("điểm cược phải từ %d đến %d", betCfg.MinPoints, betCfg.MaxPoints)
 	}
 	team, err := s.repo.GetTeam(teamID)
 	if err != nil {

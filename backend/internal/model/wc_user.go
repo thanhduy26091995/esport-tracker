@@ -28,6 +28,8 @@ func (WcUser) TableName() string {
 type WcConfig struct {
 	ID        int        `gorm:"primaryKey;autoIncrement:false" json:"id"`
 	IsEnabled bool       `gorm:"default:false" json:"is_enabled"`
+	MinPoints int        `gorm:"not null;default:1" json:"min_points"`
+	MaxPoints int        `gorm:"not null;default:5" json:"max_points"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	UpdatedBy *uuid.UUID `gorm:"type:uuid" json:"updated_by,omitempty"`
 }

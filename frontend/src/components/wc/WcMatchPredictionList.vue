@@ -15,11 +15,15 @@
         />
         <span class="wc-mb-user">{{ pred.name }}</span>
         <span class="wc-mb-type">
-          {{ pred.prediction_type === 'handicap' ? t('wc.predictionTypeHandicap') : t('wc.predictionTypeExactScore') }}
+          {{ betTypeLabel(pred.prediction_type) }}
         </span>
         <span class="wc-mb-choice">
           <template v-if="pred.prediction_type === 'exact_score'">
             {{ pred.predicted_home_score }}–{{ pred.predicted_away_score }}
+          </template>
+          <template v-else-if="pred.prediction_type === 'custom'">
+            <span v-if="pred.bet_title" class="wc-mb-bet-title">{{ pred.bet_title }}</span>
+            {{ pred.prediction_choice }}
           </template>
           <template v-else>
             {{ pred.prediction_choice }}
@@ -37,6 +41,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useWcBetTypeLabel } from '@/utils/wcBetType'
 import type { WcPredictionPublic } from '@/types/wc'
 
 const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23374151"/%3E%3Ccircle cx="16" cy="13" r="6" fill="%236b7280"/%3E%3Cellipse cx="16" cy="29" rx="9" ry="7" fill="%236b7280"/%3E%3C/svg%3E'
@@ -46,6 +51,7 @@ function fmtPts(v: number): string {
 }
 
 const { t } = useI18n()
+const betTypeLabel = useWcBetTypeLabel()
 defineProps<{ predictions: WcPredictionPublic[] }>()
 </script>
 
@@ -135,6 +141,19 @@ defineProps<{ predictions: WcPredictionPublic[] }>()
 .wc-mb-choice {
   font-weight: 600;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.wc-mb-bet-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--el-color-warning);
+  background: var(--el-color-warning-light-9);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .wc-mb-stake {

@@ -12,7 +12,7 @@
           </div>
           <div class="wc-bet-details">
             <span class="wc-bet-type">
-              {{ bet.bet_type === 'handicap' ? t('wc.betTypeHandicap') : t('wc.betTypeExactScore') }}
+              {{ betTypeLabel(bet.bet_type) }}
             </span>
             <span class="wc-bet-choice">
               <template v-if="bet.bet_type === 'handicap'">
@@ -27,7 +27,8 @@
             <template v-if="editingId === bet.id">
               <el-input-number
                 v-model="editStake"
-                :min="1"
+                :min="store.minPoints"
+                :max="store.maxPoints"
                 size="small"
                 controls-position="right"
                 style="width: 110px"
@@ -86,9 +87,11 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessageBox } from 'element-plus'
 import { useWcStore } from '@/stores/wcStore'
+import { useWcBetTypeLabel } from '@/utils/wcBetType'
 import type { WcBetWithMatch } from '@/types/wc'
 
 const { t } = useI18n()
+const betTypeLabel = useWcBetTypeLabel()
 const store = useWcStore()
 
 defineProps<{ bets: WcBetWithMatch[] }>()

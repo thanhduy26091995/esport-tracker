@@ -54,6 +54,17 @@ func (r *WcRepository) UpdateConfig(isEnabled bool, updatedBy *uuid.UUID) error 
 		}).Error
 }
 
+func (r *WcRepository) UpdateBetLimits(min, max int, updatedBy *uuid.UUID) error {
+	return r.db.Model(&model.WcConfig{}).
+		Where("id = ?", 1).
+		Updates(map[string]interface{}{
+			"min_points": min,
+			"max_points": max,
+			"updated_by": updatedBy,
+			"updated_at": time.Now(),
+		}).Error
+}
+
 // --- Matches ---
 
 func (r *WcRepository) UpsertMatches(matches []model.WcMatch) error {
@@ -215,7 +226,7 @@ func (r *WcRepository) GetAllWallets() ([]*model.WcWalletWithUser, error) {
 	err := r.db.Table("wc_wallets w").
 		Select("w.*, u.name").
 		Joins("JOIN wc_users u ON u.id = w.wc_user_id").
-		Order("w.balance DESC").
+		Order("CASE WHEN w.balance > 0 THEN 0 WHEN w.balance < 0 THEN 1 ELSE 2 END, w.balance DESC").
 		Scan(&rows).Error
 	return rows, err
 }

@@ -14,7 +14,7 @@
 
     <el-tabs v-model="activeTab" class="wc-bet-tabs">
       <!-- HANDICAP TAB -->
-      <el-tab-pane :label="t('wc.predictionTypeHandicap')" name="handicap">
+      <el-tab-pane :label="t('wc.betTypeHandicap')" name="handicap">
         <div v-if="!hasHandicap" class="wc-bet-empty">
           <el-icon><InfoFilled /></el-icon>
           Chưa có chấp điểm cho trận này.
@@ -63,8 +63,8 @@
           <div v-if="handicapChoice" class="wc-stake-row">
             <el-input-number
               v-model="handicapPoints"
-              :min="1"
-              :max="5"
+              :min="wcStore.minPoints"
+              :max="wcStore.maxPoints"
               :placeholder="t('wc.points')"
               controls-position="right"
               style="width: 160px"
@@ -96,7 +96,7 @@
       </el-tab-pane>
 
       <!-- OVER/UNDER TAB -->
-      <el-tab-pane label="Tài Xỉu" name="over_under">
+      <el-tab-pane :label="t('wc.betTypeOverUnder')" name="over_under">
         <div v-if="!hasOU" class="wc-bet-empty">
           <el-icon><InfoFilled /></el-icon>
           Chưa có kèo Tài Xỉu cho trận này.
@@ -132,8 +132,8 @@
           <div v-if="ouChoice" class="wc-stake-row">
             <el-input-number
               v-model="ouPoints"
-              :min="1"
-              :max="5"
+              :min="wcStore.minPoints"
+              :max="wcStore.maxPoints"
               :placeholder="t('wc.points')"
               controls-position="right"
               style="width: 160px"
@@ -147,7 +147,7 @@
       </el-tab-pane>
 
       <!-- EXACT SCORE TAB -->
-      <el-tab-pane :label="t('wc.predictionTypeExactScore')" name="exact_score">
+      <el-tab-pane :label="t('wc.betTypeExactScore')" name="exact_score">
         <div v-if="!scoreMultipliers || scoreMultipliers.length === 0" class="wc-bet-empty">
           <el-icon><InfoFilled /></el-icon>
           Chưa có tỉ số nào được cấu hình cho trận này.
@@ -171,8 +171,8 @@
             >
               <el-input-number
                 v-model="selectedScores[so.id].points"
-                :min="1"
-                :max="5"
+                :min="wcStore.minPoints"
+                :max="wcStore.maxPoints"
                 controls-position="right"
                 size="small"
                 style="width: 110px"
@@ -184,6 +184,23 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <!-- CUSTOM BETS TAB -->
+      <el-tab-pane label="Kèo phụ" name="custom">
+        <div v-if="customBetsLoading" class="wc-bet-empty">Đang tải...</div>
+        <div v-else-if="customBets.length === 0" class="wc-bet-empty">
+          <el-icon><InfoFilled /></el-icon>
+          Chưa có kèo phụ cho trận này.
+        </div>
+        <div v-else class="wc-custom-bets-list">
+          <WcCustomBetCard
+            v-for="bet in customBets"
+            :key="bet.id"
+            :bet="bet"
+            @refresh="reloadCustomBets"
+          />
+        </div>
+      </el-tab-pane>
     </el-tabs>
 
     <template #footer>
@@ -193,6 +210,7 @@
         </span>
         <el-button @click="visible = false">{{ t("common.cancel") }}</el-button>
         <el-button
+          v-if="activeTab !== 'custom'"
           plain
           type="success"
           :loading="submitting"
@@ -212,9 +230,12 @@ import { useI18n } from "vue-i18n";
 import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { wcService } from "@/services/wcService";
-import type { WcMatchWithOdds, WcScoreMultiplier, WcPredictionWithMatch } from "@/types/wc";
+import { useWcStore } from "@/stores/wcStore";
+import WcCustomBetCard from "@/components/wc/WcCustomBetCard.vue";
+import type { WcMatchWithOdds, WcScoreMultiplier, WcPredictionWithMatch, WcCustomBetWithOptions } from "@/types/wc";
 
 const { t } = useI18n();
+const wcStore = useWcStore();
 
 const props = defineProps<{
   modelValue: boolean;
@@ -233,7 +254,9 @@ const visible = computed({
   set: (v) => emit("update:modelValue", v),
 });
 
-const activeTab = ref<"handicap" | "over_under" | "exact_score">("handicap");
+const activeTab = ref<"handicap" | "over_under" | "exact_score" | "custom">("handicap");
+const customBets = ref<WcCustomBetWithOptions[]>([]);
+const customBetsLoading = ref(false);
 const handicapChoice = ref<"home" | "away" | null>(null);
 const handicapPoints = ref(2);
 const ouChoice = ref<"over" | "under" | null>(null);
@@ -339,6 +362,17 @@ const canSubmit = computed(() => {
   return Object.keys(selectedScores.value).length > 0;
 });
 
+async function reloadCustomBets() {
+  if (!props.match) return;
+  customBetsLoading.value = true;
+  try {
+    customBets.value = await wcService.listCustomBets(props.match.id);
+  } finally {
+    customBetsLoading.value = false;
+  }
+  await wcStore.fetchWallet();
+}
+
 function reset() {
   handicapChoice.value = null;
   handicapPoints.value = 2;
@@ -346,6 +380,7 @@ function reset() {
   ouPoints.value = 2;
   selectedScores.value = {};
   activeTab.value = "handicap";
+  customBets.value = [];
   existingHandicapPrediction.value = null;
   existingOUPrediction.value = null;
   existingScorePredictionMap.value = {};
@@ -449,6 +484,12 @@ watch(
     if (v && props.existingPredictions?.length) populateFromExisting();
   },
 );
+
+watch(activeTab, (tab) => {
+  if (tab === "custom" && customBets.value.length === 0) {
+    reloadCustomBets();
+  }
+});
 </script>
 
 <style scoped>
@@ -680,5 +721,13 @@ watch(
   font-size: 14px;
   color: var(--text-muted);
   margin-bottom: 12px;
+}
+
+.wc-custom-bets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 380px;
+  overflow-y: auto;
 }
 </style>

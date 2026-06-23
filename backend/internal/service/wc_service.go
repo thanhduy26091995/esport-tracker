@@ -13,13 +13,14 @@ import (
 )
 
 type WcService struct {
-	repo     *repository.WcRepository
-	userRepo *repository.WcUserRepository
-	football *footballClient
+	repo          *repository.WcRepository
+	userRepo      *repository.WcUserRepository
+	customBetRepo *repository.WcCustomBetRepository
+	football      *footballClient
 }
 
-func NewWcService(repo *repository.WcRepository, userRepo *repository.WcUserRepository) *WcService {
-	return &WcService{repo: repo, userRepo: userRepo, football: newFootballClient()}
+func NewWcService(repo *repository.WcRepository, userRepo *repository.WcUserRepository, customBetRepo *repository.WcCustomBetRepository) *WcService {
+	return &WcService{repo: repo, userRepo: userRepo, customBetRepo: customBetRepo, football: newFootballClient()}
 }
 
 // --- Config ---
@@ -30,6 +31,16 @@ func (s *WcService) GetConfig() (*model.WcConfig, error) {
 
 func (s *WcService) SetConfig(isEnabled bool, updatedBy uuid.UUID) error {
 	return s.repo.UpdateConfig(isEnabled, &updatedBy)
+}
+
+func (s *WcService) SetBetLimits(min, max int, updatedBy uuid.UUID) error {
+	if min < 1 {
+		return fmt.Errorf("min_points phải >= 1")
+	}
+	if max < min {
+		return fmt.Errorf("max_points phải >= min_points")
+	}
+	return s.repo.UpdateBetLimits(min, max, &updatedBy)
 }
 
 // --- Sync ---
@@ -162,11 +173,12 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 		return nil, fmt.Errorf("user is blocked from placing predictions")
 	}
 
-	if req.Points <= 0 {
-		return nil, fmt.Errorf("points must be greater than 0")
+	betCfg, err := s.repo.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config")
 	}
-	if req.Points > 5 {
-		return nil, fmt.Errorf("points must not exceed 5 per prediction")
+	if req.Points < betCfg.MinPoints || req.Points > betCfg.MaxPoints {
+		return nil, fmt.Errorf("điểm cược phải từ %d đến %d", betCfg.MinPoints, betCfg.MaxPoints)
 	}
 
 	var multiplierSnapshot float64
@@ -238,7 +250,17 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 }
 
 func (s *WcService) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictionWithMatch, error) {
-	return s.repo.ListPredictions(wcUserID)
+	predictions, err := s.repo.ListPredictions(wcUserID)
+	if err != nil {
+		return nil, err
+	}
+	if s.customBetRepo != nil {
+		customEntries, err := s.customBetRepo.ListCustomEntriesForUserAsHistory(wcUserID)
+		if err == nil {
+			predictions = append(predictions, customEntries...)
+		}
+	}
+	return predictions, nil
 }
 
 func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
@@ -263,11 +285,12 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
 }
 
 func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int) error {
-	if points <= 0 {
-		return fmt.Errorf("points must be greater than 0")
+	betCfg, err := s.repo.GetConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config")
 	}
-	if points > 5 {
-		return fmt.Errorf("points must not exceed 5 per prediction")
+	if points < betCfg.MinPoints || points > betCfg.MaxPoints {
+		return fmt.Errorf("điểm cược phải từ %d đến %d", betCfg.MinPoints, betCfg.MaxPoints)
 	}
 	bet, err := s.repo.GetPredictionByID(betID)
 	if err != nil {
@@ -290,7 +313,17 @@ func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int
 }
 
 func (s *WcService) ListPredictionsForMatchPublic(matchID uuid.UUID) ([]*model.WcPredictionPublic, error) {
-	return s.repo.ListPredictionsForMatchPublic(matchID)
+	predictions, err := s.repo.ListPredictionsForMatchPublic(matchID)
+	if err != nil {
+		return nil, err
+	}
+	if s.customBetRepo != nil {
+		customEntries, err := s.customBetRepo.ListCustomEntriesForMatchPublic(matchID)
+		if err == nil {
+			predictions = append(predictions, customEntries...)
+		}
+	}
+	return predictions, nil
 }
 
 func (s *WcService) GetWallet(wcUserID uuid.UUID) (*model.WcWallet, error) {
@@ -313,28 +346,33 @@ func (s *WcService) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 
 // --- Match settlement ---
 
+type FinalizeMatchResult struct {
+	PredictionsProcessed     int     `json:"predictions_processed"`
+	TotalPointsAwarded       float64 `json:"total_points_awarded"`
+	UnsettledCustomBetsCount int64   `json:"unsettled_custom_bets_count"`
+}
+
 // FinalizeMatch evaluates all predictions on a match, credits/debits wallets, and marks settled_at.
 // Returns an error if the match has already been finalized.
-func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, float64, error) {
+func (s *WcService) FinalizeMatch(matchID uuid.UUID) (*FinalizeMatchResult, error) {
 	m, err := s.repo.GetMatch(matchID)
 	if err != nil {
-		return 0, 0, fmt.Errorf("match not found")
+		return nil, fmt.Errorf("match not found")
 	}
 	if m.SettledAt != nil {
-		return 0, 0, fmt.Errorf("match already finalized at %s", m.SettledAt.Format("2006-01-02 15:04:05"))
+		return nil, fmt.Errorf("match already finalized at %s", m.SettledAt.Format("2006-01-02 15:04:05"))
 	}
 	if m.HomeScore == nil || m.AwayScore == nil {
-		return 0, 0, fmt.Errorf("match score not set — cannot settle")
+		return nil, fmt.Errorf("match score not set — cannot settle")
 	}
 
 	bets, err := s.repo.ListPredictionsForMatch(matchID)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
 	db := s.repo.DB()
-	var totalPointsEarned float64
-	processed := 0
+	res := &FinalizeMatchResult{}
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, bet := range bets {
@@ -366,8 +404,8 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, float64, error) {
 				return err
 			}
 
-			totalPointsEarned += pointsEarned
-			processed++
+			res.TotalPointsAwarded += pointsEarned
+			res.PredictionsProcessed++
 		}
 
 		// Mark match as settled
@@ -377,15 +415,24 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (int, float64, error) {
 			"status":     model.WcStatusCompleted,
 		})
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return processed, totalPointsEarned, err
+	// Check for unsettled custom bets on this match
+	if s.customBetRepo != nil {
+		res.UnsettledCustomBetsCount, _ = s.customBetRepo.CountUnsettledForMatch(matchID)
+	}
+
+	return res, nil
 }
 
 // FinalizeAllResult summarises a bulk-finalize run.
 type FinalizeAllResult struct {
-	Processed          int     `json:"processed"`
-	Skipped            int     `json:"skipped"`
-	TotalPointsAwarded float64 `json:"total_points_awarded"`
+	Processed                      int     `json:"processed"`
+	Skipped                        int     `json:"skipped"`
+	TotalPointsAwarded             float64 `json:"total_points_awarded"`
+	MatchesWithUnsettledCustomBets int64   `json:"matches_with_unsettled_custom_bets"`
 }
 
 // FinalizeAllMatches finalizes every scored-but-not-yet-settled match in one call.
@@ -397,13 +444,17 @@ func (s *WcService) FinalizeAllMatches() (*FinalizeAllResult, error) {
 	}
 	result := &FinalizeAllResult{}
 	for _, m := range matches {
-		_, pts, err := s.FinalizeMatch(m.ID)
+		r, err := s.FinalizeMatch(m.ID)
 		if err != nil {
 			result.Skipped++
 			continue
 		}
 		result.Processed++
-		result.TotalPointsAwarded += pts
+		result.TotalPointsAwarded += r.TotalPointsAwarded
+	}
+	// Count all matches (not just finalized ones) that still have unsettled custom bets
+	if s.customBetRepo != nil {
+		result.MatchesWithUnsettledCustomBets, _ = s.customBetRepo.CountMatchesWithUnsettled()
 	}
 	return result, nil
 }
@@ -798,11 +849,12 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 	if user.IsBlocked {
 		return nil, fmt.Errorf("user is blocked from placing bets")
 	}
-	if req.Stake <= 0 {
-		return nil, fmt.Errorf("stake must be greater than 0")
+	betCfg, err := s.repo.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config")
 	}
-	if req.Stake > 5 {
-		return nil, fmt.Errorf("stake must not exceed 5 per bet")
+	if req.Stake < betCfg.MinPoints || req.Stake > betCfg.MaxPoints {
+		return nil, fmt.Errorf("điểm cược phải từ %d đến %d", betCfg.MinPoints, betCfg.MaxPoints)
 	}
 
 	var oddsSnapshot float64
@@ -877,11 +929,12 @@ func (s *WcService) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic, e
 }
 
 func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
-	if stake <= 0 {
-		return fmt.Errorf("stake must be greater than 0")
+	betCfg, err := s.repo.GetConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config")
 	}
-	if stake > 5 {
-		return fmt.Errorf("stake must not exceed 5 per bet")
+	if stake < betCfg.MinPoints || stake > betCfg.MaxPoints {
+		return fmt.Errorf("điểm cược phải từ %d đến %d", betCfg.MinPoints, betCfg.MaxPoints)
 	}
 	bet, err := s.repo.GetBet(betID)
 	if err != nil {

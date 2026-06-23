@@ -8,15 +8,26 @@
         <div class="wc-bet-main">
           <div class="wc-bet-match-info">
             <span class="wc-bet-teams">{{ pred.home_team }} vs {{ pred.away_team }}</span>
+            <WcHandicapLine
+              v-if="pred.prediction_type === 'handicap'"
+              :homeTeam="pred.home_team"
+              :awayTeam="pred.away_team"
+              :handicapValue="matchById(pred.match_id)?.handicap_value"
+              :handicapTeam="matchById(pred.match_id)?.handicap_team"
+            />
             <span class="wc-bet-date">{{ formatDate(pred.created_at) }}</span>
           </div>
           <div class="wc-bet-details">
             <span class="wc-bet-type">
-              {{ pred.prediction_type === 'handicap' ? t('wc.predictionTypeHandicap') : pred.prediction_type === 'over_under' ? t('wc.predictionTypeOverUnder') : t('wc.predictionTypeExactScore') }}
+              {{ betTypeLabel(pred.prediction_type) }}
             </span>
             <span class="wc-bet-choice">
               <template v-if="pred.prediction_type === 'handicap'">
                 {{ pred.prediction_choice === 'home' ? pred.home_team : pred.away_team }}
+              </template>
+              <template v-else-if="pred.prediction_type === 'custom'">
+                <span v-if="pred.bet_title" class="wc-bet-custom-title">{{ pred.bet_title }}</span>
+                {{ pred.prediction_choice }}
               </template>
               <template v-else>
                 {{ pred.predicted_home_score }}–{{ pred.predicted_away_score }}
@@ -24,10 +35,21 @@
             </span>
 
             <!-- Inline points edit -->
-            <template v-if="editingId === pred.id">
+            <template v-if="pred.prediction_type === 'custom' && !pred.result">
+              <el-button
+                size="small"
+                text
+                type="danger"
+                class="wc-bet-action-btn wc-bet-action-btn--delete"
+                :loading="cancellingId === pred.id"
+                @click="handleCancelCustom(pred)"
+              >Huỷ</el-button>
+            </template>
+            <template v-else-if="editingId === pred.id">
               <el-input-number
                 v-model="editPoints"
-                :min="1"
+                :min="store.minPoints"
+                :max="store.maxPoints"
                 size="small"
                 controls-position="right"
                 style="width: 110px"
@@ -84,12 +106,20 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useWcStore } from '@/stores/wcStore'
+import { useWcBetTypeLabel } from '@/utils/wcBetType'
+import WcHandicapLine from '@/components/wc/WcHandicapLine.vue'
+import { wcService } from '@/services/wcService'
 import type { WcPredictionWithMatch } from '@/types/wc'
 
 const { t } = useI18n()
+const betTypeLabel = useWcBetTypeLabel()
 const store = useWcStore()
+
+function matchById(matchId: string) {
+  return store.matches.find(m => m.id === matchId)
+}
 
 function fmtPts(v: number): string {
   return parseFloat(v.toFixed(2)).toString()
@@ -101,6 +131,7 @@ const editingId = ref<string | null>(null)
 const editPoints = ref(0)
 const saving = ref(false)
 const deletingId = ref<string | null>(null)
+const cancellingId = ref<string | null>(null)
 
 function isEditable(pred: WcPredictionWithMatch): boolean {
   if (pred.result) return false
@@ -135,6 +166,24 @@ async function handleDelete(pred: WcPredictionWithMatch) {
     await store.deletePrediction(pred.id)
   } finally {
     deletingId.value = null
+  }
+}
+
+async function handleCancelCustom(pred: WcPredictionWithMatch) {
+  await ElMessageBox.confirm(
+    `Huỷ cược kèo phụ "${pred.bet_title}" — ${pred.prediction_choice} (${pred.points} pts)?`,
+    'Xác nhận huỷ',
+    { confirmButtonText: 'Huỷ cược', cancelButtonText: 'Đóng', type: 'warning' },
+  )
+  cancellingId.value = pred.id
+  try {
+    await wcService.cancelCustomBetEntry(pred.id)
+    ElMessage.success('Đã huỷ cược')
+    await store.fetchPredictions()
+  } catch {
+    // error shown by wcApi interceptor
+  } finally {
+    cancellingId.value = null
   }
 }
 
@@ -209,6 +258,18 @@ function formatDate(s: string) {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wc-bet-custom-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--el-color-warning);
+  background: var(--el-color-warning-light-9);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .wc-bet-stake {

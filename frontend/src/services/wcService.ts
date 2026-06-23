@@ -33,12 +33,15 @@ import type {
   WcChampionPredictionPublic,
   WcChampionSettleResult,
   FinalizePreviewResult,
+  WcCustomBetWithOptions,
+  WcCustomBetEntryHistory,
+  CreateCustomBetOption,
 } from '@/types/wc'
 
 export const wcService = {
   // --- Config ---
-  async getPublicConfig(): Promise<{ is_enabled: boolean }> {
-    const r = await wcApi.get<{ is_enabled: boolean }>('/config')
+  async getPublicConfig(): Promise<{ is_enabled: boolean; min_points: number; max_points: number }> {
+    const r = await wcApi.get<{ is_enabled: boolean; min_points: number; max_points: number }>('/config')
     return r.data
   },
   async getConfig(): Promise<WcConfig> {
@@ -47,6 +50,10 @@ export const wcService = {
   },
   async updateConfig(isEnabled: boolean): Promise<void> {
     await wcApi.put('/admin/config', { is_enabled: isEnabled })
+  },
+  async updateBetLimits(minPoints: number, maxPoints: number): Promise<WcConfig> {
+    const r = await wcApi.put<WcConfig>('/admin/config', { min_points: minPoints, max_points: maxPoints })
+    return r.data
   },
 
   // --- Matches ---
@@ -80,11 +87,11 @@ export const wcService = {
   async closeMatch(id: string): Promise<void> {
     await wcApi.post(`/admin/matches/${id}/close`)
   },
-  async finalizeMatch(id: string): Promise<{ predictions_processed: number; total_points_awarded: number }> {
+  async finalizeMatch(id: string): Promise<{ predictions_processed: number; total_points_awarded: number; unsettled_custom_bets_count: number }> {
     const r = await wcApi.post(`/admin/matches/${id}/finalize`)
     return r.data
   },
-  async finalizeAllMatches(): Promise<{ processed: number; skipped: number; total_points_awarded: number }> {
+  async finalizeAllMatches(): Promise<{ processed: number; skipped: number; total_points_awarded: number; matches_with_unsettled_custom_bets: number }> {
     const r = await wcApi.post('/admin/matches/finalize-all')
     return r.data
   },
@@ -293,5 +300,38 @@ export const wcService = {
   async adminSettleChampion(winnerTeamId: string): Promise<WcChampionSettleResult> {
     const r = await wcApi.post<WcChampionSettleResult>('/admin/champion/settle', { winner_team_id: winnerTeamId })
     return r.data
+  },
+
+  // --- Custom Bets (Kèo phụ) ---
+  async adminListCustomBets(matchId: string): Promise<WcCustomBetWithOptions[]> {
+    const r = await wcApi.get<WcCustomBetWithOptions[]>(`/admin/matches/${matchId}/custom-bets`)
+    return r.data ?? []
+  },
+  async adminCreateCustomBet(matchId: string, title: string, line: number | null, options: CreateCustomBetOption[]): Promise<WcCustomBetWithOptions> {
+    const r = await wcApi.post<WcCustomBetWithOptions>(`/admin/matches/${matchId}/custom-bets`, { title, line: line ?? undefined, options })
+    return r.data
+  },
+  async adminUpdateCustomBet(betId: string, data: { title?: string; line?: number | null; status?: string }): Promise<void> {
+    await wcApi.put(`/admin/custom-bets/${betId}`, data)
+  },
+  async adminSettleCustomBet(betId: string, winningOptionId: string): Promise<void> {
+    await wcApi.post(`/admin/custom-bets/${betId}/settle`, { winning_option_id: winningOptionId })
+  },
+  async adminVoidCustomBet(betId: string): Promise<void> {
+    await wcApi.put(`/admin/custom-bets/${betId}/void`)
+  },
+  async listCustomBets(matchId: string): Promise<WcCustomBetWithOptions[]> {
+    const r = await wcApi.get<WcCustomBetWithOptions[]>(`/matches/${matchId}/custom-bets`)
+    return r.data ?? []
+  },
+  async placeCustomBetEntry(betId: string, optionId: string, stake: number): Promise<void> {
+    await wcApi.post(`/custom-bets/${betId}/entry`, { option_id: optionId, stake })
+  },
+  async cancelCustomBetEntry(entryId: string): Promise<void> {
+    await wcApi.delete(`/custom-bet-entries/${entryId}`)
+  },
+  async getMyCustomBetEntries(): Promise<WcCustomBetEntryHistory[]> {
+    const r = await wcApi.get<WcCustomBetEntryHistory[]>('/custom-bet-entries')
+    return r.data ?? []
   },
 }

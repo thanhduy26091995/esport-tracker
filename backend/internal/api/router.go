@@ -47,6 +47,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcRepo := repository.NewWcRepository(db)
 	wcUserRepo := repository.NewWcUserRepository(db)
 	wcChampionRepo := repository.NewWcChampionRepository(db)
+	wcCustomBetRepo := repository.NewWcCustomBetRepository(db)
 
 	// Initialize services
 	configService := service.NewConfigService(configRepo)
@@ -58,8 +59,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 	wcAuthService := service.NewWcAuthService(wcUserRepo, wcRepo)
 	wcProfileService := service.NewWcProfileService(wcUserRepo)
-	wcService := service.NewWcService(wcRepo, wcUserRepo)
+	wcService := service.NewWcService(wcRepo, wcUserRepo, wcCustomBetRepo)
 	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo, wcUserRepo)
+	wcCustomBetService := service.NewWcCustomBetService(wcCustomBetRepo, wcRepo)
 	statsApiKey := os.Getenv("ODDSAPI_KEY")
 	statsApiSyncService := service.NewStatsApiSyncService(wcRepo, statsApiKey, "")
 	poissonService := service.NewPoissonService()
@@ -90,6 +92,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcHandler := NewWcHandler(wcService, wcAuthService)
 	wcSyncHandler := NewWcSyncHandler(statsApiSyncService, poissonService)
 	wcChampionHandler := NewWcChampionHandler(wcChampionService)
+	wcCustomBetHandler := NewWcCustomBetHandler(wcCustomBetService)
 
 	// API v1 group
 	v1 := router.Group("/api/v1")
@@ -237,6 +240,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAuth.GET("/champion/my-prediction", wcChampionHandler.GetMyPrediction)
 				wcAuth.POST("/champion/predict", wcChampionHandler.PlacePredict)
 				wcAuth.DELETE("/champion/predict/:id", wcChampionHandler.DeletePredict)
+				// Custom bets (player)
+				wcAuth.GET("/matches/:id/custom-bets", wcCustomBetHandler.ListCustomBets)
+				wcAuth.GET("/custom-bet-entries", wcCustomBetHandler.GetMyCustomBetEntries)
+				wcAuth.POST("/custom-bets/:id/entry", wcCustomBetHandler.PlaceEntry)
+				wcAuth.DELETE("/custom-bet-entries/:id", wcCustomBetHandler.CancelEntry)
 			}
 
 			// Admin required
@@ -281,6 +289,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAdmin.POST("/champion/teams", wcChampionHandler.AdminCreateTeam)
 				wcAdmin.PUT("/champion/teams/:id", wcChampionHandler.AdminUpdateTeamOdds)
 				wcAdmin.POST("/champion/settle", wcChampionHandler.AdminSettle)
+				// Custom bets admin
+				wcAdmin.GET("/matches/:id/custom-bets", wcCustomBetHandler.AdminListCustomBets)
+				wcAdmin.POST("/matches/:id/custom-bets", wcCustomBetHandler.AdminCreateCustomBet)
+				wcAdmin.PUT("/custom-bets/:id", wcCustomBetHandler.AdminUpdateCustomBet)
+				wcAdmin.POST("/custom-bets/:id/settle", wcCustomBetHandler.AdminSettleCustomBet)
+				wcAdmin.PUT("/custom-bets/:id/void", wcCustomBetHandler.AdminVoidCustomBet)
 			}
 		}
 	}

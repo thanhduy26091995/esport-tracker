@@ -21,14 +21,18 @@ func NewWcHandler(svc *service.WcService, authSvc *service.WcAuthService) *WcHan
 	return &WcHandler{svc: svc, authSvc: authSvc}
 }
 
-// GetPublicConfig handles GET /api/v1/wc/config — public, returns only is_enabled
+// GetPublicConfig handles GET /api/v1/wc/config — public, returns is_enabled + bet limits
 func (h *WcHandler) GetPublicConfig(c *gin.Context) {
 	cfg, err := h.svc.GetConfig()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load config"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"is_enabled": cfg.IsEnabled})
+	c.JSON(http.StatusOK, gin.H{
+		"is_enabled": cfg.IsEnabled,
+		"min_points": cfg.MinPoints,
+		"max_points": cfg.MaxPoints,
+	})
 }
 
 // GetConfig handles GET /api/v1/wc/admin/config
@@ -44,18 +48,44 @@ func (h *WcHandler) GetConfig(c *gin.Context) {
 // UpdateConfig handles PUT /api/v1/wc/admin/config
 func (h *WcHandler) UpdateConfig(c *gin.Context) {
 	var req struct {
-		IsEnabled bool `json:"is_enabled"`
+		IsEnabled *bool `json:"is_enabled"`
+		MinPoints *int  `json:"min_points"`
+		MaxPoints *int  `json:"max_points"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	adminID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	if err := h.svc.SetConfig(req.IsEnabled, adminID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update config"})
-		return
+
+	if req.IsEnabled != nil {
+		if err := h.svc.SetConfig(*req.IsEnabled, adminID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update config"})
+			return
+		}
 	}
-	c.JSON(http.StatusOK, gin.H{"is_enabled": req.IsEnabled})
+
+	if req.MinPoints != nil || req.MaxPoints != nil {
+		cfg, err := h.svc.GetConfig()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load config"})
+			return
+		}
+		min, max := cfg.MinPoints, cfg.MaxPoints
+		if req.MinPoints != nil {
+			min = *req.MinPoints
+		}
+		if req.MaxPoints != nil {
+			max = *req.MaxPoints
+		}
+		if err := h.svc.SetBetLimits(min, max, adminID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	cfg, _ := h.svc.GetConfig()
+	c.JSON(http.StatusOK, cfg)
 }
 
 // ListMatches handles GET /api/v1/wc/matches
@@ -549,12 +579,12 @@ func (h *WcHandler) FinalizeMatch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID"})
 		return
 	}
-	processed, totalPointsAwarded, err := h.svc.FinalizeMatch(id)
+	res, err := h.svc.FinalizeMatch(id)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"predictions_processed": processed, "total_points_awarded": totalPointsAwarded})
+	c.JSON(http.StatusOK, res)
 }
 
 // PreviewFinalizeMatch handles GET /api/v1/wc/admin/matches/:id/finalize-preview

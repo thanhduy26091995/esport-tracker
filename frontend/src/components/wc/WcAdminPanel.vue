@@ -18,6 +18,31 @@
       </div>
     </div>
 
+    <!-- Bet Limits -->
+    <div class="card card-body wc-admin-section">
+      <div class="wc-admin-section-title">Giới hạn dự đoán</div>
+      <div class="wc-feature-toggle-row" style="gap: 16px; flex-wrap: wrap;">
+        <el-form-item label="Min điểm" style="margin: 0">
+          <el-input-number
+            v-model="betLimitForm.minPoints"
+            :min="1"
+            :max="betLimitForm.maxPoints"
+            controls-position="right"
+            style="width: 100px"
+          />
+        </el-form-item>
+        <el-form-item label="Max điểm" style="margin: 0">
+          <el-input-number
+            v-model="betLimitForm.maxPoints"
+            :min="betLimitForm.minPoints"
+            controls-position="right"
+            style="width: 100px"
+          />
+        </el-form-item>
+        <el-button type="primary" :loading="savingBetLimits" @click="handleSaveBetLimits">Lưu</el-button>
+      </div>
+    </div>
+
     <!-- Match Management -->
     <div class="card card-body wc-admin-section">
       <div class="wc-admin-section-title">Quản lý trận đấu</div>
@@ -180,6 +205,14 @@
               @click="poissonDialogRef?.open(match)"
             >
               Poisson
+            </el-button>
+            <el-button
+              plain
+              size="small"
+              type="primary"
+              @click="customBetPanelRef?.open(match.id, `${match.home_team} vs ${match.away_team}`)"
+            >
+              Kèo phụ
             </el-button>
           </div>
         </div>
@@ -412,6 +445,7 @@
     <WcImportHandicapDialog ref="importHandicapDialogRef" @imported="handleOddsImported" />
     <WcImportOUDialog ref="importOUDialogRef" @imported="handleOddsImported" />
     <WcGeneratePoissonDialog ref="poissonDialogRef" @saved="handleOddsImported" />
+    <WcAdminCustomBetPanel ref="customBetPanelRef" />
 
     <!-- Score Multipliers Dialog -->
     <el-dialog
@@ -500,6 +534,7 @@ import WcGeneratePoissonDialog from "./WcGeneratePoissonDialog.vue";
 import WcSyncLogsPanel from "./WcSyncLogsPanel.vue";
 import WcChampionAdminPanel from "./WcChampionAdminPanel.vue";
 import WcFinalizePreviewDialog from "./WcFinalizePreviewDialog.vue";
+import WcAdminCustomBetPanel from "./WcAdminCustomBetPanel.vue";
 
 const { t } = useI18n();
 const store = useWcStore();
@@ -537,9 +572,25 @@ const importHandicapDialogRef = ref<InstanceType<typeof WcImportHandicapDialog> 
 const importOUDialogRef = ref<InstanceType<typeof WcImportOUDialog> | null>(null);
 const poissonDialogRef = ref<InstanceType<typeof WcGeneratePoissonDialog> | null>(null);
 const syncLogsRef = ref<InstanceType<typeof WcSyncLogsPanel> | null>(null);
+const customBetPanelRef = ref<InstanceType<typeof WcAdminCustomBetPanel> | null>(null);
 const syncing = ref(false);
 const togglingFeature = ref(false);
 const configEnabled = ref(store.config?.is_enabled ?? false);
+
+const betLimitForm = ref({ minPoints: store.minPoints, maxPoints: store.maxPoints });
+const savingBetLimits = ref(false);
+async function handleSaveBetLimits() {
+  savingBetLimits.value = true;
+  try {
+    await wcService.updateBetLimits(betLimitForm.value.minPoints, betLimitForm.value.maxPoints);
+    await store.fetchPublicConfig();
+    ElMessage.success('Đã cập nhật giới hạn dự đoán');
+  } catch {
+    ElMessage.error('Lỗi khi cập nhật giới hạn');
+  } finally {
+    savingBetLimits.value = false;
+  }
+}
 
 type PendingAction = 'finalize-match' | 'finalize-all' | 'refinalize-all'
 const previewDialogVisible = ref(false);
@@ -841,6 +892,9 @@ onMounted(async () => {
     store.fetchSettlements(),
   ]);
   configEnabled.value = store.config?.is_enabled ?? false;
+  if (store.config) {
+    betLimitForm.value = { minPoints: store.config.min_points, maxPoints: store.config.max_points };
+  }
 });
 </script>
 
@@ -1024,6 +1078,8 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 480px;
+  overflow-y: auto;
 }
 
 .wc-user-row {

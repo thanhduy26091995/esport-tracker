@@ -19,6 +19,8 @@ export interface WcUser {
 export interface WcConfig {
   id: number
   is_enabled: boolean
+  min_points: number
+  max_points: number
   updated_at: string
   updated_by?: string
 }
@@ -103,7 +105,7 @@ export interface WcPrediction {
   id: string
   wc_user_id: string
   match_id: string
-  prediction_type: WcPredictionType
+  prediction_type: WcPredictionType | 'custom'
   prediction_choice?: string
   points: number
   multiplier_snapshot: number
@@ -124,6 +126,7 @@ export interface WcPredictionWithMatch extends WcPrediction {
   match_status: WcMatchStatus
   predictions_open: boolean
   predictions_locked_at?: string
+  bet_title?: string
 }
 
 export interface WcPredictionPublic {
@@ -131,7 +134,7 @@ export interface WcPredictionPublic {
   wc_user_id: string
   name: string
   avatar_url: string | null
-  prediction_type: WcPredictionType
+  prediction_type: WcPredictionType | 'custom'
   prediction_choice?: string
   points: number
   multiplier_snapshot: number
@@ -140,6 +143,7 @@ export interface WcPredictionPublic {
   result?: WcPredictionResult
   points_earned?: number
   created_at: string
+  bet_title?: string
 }
 
 export interface WcLeaderboardEntry {
@@ -495,4 +499,87 @@ export interface WcGroupStanding {
 
 export interface WcStandingsResponse {
   groups: WcGroupStanding[]
+}
+
+// --- Custom Bets (Kèo phụ) ---
+
+export type WcCustomBetStatus = 'open' | 'closed' | 'settled' | 'void'
+export type WcCustomBetEntryStatus = 'pending' | 'won' | 'lost' | 'void'
+
+export interface WcCustomBetOption {
+  id: string
+  custom_bet_id: string
+  label: string
+  odds: number
+  is_winner: boolean
+  display_order: number
+}
+
+export interface WcCustomBetEntry {
+  id: string
+  custom_bet_id: string
+  option_id: string
+  wc_user_id: string
+  stake: number
+  odds_snapshot: number
+  payout?: number
+  status: WcCustomBetEntryStatus
+  created_at: string
+}
+
+export interface WcCustomBet {
+  id: string
+  match_id: string
+  title: string
+  line?: number
+  status: WcCustomBetStatus
+  created_by?: string
+  created_at: string
+  settled_at?: string
+  settled_by?: string
+}
+
+export interface WcCustomBetEntryPublic {
+  id: string
+  wc_user_id: string
+  option_id: string
+  option_label: string
+  name: string
+  avatar_url: string | null
+  stake: number
+  odds_snapshot: number
+  status: WcCustomBetEntryStatus
+  payout?: number
+  created_at: string
+}
+
+export interface WcCustomBetWithOptions extends WcCustomBet {
+  options: WcCustomBetOption[]
+  my_entry?: WcCustomBetEntry
+  entry_count: number
+  entries: WcCustomBetEntryPublic[]
+}
+
+export interface CreateCustomBetOption {
+  label: string
+  odds: number
+  display_order: number
+}
+
+export interface WcCustomBetEntryHistory {
+  id: string
+  custom_bet_id: string
+  option_id: string
+  wc_user_id: string
+  stake: number
+  odds_snapshot: number
+  payout?: number
+  status: WcCustomBetEntryStatus
+  created_at: string
+  bet_title: string
+  bet_line?: number
+  option_label: string
+  home_team: string
+  away_team: string
+  match_date: string
 }

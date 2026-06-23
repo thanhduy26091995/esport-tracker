@@ -75,7 +75,7 @@
           <div v-if="selectedTeam" class="form-footer">
             <div class="points-row">
               <span class="points-label">Điểm cược (1–5)</span>
-              <el-input-number v-model="selectedPoints" :min="1" :max="5" size="small" style="width: 80px" />
+              <el-input-number v-model="selectedPoints" :min="wcStore.minPoints" :max="wcStore.maxPoints" size="small" style="width: 80px" />
             </div>
             <div class="payout-preview">
               Nếu đúng →
@@ -162,7 +162,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { wcService } from '@/services/wcService'
+import { useWcStore } from '@/stores/wcStore'
 import type { WcChampionConfig, WcChampionTeam, WcChampionPredictionMine, WcChampionPredictionPublic } from '@/types/wc'
+
+const wcStore = useWcStore()
 
 const config = ref<WcChampionConfig | null>(null)
 const teams = ref<WcChampionTeam[]>([])

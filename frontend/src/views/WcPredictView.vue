@@ -237,6 +237,7 @@ onMounted(async () => {
     store.fetchMatches(),
     store.fetchWallet(),
     store.fetchPredictions(),
+    store.fetchPublicConfig(),
   ])
 })
 </script>
@@ -394,4 +395,5 @@ onMounted(async () => {
   background: var(--surface-page);
   color: var(--text-muted);
 }
+
 </style>

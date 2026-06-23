@@ -77,10 +77,28 @@
                       ({{ matchBetCounts[match.id] }})
                     </span>
                   </el-button>
+                  <el-button
+                    size="small"
+                    text
+                    @click="toggleCustomBets(match.id)"
+                  >
+                    Kèo phụ
+                  </el-button>
                 </template>
               </WcMatchCard>
               <div v-if="expandedMatchId === match.id" class="wc-match-bets-panel">
                 <WcMatchBetList :bets="store.matchBets" />
+              </div>
+              <div v-if="expandedCustomBetMatchId === match.id" class="wc-custom-bets-panel">
+                <div v-if="!customBetsByMatch[match.id] || customBetsByMatch[match.id].length === 0" class="wc-custom-bets-empty">
+                  Chưa có kèo phụ cho trận này.
+                </div>
+                <WcCustomBetCard
+                  v-for="bet in customBetsByMatch[match.id]"
+                  :key="bet.id"
+                  :bet="bet"
+                  @refresh="refreshCustomBets(match.id)"
+                />
               </div>
             </div>
           </div>
@@ -89,11 +107,19 @@
         <!-- OPEN BETS TAB -->
         <el-tab-pane :label="t('wc.tabOpenBets')" name="open_bets">
           <WcBetHistoryList :bets="openBets" />
+          <div v-if="pendingCustomEntries.length > 0" class="wc-custom-history-section">
+            <div class="wc-custom-history-title">Kèo phụ đang chờ</div>
+            <WcCustomBetHistoryList :entries="pendingCustomEntries" />
+          </div>
         </el-tab-pane>
 
         <!-- HISTORY TAB -->
         <el-tab-pane :label="t('wc.tabHistory')" name="history">
           <WcBetHistoryList :bets="settledBets" />
+          <div v-if="settledCustomEntries.length > 0" class="wc-custom-history-section">
+            <div class="wc-custom-history-title">Kèo phụ</div>
+            <WcCustomBetHistoryList :entries="settledCustomEntries" />
+          </div>
         </el-tab-pane>
 
         <!-- LEADERBOARD TAB -->
@@ -132,7 +158,9 @@ import WcBetHistoryList from '@/components/wc/WcBetHistoryList.vue'
 import WcMatchBetList from '@/components/wc/WcMatchBetList.vue'
 import WcLeaderboard from '@/components/wc/WcLeaderboard.vue'
 import WcAdminPanel from '@/components/wc/WcAdminPanel.vue'
-import type { WcMatchWithOdds, WcScoreOdds, WcMatch } from '@/types/wc'
+import WcCustomBetCard from '@/components/wc/WcCustomBetCard.vue'
+import WcCustomBetHistoryList from '@/components/wc/WcCustomBetHistoryList.vue'
+import type { WcMatchWithOdds, WcScoreOdds, WcMatch, WcCustomBetWithOptions, WcCustomBetEntryHistory } from '@/types/wc'
 import { wcService } from '@/services/wcService'
 
 const { t } = useI18n()
@@ -146,6 +174,8 @@ const selectedMatch = ref<WcMatchWithOdds | null>(null)
 const selectedScoreOdds = ref<WcScoreOdds[]>([])
 const expandedMatchId = ref<string | null>(null)
 const matchBetCounts = ref<Record<string, number>>({})
+const expandedCustomBetMatchId = ref<string | null>(null)
+const customBetsByMatch = ref<Record<string, WcCustomBetWithOptions[]>>({})
 
 const selectedMatchBets = computed(() =>
   selectedMatch.value
@@ -179,6 +209,9 @@ function isBettable(m: WcMatch): boolean {
 
 const openBets = computed(() => store.bets.filter(b => !b.result))
 const settledBets = computed(() => store.bets.filter(b => !!b.result))
+const customEntries = ref<WcCustomBetEntryHistory[]>([])
+const pendingCustomEntries = computed(() => customEntries.value.filter(e => e.status === 'pending'))
+const settledCustomEntries = computed(() => customEntries.value.filter(e => e.status !== 'pending'))
 
 async function openBetForm(match: WcMatch) {
   const full = await wcService.getMatch(match.id)
@@ -202,14 +235,37 @@ async function onBetPlaced() {
   await store.fetchBets()
 }
 
+async function toggleCustomBets(matchId: string) {
+  if (expandedCustomBetMatchId.value === matchId) {
+    expandedCustomBetMatchId.value = null
+    return
+  }
+  expandedCustomBetMatchId.value = matchId
+  const bets = await wcService.listCustomBets(matchId)
+  customBetsByMatch.value[matchId] = bets
+}
+
+async function refreshCustomBets(matchId: string) {
+  const bets = await wcService.listCustomBets(matchId)
+  customBetsByMatch.value[matchId] = bets
+  await store.fetchWallet()
+}
+
 function handleLogout() {
   authStore.logout()
   router.push('/world-cup/login')
 }
 
+async function fetchCustomEntries() {
+  customEntries.value = await wcService.getMyCustomBetEntries()
+}
+
 watch(activeTab, async (tab) => {
   if (tab === 'leaderboard') await store.fetchLeaderboard()
-  if (tab === 'open_bets' || tab === 'history') await store.fetchBets()
+  if (tab === 'open_bets' || tab === 'history') {
+    await store.fetchBets()
+    await fetchCustomEntries()
+  }
 })
 
 onMounted(async () => {
@@ -217,6 +273,8 @@ onMounted(async () => {
     store.fetchMatches(),
     store.fetchWallet(),
     store.fetchBets(),
+    fetchCustomEntries(),
+    store.fetchPublicConfig(),
   ])
 })
 </script>
@@ -288,6 +346,21 @@ onMounted(async () => {
   margin-bottom: 4px;
 }
 
+.wc-custom-bets-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.wc-custom-bets-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
 .wc-filter-bar {
   display: flex;
   flex-direction: column;
@@ -344,5 +417,18 @@ onMounted(async () => {
 .wc-filter-pill:not(.wc-filter-pill--active) .wc-filter-count {
   background: var(--surface-page);
   color: var(--text-muted);
+}
+
+.wc-custom-history-section {
+  margin-top: 20px;
+}
+
+.wc-custom-history-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
 }
 </style>

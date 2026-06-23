@@ -314,6 +314,7 @@ type WcPredictionWithMatch struct {
 	MatchStatus         string     `json:"match_status"`
 	PredictionsOpen     bool       `json:"predictions_open"`
 	PredictionsLockedAt *time.Time `json:"predictions_locked_at"`
+	BetTitle            *string    `json:"bet_title,omitempty"` // set for custom bet entries
 }
 
 // WcPredictionPublic is used by ListPredictionsForMatchPublic — visible to everyone.
@@ -331,6 +332,7 @@ type WcPredictionPublic struct {
 	Result             *string   `json:"result,omitempty"`
 	PointsEarned       *float64  `json:"points_earned,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
+	BetTitle           *string   `json:"bet_title,omitempty"` // set for custom bet entries
 }
 
 // WcSettlementWithDetails is returned by GET /admin/settlements/:id.
