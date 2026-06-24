@@ -104,6 +104,12 @@
         <router-view />
       </main>
     </div>
+
+    <!-- WC Live Chat — floating button + panel (WC/soc builds only) -->
+    <template v-if="isSocSite || isWcRoute">
+      <WcChatButton />
+      <WcChatPanel />
+    </template>
   </div>
 </template>
 
@@ -116,6 +122,8 @@ import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useUserStore } from '@/stores/userStore'
 import { CLUBS } from '@/config/clubs'
 import { useActivityFeed } from '@/composables/useActivityFeed'
+import WcChatButton from '@/components/wc/WcChatButton.vue'
+import WcChatPanel from '@/components/wc/WcChatPanel.vue'
 
 useActivityFeed()
 
@@ -123,6 +131,7 @@ const { t } = useI18n()
 const route = useRoute()
 
 const isSocSite = import.meta.env.VITE_SITE === 'soc'
+const isWcRoute = computed(() => route.path.startsWith('/world-cup'))
 const appTitle = isSocSite ? t('common.appNameSoc') : t('common.appName')
 const appSubtitle = isSocSite ? t('layout.sidebarSubtitleSoc') : t('layout.sidebarSubtitle')
 const mobileMenuOpen = ref(false)

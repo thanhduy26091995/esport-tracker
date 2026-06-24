@@ -12,6 +12,7 @@ import (
 	"github.com/duyb/esport-score-tracker/internal/ws"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -49,6 +50,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcUserRepo := repository.NewWcUserRepository(db)
 	wcChampionRepo := repository.NewWcChampionRepository(db)
 	wcCustomBetRepo := repository.NewWcCustomBetRepository(db)
+	wcChatRepo := repository.NewWcChatRepository(db)
 
 	// Initialize services
 	configService := service.NewConfigService(configRepo)
@@ -63,6 +65,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	wsHub := ws.NewHub()
 	go wsHub.Run()
+
+	chatHub := ws.NewHub()
+	go chatHub.Run()
+
+	wcChatService := service.NewWcChatService(wcChatRepo, chatHub)
 
 	wcService := service.NewWcService(wcRepo, wcUserRepo, wcCustomBetRepo, wsHub)
 	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo, wcUserRepo, wsHub)
@@ -98,10 +105,30 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcSyncHandler := NewWcSyncHandler(statsApiSyncService, poissonService)
 	wcChampionHandler := NewWcChampionHandler(wcChampionService)
 	wcCustomBetHandler := NewWcCustomBetHandler(wcCustomBetService)
+	wcChatHandler := NewWcChatHandler(wcChatService)
 	wsHandler := ws.NewHandler(wsHub)
 
-	// WebSocket endpoint — outside /api/v1, proxied by Nginx with Upgrade headers
+	// Token verifier adapter for ChatHandler
+	tokenVerifier := ws.NewWcAuthTokenVerifier(func(tokenStr string) (uuid.UUID, string, error) {
+		claims, err := wcAuthService.VerifyToken(tokenStr)
+		if err != nil {
+			return uuid.UUID{}, "", err
+		}
+		return claims.WcUserID, claims.Name, nil
+	})
+	// Avatar URL fetcher adapter for ChatHandler
+	avatarFetcher := ws.NewWcUserAvatarFetcher(func(userID uuid.UUID) string {
+		user, err := wcUserRepo.GetByID(userID)
+		if err != nil || user.AvatarURL == nil {
+			return ""
+		}
+		return *user.AvatarURL
+	})
+	chatWsHandler := ws.NewChatHandler(chatHub, tokenVerifier, avatarFetcher, wcChatService)
+
+	// WebSocket endpoints — outside /api/v1, proxied by Nginx with Upgrade headers
 	router.GET("/ws", wsHandler.Handle)
+	router.GET("/ws/chat", chatWsHandler.Handle)
 
 	// API v1 group
 	v1 := router.Group("/api/v1")
@@ -199,6 +226,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		wc.GET("/matches", wcHandler.ListMatches)
 		wc.GET("/matches/:id", wcHandler.GetMatch)
 		wc.GET("/standings", wcHandler.GetGroupStandings)
+
+		// Live chat history — public, no auth required
+		wc.GET("/chat/messages", wcChatHandler.ListMessages)
 
 		// Auth — public (no feature flag, no JWT required)
 		auth := wc.Group("/auth")

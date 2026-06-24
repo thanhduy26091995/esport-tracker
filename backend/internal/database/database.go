@@ -70,6 +70,8 @@ func Connect() (*gorm.DB, error) {
 		&model.WcCustomBet{},
 		&model.WcCustomBetOption{},
 		&model.WcCustomBetEntry{},
+		// Live chat
+		&model.WcChatMessage{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}

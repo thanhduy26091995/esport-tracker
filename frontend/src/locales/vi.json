@@ -192,6 +192,16 @@
       "goalDiff": "HS",
       "points": "Đ",
       "form": "Phong độ"
+    },
+    "chat": {
+      "title": "Live Chat",
+      "placeholder": "Nhắn tin...",
+      "send": "Gửi",
+      "loginPrompt": "Đăng nhập để chat",
+      "unread": "{n} tin mới",
+      "empty": "Chưa có tin nhắn nào. Hãy là người đầu tiên!",
+      "errorSend": "Không thể gửi tin nhắn",
+      "disconnected": "Mất kết nối, đang kết nối lại..."
     }
   },
   "dashboard": {

@@ -65,3 +65,13 @@ func (h *Hub) Broadcast(event ActivityEvent) {
 	}
 	h.broadcast <- data
 }
+
+// BroadcastChat serialises a chat message event and fans it out to all connected clients.
+func (h *Hub) BroadcastChat(event ChatMessageEvent) {
+	data, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("ws: failed to marshal chat event: %v", err)
+		return
+	}
+	h.broadcast <- data
+}

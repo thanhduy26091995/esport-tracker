@@ -192,6 +192,16 @@
       "goalDiff": "GD",
       "points": "Pts",
       "form": "Form"
+    },
+    "chat": {
+      "title": "Live Chat",
+      "placeholder": "Type a message...",
+      "send": "Send",
+      "loginPrompt": "Log in to chat",
+      "unread": "{n} new messages",
+      "empty": "No messages yet. Be the first!",
+      "errorSend": "Failed to send message",
+      "disconnected": "Disconnected, reconnecting..."
     }
   },
   "dashboard": {

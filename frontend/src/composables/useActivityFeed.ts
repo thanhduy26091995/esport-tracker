@@ -1,6 +1,8 @@
 import { onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElNotification } from 'element-plus'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
+import { useChatStore } from '@/stores/chatStore'
 import type { ActivityEvent } from '@/types/activity'
 
 const BET_TYPE_LABEL: Record<string, string> = {
@@ -16,6 +18,7 @@ function formatMessage(event: ActivityEvent): string {
 
 export function useActivityFeed() {
   const auth = useWcAuthStore()
+  const { isPanelOpen } = storeToRefs(useChatStore())
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let destroyed = false
@@ -40,7 +43,7 @@ export function useActivityFeed() {
           title: '🎯 Hoạt động',
           message: formatMessage(event),
           duration: 5000,
-          position: 'bottom-right',
+          position: isPanelOpen.value ? 'top-right' : 'bottom-right',
           type: 'info',
         })
       } catch {

@@ -1,6 +1,9 @@
 package ws
 
-import "github.com/gorilla/websocket"
+import (
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+)
 
 // ActivityEvent is the JSON payload pushed to all connected clients when a bet is placed.
 type ActivityEvent struct {
@@ -20,8 +23,34 @@ type HubBroadcaster interface {
 	Broadcast(event ActivityEvent)
 }
 
+// ChatSendFrame is a client→server frame for chat messages.
+type ChatSendFrame struct {
+	Type    string `json:"type"`    // "chat_send"
+	Message string `json:"message"` // 1–500 chars
+}
+
+// ChatMessageEvent is the server→all-clients broadcast payload for a chat message.
+type ChatMessageEvent struct {
+	Type      string `json:"type"`       // "chat_message"
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	UserName  string `json:"user_name"`
+	AvatarURL string `json:"avatar_url"`
+	Message   string `json:"message"`
+	CreatedAt string `json:"created_at"` // RFC3339
+}
+
+// ChatErrorFrame is sent back to a client when its request cannot be processed.
+type ChatErrorFrame struct {
+	Type    string `json:"type"`    // "error"
+	Message string `json:"message"`
+}
+
 // client represents one connected WebSocket peer.
 type client struct {
-	conn *websocket.Conn
-	send chan []byte
+	conn      *websocket.Conn
+	send      chan []byte
+	userID    uuid.UUID // zero value = guest
+	userName  string
+	avatarURL string
 }

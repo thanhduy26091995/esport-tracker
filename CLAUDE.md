@@ -69,6 +69,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | WC standalone site (soc.sitenow.cloud) — build-time VITE_SITE=soc flag, WC-only routes + nav | `docs/ai/design/feature-wc-soc-site.md` |
 | WC custom bet (kèo phụ) — admin-defined proposition bets with N options, per-option odds, manual settlement | `docs/ai/design/feature-wc-custom-bet.md` |
 | WC betting activity feed — real-time WebSocket toast notifications when users place predictions/custom bets/champion picks | `docs/ai/design/2026-06-24-feature-wc-betting-activity-feed.md` |
+| WC live chat — global chat room via WebSocket, last 100 messages persisted, JWT auth to send, floating FAB button | `docs/ai/design/2026-06-24-feature-wc-live-chat.md` |
 
 ## Dev Commands
 
