@@ -214,7 +214,7 @@ func (r *WcCustomBetRepository) ListCustomEntriesForUserAsHistory(userID uuid.UU
 		            WHEN 'void' THEN 'void'
 		            ELSE NULL
 		        END                                                  AS result,
-		        CASE WHEN e.status = 'won' THEN e.payout ELSE NULL END AS points_earned,
+		        CASE WHEN e.status = 'won' THEN ROUND(CAST(e.stake AS numeric) * e.odds_snapshot, 2) ELSE NULL END AS points_earned,
 		        e.created_at, e.created_at AS updated_at,
 		        m.home_team, m.away_team, m.match_date,
 		        m.status                                             AS match_status,
