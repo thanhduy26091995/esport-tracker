@@ -9,6 +9,7 @@ import (
 	"github.com/duyb/esport-score-tracker/internal/middleware"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/duyb/esport-score-tracker/internal/service"
+	"github.com/duyb/esport-score-tracker/internal/ws"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -59,9 +60,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 	wcAuthService := service.NewWcAuthService(wcUserRepo, wcRepo)
 	wcProfileService := service.NewWcProfileService(wcUserRepo)
-	wcService := service.NewWcService(wcRepo, wcUserRepo, wcCustomBetRepo)
-	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo, wcUserRepo)
-	wcCustomBetService := service.NewWcCustomBetService(wcCustomBetRepo, wcRepo)
+
+	wsHub := ws.NewHub()
+	go wsHub.Run()
+
+	wcService := service.NewWcService(wcRepo, wcUserRepo, wcCustomBetRepo, wsHub)
+	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo, wcUserRepo, wsHub)
+	wcCustomBetService := service.NewWcCustomBetService(wcCustomBetRepo, wcRepo, wcUserRepo, wsHub)
 	statsApiKey := os.Getenv("ODDSAPI_KEY")
 	statsApiSyncService := service.NewStatsApiSyncService(wcRepo, statsApiKey, "")
 	poissonService := service.NewPoissonService()
@@ -93,6 +98,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcSyncHandler := NewWcSyncHandler(statsApiSyncService, poissonService)
 	wcChampionHandler := NewWcChampionHandler(wcChampionService)
 	wcCustomBetHandler := NewWcCustomBetHandler(wcCustomBetService)
+	wsHandler := ws.NewHandler(wsHub)
+
+	// WebSocket endpoint — outside /api/v1, proxied by Nginx with Upgrade headers
+	router.GET("/ws", wsHandler.Handle)
 
 	// API v1 group
 	v1 := router.Group("/api/v1")

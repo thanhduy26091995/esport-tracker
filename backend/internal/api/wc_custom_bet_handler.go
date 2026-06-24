@@ -152,7 +152,8 @@ func (h *WcCustomBetHandler) PlaceEntry(c *gin.Context) {
 		return
 	}
 	userID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	if err := h.svc.PlaceEntry(betID, userID, req.OptionID, req.Stake); err != nil {
+	userName := c.GetString(middleware.WcUserNameKey)
+	if err := h.svc.PlaceEntry(betID, userID, req.OptionID, req.Stake, userName); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

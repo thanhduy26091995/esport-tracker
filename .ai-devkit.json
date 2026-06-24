@@ -1,16 +1,79 @@
 {
   "version": "0.22.0",
   "environments": [
-    "claude",
-    "github"
+    "claude"
   ],
   "phases": [
     "requirements",
     "design",
     "planning",
     "implementation",
-    "deployment"
+    "deployment",
+    "testing",
+    "monitoring"
   ],
   "createdAt": "2026-04-14T09:02:43.776Z",
-  "updatedAt": "2026-04-14T09:02:43.806Z"
+  "updatedAt": "2026-06-24T09:08:17.259Z",
+  "skills": [
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "agent-communication"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-lifecycle"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-worktree"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-requirements"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-design"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-planning"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-implementation"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-testing"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "dev-review"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "structured-debug"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "document-code"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "memory"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "simplify-implementation"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "verify"
+    },
+    {
+      "registry": "codeaholicguy/ai-devkit",
+      "name": "tdd"
+    }
+  ]
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
+	"github.com/duyb/esport-score-tracker/internal/ws"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -13,10 +14,11 @@ type WcChampionService struct {
 	repo     *repository.WcChampionRepository
 	wcRepo   *repository.WcRepository
 	userRepo *repository.WcUserRepository
+	hub      ws.HubBroadcaster
 }
 
-func NewWcChampionService(repo *repository.WcChampionRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository) *WcChampionService {
-	return &WcChampionService{repo: repo, wcRepo: wcRepo, userRepo: userRepo}
+func NewWcChampionService(repo *repository.WcChampionRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository, hub ws.HubBroadcaster) *WcChampionService {
+	return &WcChampionService{repo: repo, wcRepo: wcRepo, userRepo: userRepo, hub: hub}
 }
 
 // --- Config ---
@@ -114,6 +116,18 @@ func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, 
 	if err := s.repo.CreatePrediction(pred); err != nil {
 		return nil, fmt.Errorf("already predicted this team — each team can only be picked once")
 	}
+
+	if s.hub != nil {
+		s.hub.Broadcast(ws.ActivityEvent{
+			Type:      "bet_placed",
+			UserID:    wcUserID.String(),
+			UserName:  user.Name,
+			BetType:   "champion",
+			Selection: team.Name,
+			Stake:     points,
+		})
+	}
+
 	return s.repo.GetMyPrediction(wcUserID)
 }
 

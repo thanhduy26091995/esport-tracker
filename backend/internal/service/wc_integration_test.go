@@ -59,7 +59,7 @@ func openWcTestDB(t *testing.T) *gorm.DB {
 func newWcServices(db *gorm.DB) (*WcService, *WcAuthService) {
 	wcRepo := repository.NewWcRepository(db)
 	wcUserRepo := repository.NewWcUserRepository(db)
-	return NewWcService(wcRepo, wcUserRepo, nil), NewWcAuthService(wcUserRepo, wcRepo)
+	return NewWcService(wcRepo, wcUserRepo, nil, nil), NewWcAuthService(wcUserRepo, wcRepo)
 }
 
 // seedWcMatch inserts a match and registers cleanup.

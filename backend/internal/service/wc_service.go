@@ -8,6 +8,7 @@ import (
 
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
+	"github.com/duyb/esport-score-tracker/internal/ws"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -17,10 +18,11 @@ type WcService struct {
 	userRepo      *repository.WcUserRepository
 	customBetRepo *repository.WcCustomBetRepository
 	football      *footballClient
+	hub           ws.HubBroadcaster // nil-safe: no broadcast when nil
 }
 
-func NewWcService(repo *repository.WcRepository, userRepo *repository.WcUserRepository, customBetRepo *repository.WcCustomBetRepository) *WcService {
-	return &WcService{repo: repo, userRepo: userRepo, customBetRepo: customBetRepo, football: newFootballClient()}
+func NewWcService(repo *repository.WcRepository, userRepo *repository.WcUserRepository, customBetRepo *repository.WcCustomBetRepository, hub ws.HubBroadcaster) *WcService {
+	return &WcService{repo: repo, userRepo: userRepo, customBetRepo: customBetRepo, football: newFootballClient(), hub: hub}
 }
 
 // --- Config ---
@@ -246,6 +248,12 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 	if err := s.repo.CreatePrediction(nil, bet); err != nil {
 		return nil, fmt.Errorf("failed to submit prediction (may be duplicate): %w", err)
 	}
+
+	if s.hub != nil {
+		event := buildPredictionActivityEvent(wcUserID.String(), user.Name, req, m)
+		s.hub.Broadcast(event)
+	}
+
 	return bet, nil
 }
 
@@ -917,6 +925,12 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 	if err := s.repo.CreateBet(bet); err != nil {
 		return nil, fmt.Errorf("failed to place bet (may be duplicate): %w", err)
 	}
+
+	if s.hub != nil {
+		event := buildActivityEvent(wcUserID.String(), user.Name, req, m)
+		s.hub.Broadcast(event)
+	}
+
 	return bet, nil
 }
 

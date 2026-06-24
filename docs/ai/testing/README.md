@@ -1,63 +1,81 @@
 ---
 phase: testing
-title: Testing Strategy & Validation
-description: Define test scope, coverage, and validation criteria for the feature
+title: Testing Strategy
+description: Define testing approach, test cases, and quality assurance
 ---
 
 # Testing Strategy
 
-## Scope
-**What should be tested for this feature?**
+## Test Coverage Goals
+**What level of testing do we aim for?**
 
-- Unit test scope
-- Integration test scope
-- End-to-end test scope (if applicable)
-
-## Test Files
-**Which files contain tests?**
-
-| File | Package/Layer | Coverage Target |
-|------|---------------|----------------|
-| [path/to/test_file] | [module] | [target] |
+- Unit test coverage target (default: 100% of new/changed code)
+- Integration test scope (critical paths + error handling)
+- End-to-end test scenarios (key user journeys)
+- Alignment with requirements/design acceptance criteria
 
 ## Unit Tests
-**What logic should be validated in isolation?**
+**What individual components need testing?**
 
-- Core business logic happy paths
-- Boundary and edge cases
-- Validation and error handling cases
+### Component/Module 1
+- [ ] Test case 1: [Description] (covers scenario / branch)
+- [ ] Test case 2: [Description] (covers edge case / error handling)
+- [ ] Additional coverage: [Description]
+
+### Component/Module 2
+- [ ] Test case 1: [Description]
+- [ ] Test case 2: [Description]
+- [ ] Additional coverage: [Description]
 
 ## Integration Tests
-**What cross-component behaviors should be validated?**
+**How do we test component interactions?**
 
-- API + service + persistence behavior
-- Contract validation (request/response)
-- Data consistency expectations
+- [ ] Integration scenario 1
+- [ ] Integration scenario 2
+- [ ] API endpoint tests
+- [ ] Integration scenario 3 (failure mode / rollback)
 
-## Test Data & Environments
-**What data and setup are required?**
+## End-to-End Tests
+**What user flows need validation?**
 
-- Fixtures/seeds needed
-- Environment variables/config
-- Local vs CI considerations
+- [ ] User flow 1: [Description]
+- [ ] User flow 2: [Description]
+- [ ] Critical path testing
+- [ ] Regression of adjacent features
 
-## Execution
-**How do we run and verify tests?**
+## Test Data
+**What data do we use for testing?**
 
-- Commands to run tests
-- Commands to run coverage
-- Expected pass criteria
+- Test fixtures and mocks
+- Seed data requirements
+- Test database setup
 
-## Coverage & Quality Gates
-**What quality bar must be met?**
+## Test Reporting & Coverage
+**How do we verify and communicate test results?**
 
-- Coverage targets
-- Critical paths that must be green
-- Regression checks
+- Coverage commands and thresholds (`npm run test -- --coverage`)
+- Coverage gaps (files/functions below 100% and rationale)
+- Links to test reports or dashboards
+- Manual testing outcomes and sign-off
 
-## Risks & Gaps
-**What is not fully covered yet?**
+## Manual Testing
+**What requires human validation?**
 
-- Deferred tests
-- Known blind spots
-- Follow-up actions
+- UI/UX testing checklist (include accessibility)
+- Browser/device compatibility
+- Smoke tests after deployment
+
+## Performance Testing
+**How do we validate performance?**
+
+- Load testing scenarios
+- Stress testing approach
+- Performance benchmarks
+
+## Bug Tracking
+**How do we manage issues?**
+
+- Issue tracking process
+- Bug severity levels
+- Regression testing strategy
+

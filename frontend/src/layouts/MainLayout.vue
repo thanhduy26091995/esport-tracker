@@ -115,6 +115,9 @@ import { Menu, Trophy, HomeFilled, UserFilled, TrendCharts, DocumentCopy, Wallet
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useUserStore } from '@/stores/userStore'
 import { CLUBS } from '@/config/clubs'
+import { useActivityFeed } from '@/composables/useActivityFeed'
+
+useActivityFeed()
 
 const { t } = useI18n()
 const route = useRoute()

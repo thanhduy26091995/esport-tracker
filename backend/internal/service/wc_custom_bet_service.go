@@ -8,17 +8,20 @@ import (
 
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
+	"github.com/duyb/esport-score-tracker/internal/ws"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type WcCustomBetService struct {
-	repo   *repository.WcCustomBetRepository
-	wcRepo *repository.WcRepository
+	repo     *repository.WcCustomBetRepository
+	wcRepo   *repository.WcRepository
+	userRepo *repository.WcUserRepository
+	hub      ws.HubBroadcaster
 }
 
-func NewWcCustomBetService(repo *repository.WcCustomBetRepository, wcRepo *repository.WcRepository) *WcCustomBetService {
-	return &WcCustomBetService{repo: repo, wcRepo: wcRepo}
+func NewWcCustomBetService(repo *repository.WcCustomBetRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository, hub ws.HubBroadcaster) *WcCustomBetService {
+	return &WcCustomBetService{repo: repo, wcRepo: wcRepo, userRepo: userRepo, hub: hub}
 }
 
 type CreateCustomBetOption struct {
@@ -107,7 +110,14 @@ func (s *WcCustomBetService) GetMyEntries(userID uuid.UUID) ([]model.WcCustomBet
 	return s.repo.GetEntriesForUser(userID)
 }
 
-func (s *WcCustomBetService) PlaceEntry(betID, userID, optionID uuid.UUID, stake int) error {
+func (s *WcCustomBetService) PlaceEntry(betID, userID, optionID uuid.UUID, stake int, userName string) error {
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return fmt.Errorf("user not found")
+	}
+	if user.IsBlocked {
+		return fmt.Errorf("user is blocked from placing bets")
+	}
 	cfg, err := s.wcRepo.GetConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config")
@@ -135,7 +145,7 @@ func (s *WcCustomBetService) PlaceEntry(betID, userID, optionID uuid.UUID, stake
 		Status:       model.WcCustomBetEntryStatusPending,
 	}
 	db := s.wcRepo.DB()
-	return db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.CreateEntry(tx, entry); err != nil {
 			if strings.Contains(err.Error(), "idx_custom_bet_entry_dedup") {
 				return fmt.Errorf("bạn đã đặt cược cho kèo này rồi")
@@ -143,7 +153,23 @@ func (s *WcCustomBetService) PlaceEntry(betID, userID, optionID uuid.UUID, stake
 			return err
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if s.hub != nil {
+		s.hub.Broadcast(ws.ActivityEvent{
+			Type:      "bet_placed",
+			UserID:    userID.String(),
+			UserName:  userName,
+			BetType:   "custom",
+			Selection: bet.Title + " - " + opt.Label,
+			Stake:     stake,
+			MatchID:   bet.MatchID.String(),
+		})
+	}
+
+	return nil
 }
 
 func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {

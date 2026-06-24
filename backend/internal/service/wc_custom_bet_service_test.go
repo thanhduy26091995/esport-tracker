@@ -29,7 +29,7 @@ func newCustomBetService(db *gorm.DB) (*WcCustomBetService, *WcAuthService) {
 	wcUserRepo := repository.NewWcUserRepository(db)
 	customBetRepo := repository.NewWcCustomBetRepository(db)
 	authSvc := NewWcAuthService(wcUserRepo, wcRepo)
-	return NewWcCustomBetService(customBetRepo, wcRepo), authSvc
+	return NewWcCustomBetService(customBetRepo, wcRepo, wcUserRepo, nil), authSvc
 }
 
 // seedCustomBetUser creates a user + wallet with a given starting balance.
@@ -170,7 +170,7 @@ func TestWcCustomBet_PlaceEntry_HappyPath(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3)
+	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3, "test-user")
 	require.NoError(t, err)
 
 	// Wallet unchanged at placement (deferred-deduction model)
@@ -193,7 +193,7 @@ func TestWcCustomBet_PlaceEntry_BetClosed(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusClosed)
 
-	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3)
+	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3, "test-user")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "đóng")
 }
@@ -208,7 +208,7 @@ func TestWcCustomBet_PlaceEntry_OptionFromDifferentBet(t *testing.T) {
 	_, opts2 := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
 	// Try to place on bet1 using an option from bet2
-	err := svc.PlaceEntry(bet1.ID, player.ID, opts2[0].ID, 3)
+	err := svc.PlaceEntry(bet1.ID, player.ID, opts2[0].ID, 3, "test-user")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "hợp lệ")
 }
@@ -222,7 +222,7 @@ func TestWcCustomBet_PlaceEntry_StakeBelowMin(t *testing.T) {
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
 	// min_points defaults to 1; stake 0 is below
-	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 0)
+	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 0, "test-user")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "điểm cược")
 }
@@ -236,7 +236,7 @@ func TestWcCustomBet_PlaceEntry_ZeroBalance(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3)
+	err := svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3, "test-user")
 	require.NoError(t, err)
 	// Balance still 0 — nothing deducted at placement
 	assert.InDelta(t, 0.0, walletBalance(t, db, player.ID), 0.001)
@@ -250,8 +250,8 @@ func TestWcCustomBet_PlaceEntry_DuplicateEntry(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 2))
-	err := svc.PlaceEntry(bet.ID, player.ID, opts[1].ID, 2) // same bet, different option
+	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 2, "test-user"))
+	err := svc.PlaceEntry(bet.ID, player.ID, opts[1].ID, 2, "test-user") // same bet, different option
 	require.Error(t, err)
 	// Wallet unchanged throughout (no deduction at placement)
 	assert.InDelta(t, 20.0, walletBalance(t, db, player.ID), 0.001)
@@ -267,7 +267,7 @@ func TestWcCustomBet_CancelEntry_HappyPath(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 4))
+	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 4, "test-user"))
 	// Wallet unchanged at placement (deferred-deduction model)
 	assert.InDelta(t, 10.0, walletBalance(t, db, player.ID), 0.001)
 
@@ -290,7 +290,7 @@ func TestWcCustomBet_CancelEntry_WrongUser(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	require.NoError(t, svc.PlaceEntry(bet.ID, player1.ID, opts[0].ID, 3))
+	require.NoError(t, svc.PlaceEntry(bet.ID, player1.ID, opts[0].ID, 3, "test-user"))
 	var entry model.WcCustomBetEntry
 	require.NoError(t, db.Where("custom_bet_id = ? AND wc_user_id = ?", bet.ID, player1.ID).First(&entry).Error)
 
@@ -307,7 +307,7 @@ func TestWcCustomBet_CancelEntry_BetClosed(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3))
+	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3, "test-user"))
 	// Close the bet
 	require.NoError(t, svc.repo.UpdateBet(nil, bet.ID, map[string]interface{}{"status": model.WcCustomBetStatusClosed}))
 
@@ -331,8 +331,8 @@ func TestWcCustomBet_Settle_HappyPath(t *testing.T) {
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
 	// winner bets on opts[0] (Có, odds 1.8), loser bets on opts[1] (Không, odds 2.0)
-	require.NoError(t, svc.PlaceEntry(bet.ID, winner.ID, opts[0].ID, 5))
-	require.NoError(t, svc.PlaceEntry(bet.ID, loser.ID, opts[1].ID, 3))
+	require.NoError(t, svc.PlaceEntry(bet.ID, winner.ID, opts[0].ID, 5, "test-user"))
+	require.NoError(t, svc.PlaceEntry(bet.ID, loser.ID, opts[1].ID, 3, "test-user"))
 
 	require.NoError(t, svc.Settle(bet.ID, opts[0].ID, admin.ID))
 
@@ -371,7 +371,7 @@ func TestWcCustomBet_Settle_PayoutRounding(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3))
+	require.NoError(t, svc.PlaceEntry(bet.ID, player.ID, opts[0].ID, 3, "test-user"))
 	require.NoError(t, svc.Settle(bet.ID, opts[0].ID, admin.ID))
 
 	// payout = round(3 * 1.8 * 100)/100 = 5.4; net credit = 5.4 - 3 = 2.4; 10 + 2.4 = 12.4
@@ -415,8 +415,8 @@ func TestWcCustomBet_Void_HappyPath(t *testing.T) {
 	match := seedCustomBetMatch(t, db)
 	bet, opts := seedCustomBet(t, svc, match.ID, admin.ID, model.WcCustomBetStatusOpen)
 
-	require.NoError(t, svc.PlaceEntry(bet.ID, p1.ID, opts[0].ID, 4))
-	require.NoError(t, svc.PlaceEntry(bet.ID, p2.ID, opts[1].ID, 3))
+	require.NoError(t, svc.PlaceEntry(bet.ID, p1.ID, opts[0].ID, 4, "test-user"))
+	require.NoError(t, svc.PlaceEntry(bet.ID, p2.ID, opts[1].ID, 3, "test-user"))
 
 	require.NoError(t, svc.VoidBet(bet.ID))
 
