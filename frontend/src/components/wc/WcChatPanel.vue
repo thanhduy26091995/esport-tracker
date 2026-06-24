@@ -26,22 +26,44 @@
             <span class="msg-name">{{ msg.user_name }}</span>
             <span class="msg-time">{{ formatTime(msg.created_at) }}</span>
           </div>
-          <div class="msg-text">{{ msg.message }}</div>
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div class="msg-text" v-html="renderMessage(msg.message)"></div>
         </div>
       </div>
     </div>
 
     <div class="chat-input-area">
       <template v-if="auth.isLoggedIn">
-        <el-input
-          v-model="draft"
-          :placeholder="t('wc.chat.placeholder')"
-          :maxlength="500"
-          @keydown.enter.exact.prevent="submit"
-          :disabled="!chatWs.isConnected.value"
-          class="chat-input"
-          size="default"
-        />
+        <div class="input-wrap">
+          <el-input
+            v-model="draft"
+            :placeholder="t('wc.chat.placeholder')"
+            :maxlength="500"
+            @keydown.enter.exact.prevent="submit"
+            @keydown.escape="closeMentionDropdown"
+            @input="onInput"
+            :disabled="!chatWs.isConnected.value"
+            class="chat-input"
+            size="default"
+          />
+          <!-- @mention autocomplete dropdown -->
+          <div v-if="mentionDropdown.open" class="mention-dropdown">
+            <div
+              v-for="user in mentionDropdown.filtered"
+              :key="user.id"
+              class="mention-item"
+              @mousedown.prevent="selectMention(user)"
+            >
+              <el-avatar :src="user.avatar_url || undefined" :size="20" class="mention-avatar">
+                {{ user.name.charAt(0).toUpperCase() }}
+              </el-avatar>
+              <span class="mention-name">{{ user.name }}</span>
+            </div>
+            <div v-if="mentionDropdown.filtered.length === 0" class="mention-empty">
+              Không tìm thấy
+            </div>
+          </div>
+        </div>
         <el-button
           type="primary"
           size="default"
@@ -58,14 +80,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, reactive, watch, nextTick, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loading } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { useChatStore } from '@/stores/chatStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import { useChatWs } from '@/composables/useChatWs'
-import type { ChatMessage } from '@/types/chat'
+import type { ChatMessage, WcUserForMention } from '@/types/chat'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
@@ -74,12 +96,83 @@ const chatWs = useChatWs()
 
 const draft = ref('')
 const listRef = ref<HTMLElement | null>(null)
-// Guard: don't trigger loadMore until initial history is rendered and scrolled
 const readyToLoadMore = ref(false)
 
 const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
 const PAGE_SIZE = 20
 
+// --- mention state ---
+const pendingMentions = ref<WcUserForMention[]>([]) // users selected in this draft
+
+const mentionDropdown = reactive({
+  open: false,
+  query: '',
+  filtered: [] as WcUserForMention[],
+  triggerIndex: -1, // position of '@' in draft
+})
+
+function onInput() {
+  const val = draft.value
+  const cursorPos = val.length // input cursor is always at end for simplicity
+  // Find last '@' that has not been resolved yet
+  const lastAt = val.lastIndexOf('@')
+  if (lastAt === -1) {
+    mentionDropdown.open = false
+    return
+  }
+  const afterAt = val.slice(lastAt + 1)
+  // Close if there's a space after the '@' (user typed past a name)
+  if (afterAt.includes(' ')) {
+    mentionDropdown.open = false
+    return
+  }
+  mentionDropdown.triggerIndex = lastAt
+  mentionDropdown.query = afterAt.toLowerCase()
+  mentionDropdown.filtered = chatStore.wcUsers
+    .filter((u) => u.name.toLowerCase().includes(mentionDropdown.query))
+    .slice(0, 6)
+  mentionDropdown.open = mentionDropdown.filtered.length > 0 || mentionDropdown.query.length === 0
+
+  // Load users lazily on first '@'
+  if (!chatStore.wcUsersLoaded) {
+    chatStore.loadWcUsers().then(() => {
+      mentionDropdown.filtered = chatStore.wcUsers
+        .filter((u) => u.name.toLowerCase().includes(mentionDropdown.query))
+        .slice(0, 6)
+    })
+  }
+}
+
+function selectMention(user: WcUserForMention) {
+  // Replace from the '@' trigger to cursor with '@Name '
+  const before = draft.value.slice(0, mentionDropdown.triggerIndex)
+  draft.value = before + '@' + user.name + ' '
+  pendingMentions.value.push(user)
+  mentionDropdown.open = false
+}
+
+function closeMentionDropdown() {
+  mentionDropdown.open = false
+}
+
+// --- highlight mentions in rendered messages ---
+const mentionPattern = computed(() => {
+  if (chatStore.wcUsers.length === 0) return null
+  const names = chatStore.wcUsers.map((u) => u.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return new RegExp(`@(${names.join('|')})(?=\\s|$|[^\\w])`, 'g')
+})
+
+function renderMessage(text: string): string {
+  // Escape HTML first
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  if (!mentionPattern.value) return escaped
+  return escaped.replace(mentionPattern.value, '<span class="mention-highlight">@$1</span>')
+}
+
+// --- history / scroll ---
 async function loadHistory() {
   readyToLoadMore.value = false
   try {
@@ -88,13 +181,11 @@ async function loadHistory() {
       { params: { limit: PAGE_SIZE } },
     )
     chatStore.setHistory(res.data.messages ?? [], res.data.has_more ?? false)
-    // Double nextTick + rAF ensures DOM height is fully calculated before scrolling
     await nextTick()
     requestAnimationFrame(() => {
       if (listRef.value) {
         listRef.value.scrollTop = listRef.value.scrollHeight
       }
-      // Allow loadMore only after initial scroll is done
       readyToLoadMore.value = true
     })
   } catch {
@@ -144,28 +235,33 @@ function scrollToBottom() {
 function submit() {
   const text = draft.value.trim()
   if (!text) return
-  chatWs.sendMessage(text)
+  const mentionIDs = pendingMentions.value.map((u) => u.id)
+  chatWs.sendMessage(text, mentionIDs)
   draft.value = ''
+  pendingMentions.value = []
+  mentionDropdown.open = false
 }
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// Load history and scroll to bottom every time panel opens
 watch(
   () => chatStore.isPanelOpen,
   (open) => {
-    if (open) loadHistory()
-    else readyToLoadMore.value = false
+    if (open) {
+      loadHistory()
+      chatStore.markMentionsRead()
+      chatStore.loadWcUsers()
+    } else {
+      readyToLoadMore.value = false
+    }
   },
 )
 
-// Scroll to bottom only when a NEW message is appended via WS
 watch(
   () => chatStore.messages[chatStore.messages.length - 1]?.id,
   (newId, oldId) => {
-    // Only fire for genuinely new messages, not when history is set/prepended
     if (newId && oldId && readyToLoadMore.value) {
       nextTick(scrollToBottom)
     }
@@ -289,16 +385,77 @@ watch(
   line-height: 1.4;
 }
 
+:deep(.mention-highlight) {
+  color: var(--el-color-primary, #409eff);
+  font-weight: 600;
+}
+
+.chat-message.is-own :deep(.mention-highlight) {
+  color: #fff;
+  opacity: 0.9;
+}
+
 .chat-input-area {
   padding: 8px 10px;
   border-top: 1px solid var(--border-color, #e4e7ed);
   display: flex;
   gap: 6px;
   align-items: center;
+  position: relative;
+}
+
+.input-wrap {
+  flex: 1;
+  position: relative;
 }
 
 .chat-input {
-  flex: 1;
+  width: 100%;
+}
+
+.mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface-card, #fff);
+  border: 1px solid var(--border-color, #e4e7ed);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 2100;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.12s;
+}
+
+.mention-item:hover {
+  background: var(--surface-page, #f5f7fa);
+}
+
+.mention-avatar {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.mention-name {
+  font-weight: 500;
+  color: var(--text-primary, #303133);
+}
+
+.mention-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-muted, #909399);
+  text-align: center;
 }
 
 .send-btn {

@@ -284,6 +284,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAuth.GET("/custom-bet-entries", wcCustomBetHandler.GetMyCustomBetEntries)
 				wcAuth.POST("/custom-bets/:id/entry", wcCustomBetHandler.PlaceEntry)
 				wcAuth.DELETE("/custom-bet-entries/:id", wcCustomBetHandler.CancelEntry)
+				// Chat mention
+				wcAuth.GET("/users", wcHandler.ListUsersForMention)
+				wcAuth.GET("/chat/mentions/unread-count", wcChatHandler.GetUnreadMentionCount)
+				wcAuth.POST("/chat/mentions/read", wcChatHandler.MarkMentionsRead)
 			}
 
 			// Admin required

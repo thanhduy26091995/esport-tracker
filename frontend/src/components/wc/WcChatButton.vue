@@ -12,21 +12,24 @@
       <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
     </svg>
 
-    <span v-if="chatStore.unreadCount > 0 && !chatStore.isPanelOpen" class="chat-badge">
-      {{ chatStore.unreadCount > 99 ? '99+' : chatStore.unreadCount }}
+    <span v-if="totalUnread > 0 && !chatStore.isPanelOpen" class="chat-badge">
+      {{ totalUnread > 99 ? '99+' : totalUnread }}
     </span>
 
-    <!-- Pulse ring when there are unread messages -->
-    <span v-if="chatStore.unreadCount > 0 && !chatStore.isPanelOpen" class="pulse-ring" />
+    <!-- Pulse ring when there are unread messages or mentions -->
+    <span v-if="totalUnread > 0 && !chatStore.isPanelOpen" class="pulse-ring" />
   </button>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chatStore'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
+
+const totalUnread = computed(() => chatStore.unreadCount + chatStore.unreadMentionCount)
 
 function toggle() {
   if (chatStore.isPanelOpen) {

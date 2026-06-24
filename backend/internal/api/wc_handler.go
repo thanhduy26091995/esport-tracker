@@ -681,6 +681,29 @@ func (h *WcHandler) SetUserRole(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// ListUsersForMention handles GET /api/v1/wc/users — returns minimal user info for @mention autocomplete.
+// Requires JWT auth; excludes blocked users.
+func (h *WcHandler) ListUsersForMention(c *gin.Context) {
+	users, err := h.svc.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
+		return
+	}
+	type userItem struct {
+		ID        string  `json:"id"`
+		Name      string  `json:"name"`
+		AvatarURL *string `json:"avatar_url"`
+	}
+	items := make([]userItem, 0, len(users))
+	for _, u := range users {
+		if u.IsBlocked {
+			continue
+		}
+		items = append(items, userItem{ID: u.ID.String(), Name: u.Name, AvatarURL: u.AvatarURL})
+	}
+	c.JSON(http.StatusOK, gin.H{"users": items})
+}
+
 // ListUsers handles GET /api/v1/wc/admin/users
 func (h *WcHandler) ListUsers(c *gin.Context) {
 	users, err := h.svc.GetAllUsers()

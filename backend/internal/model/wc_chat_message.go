@@ -18,3 +18,15 @@ type WcChatMessage struct {
 func (WcChatMessage) TableName() string {
 	return "wc_chat_messages"
 }
+
+type WcChatMention struct {
+	ID              uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	MessageID       uuid.UUID  `gorm:"type:uuid;not null;index"                        json:"message_id"`
+	MentionedUserID uuid.UUID  `gorm:"type:uuid;not null;index"                        json:"mentioned_user_id"`
+	ReadAt          *time.Time `gorm:"index"                                           json:"read_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
+func (WcChatMention) TableName() string {
+	return "wc_chat_mentions"
+}

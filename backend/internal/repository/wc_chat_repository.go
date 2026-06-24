@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/duyb/esport-score-tracker/internal/model"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -38,4 +39,33 @@ func (r *WcChatRepository) ListMessages(limit int, before *time.Time) ([]model.W
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
 	return msgs, nil
+}
+
+func (r *WcChatRepository) SaveMentions(messageID uuid.UUID, userIDs []uuid.UUID) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	rows := make([]model.WcChatMention, 0, len(userIDs))
+	for _, uid := range userIDs {
+		rows = append(rows, model.WcChatMention{
+			MessageID:       messageID,
+			MentionedUserID: uid,
+		})
+	}
+	return r.db.Create(&rows).Error
+}
+
+func (r *WcChatRepository) UnreadMentionCount(userID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.WcChatMention{}).
+		Where("mentioned_user_id = ? AND read_at IS NULL", userID).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *WcChatRepository) MarkMentionsRead(userID uuid.UUID) error {
+	now := time.Now().UTC()
+	return r.db.Model(&model.WcChatMention{}).
+		Where("mentioned_user_id = ? AND read_at IS NULL", userID).
+		Update("read_at", now).Error
 }

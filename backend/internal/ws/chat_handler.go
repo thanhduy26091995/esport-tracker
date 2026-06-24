@@ -30,7 +30,7 @@ type ChatHandler struct {
 
 // ChatService is the subset of WcChatService used by ChatHandler.
 type ChatService interface {
-	SendMessage(userID uuid.UUID, userName, avatarURL, text string) error
+	SendMessage(userID uuid.UUID, userName, avatarURL, text string, mentions []uuid.UUID) error
 }
 
 func NewChatHandler(hub *Hub, tokenVerify TokenVerifier, avatarFetch UserAvatarFetcher, chatSvc ChatService) *ChatHandler {
@@ -104,7 +104,8 @@ func (h *ChatHandler) chatReadPump(cl *client) {
 			continue
 		}
 
-		if svcErr := h.chatService.SendMessage(cl.userID, cl.userName, cl.avatarURL, frame.Message); svcErr != nil {
+		mentions := parseMentionUUIDs(frame.Mentions)
+		if svcErr := h.chatService.SendMessage(cl.userID, cl.userName, cl.avatarURL, frame.Message, mentions); svcErr != nil {
 			h.sendError(cl, svcErr.Error())
 		}
 	}
@@ -116,6 +117,16 @@ func (h *ChatHandler) sendError(cl *client, msg string) {
 	case cl.send <- data:
 	default:
 	}
+}
+
+func parseMentionUUIDs(raw []string) []uuid.UUID {
+	out := make([]uuid.UUID, 0, len(raw))
+	for _, s := range raw {
+		if id, err := uuid.Parse(s); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // WcAuthTokenVerifier adapts WcAuthService to the TokenVerifier interface.

@@ -25,8 +25,18 @@ type HubBroadcaster interface {
 
 // ChatSendFrame is a client→server frame for chat messages.
 type ChatSendFrame struct {
-	Type    string `json:"type"`    // "chat_send"
-	Message string `json:"message"` // 1–500 chars
+	Type     string   `json:"type"`               // "chat_send"
+	Message  string   `json:"message"`            // 1–500 chars
+	Mentions []string `json:"mentions,omitempty"` // []uuid — user IDs to mention
+}
+
+// ChatMentionEvent is sent only to the mentioned user when they are tagged in a chat message.
+type ChatMentionEvent struct {
+	Type       string `json:"type"`        // "chat_mention"
+	MessageID  string `json:"message_id"`
+	SenderID   string `json:"sender_id"`
+	SenderName string `json:"sender_name"`
+	Message    string `json:"message"`
 }
 
 // ChatMessageEvent is the server→all-clients broadcast payload for a chat message.

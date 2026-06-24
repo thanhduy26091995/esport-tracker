@@ -1,11 +1,14 @@
 import { onMounted, onUnmounted, ref } from 'vue'
+import { ElNotification } from 'element-plus'
+import { storeToRefs } from 'pinia'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import { useChatStore } from '@/stores/chatStore'
-import type { ChatMessageEvent, ChatSendFrame } from '@/types/chat'
+import type { ChatMessageEvent, ChatMentionEvent, ChatSendFrame } from '@/types/chat'
 
 export function useChatWs() {
   const auth = useWcAuthStore()
   const chatStore = useChatStore()
+  const { isPanelOpen } = storeToRefs(chatStore)
   const isConnected = ref(false)
 
   let ws: WebSocket | null = null
@@ -31,16 +34,28 @@ export function useChatWs() {
 
     ws.onmessage = (e: MessageEvent) => {
       try {
-        const frame = JSON.parse(e.data) as ChatMessageEvent
-        if (frame.type !== 'chat_message') return
-        chatStore.appendMessage({
-          id: frame.id,
-          user_id: frame.user_id,
-          user_name: frame.user_name,
-          avatar_url: frame.avatar_url,
-          message: frame.message,
-          created_at: frame.created_at,
-        })
+        const frame = JSON.parse(e.data) as ChatMessageEvent | ChatMentionEvent
+        if (frame.type === 'chat_message') {
+          const msg = frame as ChatMessageEvent
+          chatStore.appendMessage({
+            id: msg.id,
+            user_id: msg.user_id,
+            user_name: msg.user_name,
+            avatar_url: msg.avatar_url,
+            message: msg.message,
+            created_at: msg.created_at,
+          })
+        } else if (frame.type === 'chat_mention') {
+          const mention = frame as ChatMentionEvent
+          chatStore.unreadMentionCount++
+          ElNotification({
+            title: `💬 ${mention.sender_name} nhắc đến bạn`,
+            message: mention.message.length > 80 ? mention.message.slice(0, 80) + '…' : mention.message,
+            duration: 6000,
+            position: isPanelOpen.value ? 'top-right' : 'bottom-right',
+            type: 'success',
+          })
+        }
       } catch {
         // Ignore malformed frames
       }
@@ -58,9 +73,10 @@ export function useChatWs() {
     }
   }
 
-  function sendMessage(text: string) {
+  function sendMessage(text: string, mentions: string[] = []) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     const frame: ChatSendFrame = { type: 'chat_send', message: text }
+    if (mentions.length > 0) frame.mentions = mentions
     ws.send(JSON.stringify(frame))
   }
 

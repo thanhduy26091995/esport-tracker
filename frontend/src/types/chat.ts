@@ -10,6 +10,7 @@ export interface ChatMessage {
 export interface ChatSendFrame {
   type: 'chat_send'
   message: string
+  mentions?: string[] // user UUIDs
 }
 
 export interface ChatMessageEvent {
@@ -22,7 +23,21 @@ export interface ChatMessageEvent {
   created_at: string
 }
 
+export interface ChatMentionEvent {
+  type: 'chat_mention'
+  message_id: string
+  sender_id: string
+  sender_name: string
+  message: string
+}
+
 export interface ChatErrorFrame {
   type: 'error'
   message: string
+}
+
+export interface WcUserForMention {
+  id: string
+  name: string
+  avatar_url: string | null
 }

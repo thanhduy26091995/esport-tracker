@@ -334,4 +334,15 @@ export const wcService = {
     const r = await wcApi.get<WcCustomBetEntryHistory[]>('/custom-bet-entries')
     return r.data ?? []
   },
+  async getWcUsersForMention(): Promise<{ users: { id: string; name: string; avatar_url: string | null }[] }> {
+    const r = await wcApi.get<{ users: { id: string; name: string; avatar_url: string | null }[] }>('/users')
+    return r.data
+  },
+  async getUnreadMentionCount(): Promise<{ count: number }> {
+    const r = await wcApi.get<{ count: number }>('/chat/mentions/unread-count')
+    return r.data
+  },
+  async markMentionsRead(): Promise<void> {
+    await wcApi.post('/chat/mentions/read')
+  },
 }

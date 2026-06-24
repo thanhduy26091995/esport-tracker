@@ -122,10 +122,18 @@ import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useUserStore } from '@/stores/userStore'
 import { CLUBS } from '@/config/clubs'
 import { useActivityFeed } from '@/composables/useActivityFeed'
+import { useChatStore } from '@/stores/chatStore'
+import { useWcAuthStore } from '@/stores/wcAuthStore'
 import WcChatButton from '@/components/wc/WcChatButton.vue'
 import WcChatPanel from '@/components/wc/WcChatPanel.vue'
 
 useActivityFeed()
+
+const wcAuth = useWcAuthStore()
+const chatStore = useChatStore()
+if (wcAuth.isLoggedIn) {
+  chatStore.fetchUnreadMentionCount()
+}
 
 const { t } = useI18n()
 const route = useRoute()

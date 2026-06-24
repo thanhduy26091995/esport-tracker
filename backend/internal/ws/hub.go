@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 // Hub maintains connected clients and broadcasts messages to all of them.
@@ -74,4 +76,21 @@ func (h *Hub) BroadcastChat(event ChatMessageEvent) {
 		return
 	}
 	h.broadcast <- data
+}
+
+// SendToUser delivers data to a single connected client identified by userID.
+// If the user is not connected or their send buffer is full, the message is dropped silently.
+func (h *Hub) SendToUser(userID uuid.UUID, data []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for c := range h.clients {
+		if c.userID == userID {
+			select {
+			case c.send <- data:
+			default:
+				log.Printf("ws: slow client for user %s, dropping targeted message", userID)
+			}
+			return
+		}
+	}
 }
