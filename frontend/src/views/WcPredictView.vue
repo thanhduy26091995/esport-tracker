@@ -89,7 +89,7 @@
                 </template>
               </WcMatchCard>
               <div v-if="expandedMatchIds.has(match.id)" class="wc-match-bets-panel">
-                <WcMatchPredictionList :predictions="matchPredictionsMap[match.id] ?? []" />
+                <WcMatchPredictionList :predictions="matchPredictionsMap[match.id] ?? []" :homeTeam="match.home_team" :awayTeam="match.away_team" />
               </div>
             </div>
           </div>

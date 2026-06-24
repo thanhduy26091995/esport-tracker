@@ -168,6 +168,8 @@
     "betForm": "Place a Bet",
     "betTypeHandicap": "Handicap",
     "betTypeExactScore": "Exact Score",
+    "choiceOver": "Over",
+    "choiceUnder": "Under",
     "stake": "Stake",
     "payout": "Payout",
     "submitBet": "Confirm Bet",

@@ -190,10 +190,38 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 	if bet.Status != model.WcCustomBetStatusOpen {
 		return fmt.Errorf("kèo đã đóng, không thể huỷ")
 	}
+	opt, _ := s.repo.GetOptionByID(entry.OptionID)
+	match, _ := s.wcRepo.GetMatch(bet.MatchID)
+
 	db := s.wcRepo.DB()
-	return db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		return s.repo.DeleteEntry(tx, entryID)
-	})
+	}); err != nil {
+		return err
+	}
+
+	if s.hub != nil && match != nil {
+		user, _ := s.userRepo.GetByID(userID)
+		userName := ""
+		if user != nil {
+			userName = user.Name
+		}
+		optLabel := bet.Title
+		if opt != nil {
+			optLabel = bet.Title + " - " + opt.Label
+		}
+		s.hub.Broadcast(ws.ActivityEvent{
+			Type:      "bet_cancelled",
+			UserID:    userID.String(),
+			UserName:  userName,
+			BetType:   "custom",
+			Selection: optLabel,
+			MatchID:   bet.MatchID.String(),
+			TeamHome:  match.HomeTeam,
+			TeamAway:  match.AwayTeam,
+		})
+	}
+	return nil
 }
 
 func (s *WcCustomBetService) Settle(betID, winningOptionID, adminID uuid.UUID) error {

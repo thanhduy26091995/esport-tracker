@@ -21,6 +21,12 @@
           <template v-if="bet.bet_type === 'exact_score'">
             {{ bet.predicted_home_score }}–{{ bet.predicted_away_score }}
           </template>
+          <template v-else-if="bet.bet_type === 'handicap'">
+            {{ bet.bet_choice === 'home' ? (homeTeam || bet.bet_choice) : (awayTeam || bet.bet_choice) }}
+          </template>
+          <template v-else-if="bet.bet_type === 'over_under'">
+            {{ bet.bet_choice === 'over' ? t('wc.choiceOver') : t('wc.choiceUnder') }}
+          </template>
           <template v-else>
             {{ bet.bet_choice }}
           </template>
@@ -44,7 +50,7 @@ const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2020/
 
 const { t } = useI18n()
 const betTypeLabel = useWcBetTypeLabel()
-defineProps<{ bets: WcBetPublic[] }>()
+defineProps<{ bets: WcBetPublic[]; homeTeam?: string; awayTeam?: string }>()
 </script>
 
 <style scoped>

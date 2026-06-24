@@ -26,7 +26,7 @@
                 {{ pred.prediction_choice === 'home' ? pred.home_team : pred.away_team }}
               </template>
               <template v-else-if="pred.prediction_type === 'over_under'">
-                {{ pred.prediction_choice === 'over' ? 'Tài' : 'Xỉu' }}
+                {{ pred.prediction_choice === 'over' ? t('wc.choiceOver') : t('wc.choiceUnder') }}
               </template>
               <template v-else-if="pred.prediction_type === 'custom'">
                 <span v-if="pred.bet_title" class="wc-bet-custom-title">{{ pred.bet_title }}</span>
@@ -160,7 +160,7 @@ async function saveEdit(pred: WcPredictionWithMatch) {
 
 async function handleDelete(pred: WcPredictionWithMatch) {
   await ElMessageBox.confirm(
-    `Xoá dự đoán ${pred.prediction_type === 'handicap' ? (pred.prediction_choice === 'home' ? pred.home_team : pred.away_team) : `${pred.predicted_home_score}–${pred.predicted_away_score}`} (${pred.points} pts)?`,
+    `Xoá dự đoán ${pred.prediction_type === 'handicap' ? (pred.prediction_choice === 'home' ? pred.home_team : pred.away_team) : pred.prediction_type === 'over_under' ? (pred.prediction_choice === 'over' ? t('wc.choiceOver') : t('wc.choiceUnder')) : `${pred.predicted_home_score}–${pred.predicted_away_score}`} (${pred.points} pts)?`,
     'Xác nhận xoá dự đoán',
     { confirmButtonText: 'Xoá', cancelButtonText: 'Hủy', type: 'warning' },
   )

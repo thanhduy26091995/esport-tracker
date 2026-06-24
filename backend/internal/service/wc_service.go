@@ -289,7 +289,18 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
 	if isLocked(m) {
 		return fmt.Errorf("cannot modify prediction: match is locked")
 	}
-	return s.repo.DeletePrediction(betID)
+	if err := s.repo.DeletePrediction(betID); err != nil {
+		return err
+	}
+	if s.hub != nil {
+		user, _ := s.userRepo.GetByID(wcUserID)
+		userName := ""
+		if user != nil {
+			userName = user.Name
+		}
+		s.hub.Broadcast(buildCancelActivityEvent(wcUserID.String(), userName, bet.PredictionType, m.HomeTeam, m.AwayTeam, bet.MatchID.String()))
+	}
+	return nil
 }
 
 func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int) error {
@@ -988,7 +999,18 @@ func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
 	if isBetLocked(m) {
 		return fmt.Errorf("betting is closed for this match")
 	}
-	return s.repo.DeleteBet(betID, wcUserID)
+	if err := s.repo.DeleteBet(betID, wcUserID); err != nil {
+		return err
+	}
+	if s.hub != nil {
+		user, _ := s.userRepo.GetByID(wcUserID)
+		userName := ""
+		if user != nil {
+			userName = user.Name
+		}
+		s.hub.Broadcast(buildCancelActivityEvent(wcUserID.String(), userName, bet.BetType, m.HomeTeam, m.AwayTeam, bet.MatchID.String()))
+	}
+	return nil
 }
 
 // SettleMatch evaluates all bets on a match and updates wallets. Idempotent.

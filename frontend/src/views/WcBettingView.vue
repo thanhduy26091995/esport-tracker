@@ -87,7 +87,7 @@
                 </template>
               </WcMatchCard>
               <div v-if="expandedMatchId === match.id" class="wc-match-bets-panel">
-                <WcMatchBetList :bets="store.matchBets" />
+                <WcMatchBetList :bets="store.matchBets" :homeTeam="match.home_team" :awayTeam="match.away_team" />
               </div>
               <div v-if="expandedCustomBetMatchId === match.id" class="wc-custom-bets-panel">
                 <div v-if="!customBetsByMatch[match.id] || customBetsByMatch[match.id].length === 0" class="wc-custom-bets-empty">

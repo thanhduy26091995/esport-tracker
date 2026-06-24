@@ -168,6 +168,8 @@
     "betTypeOverUnder": "Kèo tài xỉu",
     "betTypeCorner": "Kèo góc",
     "betTypeCustom": "Kèo phụ",
+    "choiceOver": "Tài",
+    "choiceUnder": "Xỉu",
     "stake": "Số tiền cược",
     "payout": "Tiền thắng",
     "submitBet": "Xác nhận cược",

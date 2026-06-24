@@ -21,6 +21,12 @@
           <template v-if="pred.prediction_type === 'exact_score'">
             {{ pred.predicted_home_score }}–{{ pred.predicted_away_score }}
           </template>
+          <template v-else-if="pred.prediction_type === 'handicap'">
+            {{ pred.prediction_choice === 'home' ? (homeTeam || pred.prediction_choice) : (awayTeam || pred.prediction_choice) }}
+          </template>
+          <template v-else-if="pred.prediction_type === 'over_under'">
+            {{ pred.prediction_choice === 'over' ? t('wc.choiceOver') : t('wc.choiceUnder') }}
+          </template>
           <template v-else-if="pred.prediction_type === 'custom'">
             <span v-if="pred.bet_title" class="wc-mb-bet-title">{{ pred.bet_title }}</span>
             {{ pred.prediction_choice }}
@@ -52,7 +58,7 @@ function fmtPts(v: number): string {
 
 const { t } = useI18n()
 const betTypeLabel = useWcBetTypeLabel()
-defineProps<{ predictions: WcPredictionPublic[] }>()
+defineProps<{ predictions: WcPredictionPublic[]; homeTeam?: string; awayTeam?: string }>()
 </script>
 
 <style scoped>

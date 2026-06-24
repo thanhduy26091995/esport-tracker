@@ -43,6 +43,19 @@ func buildPredictionActivityEvent(userID, userName string, req SubmitPredictionR
 	}
 }
 
+// buildCancelActivityEvent constructs the WebSocket payload broadcast after a bet is deleted.
+func buildCancelActivityEvent(userID, userName, betType, teamHome, teamAway, matchID string) ws.ActivityEvent {
+	return ws.ActivityEvent{
+		Type:     "bet_cancelled",
+		UserID:   userID,
+		UserName: userName,
+		BetType:  betType,
+		MatchID:  matchID,
+		TeamHome: teamHome,
+		TeamAway: teamAway,
+	}
+}
+
 func buildSelectionFromParts(betType string, choice *string, homeScore, awayScore *int, m *model.WcMatch) string {
 	switch betType {
 	case model.WcPredictionTypeHandicap:

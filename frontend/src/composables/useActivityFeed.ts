@@ -9,10 +9,15 @@ const BET_TYPE_LABEL: Record<string, string> = {
   handicap: 'Kèo Chấp',
   exact_score: 'Tỉ Số',
   over_under: 'Tài Xỉu',
+  custom: 'Kèo Phụ',
 }
 
 function formatMessage(event: ActivityEvent): string {
   const betLabel = BET_TYPE_LABEL[event.bet_type] ?? event.bet_type
+  const matchLabel = `${event.team_home} vs ${event.team_away}`
+  if (event.type === 'bet_cancelled') {
+    return `${event.user_name} đã huỷ cược ${betLabel} trận ${matchLabel}`
+  }
   return `${event.user_name} vừa đặt ${betLabel} — ${event.selection} (${event.stake} ly)`
 }
 
@@ -34,17 +39,17 @@ export function useActivityFeed() {
     ws.onmessage = (e: MessageEvent) => {
       try {
         const event = JSON.parse(e.data) as ActivityEvent
-        if (event.type !== 'bet_placed') return
+        if (event.type !== 'bet_placed' && event.type !== 'bet_cancelled') return
 
         // Self-suppression: don't show own bets
         if (auth.user?.id && event.user_id === auth.user.id) return
 
         ElNotification({
-          title: '🎯 Hoạt động',
+          title: event.type === 'bet_cancelled' ? '↩️ Quay xe' : '🎯 Hoạt động',
           message: formatMessage(event),
           duration: 5000,
           position: isPanelOpen.value ? 'top-right' : 'bottom-right',
-          type: 'info',
+          type: event.type === 'bet_cancelled' ? 'warning' : 'info',
         })
       } catch {
         // Ignore malformed frames
