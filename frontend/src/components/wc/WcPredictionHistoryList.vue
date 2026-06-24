@@ -38,7 +38,7 @@
             </span>
 
             <!-- Inline points edit -->
-            <template v-if="pred.prediction_type === 'custom' && !pred.result">
+            <template v-if="pred.prediction_type === 'custom' && !pred.result && pred.match_status !== 'live'">
               <el-button
                 size="small"
                 text

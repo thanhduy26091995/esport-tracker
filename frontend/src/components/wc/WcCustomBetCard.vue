@@ -36,7 +36,7 @@
           Đã cược <strong>{{ bet.my_entry.stake }}</strong> điểm
         </span>
         <el-button
-          v-if="bet.status === 'open'"
+          v-if="bet.status === 'open' && matchStatus !== 'live'"
           size="small"
           text
           type="danger"
@@ -106,6 +106,7 @@ const placing = ref(false)
 const cancelling = ref(false)
 
 const canBet = computed(() => props.bet.status === 'open')
+const matchStatus = computed(() => wcStore.matches.find(m => m.id === props.bet.match_id)?.status)
 
 const statusTagType = computed(() => {
   switch (props.bet.status) {
