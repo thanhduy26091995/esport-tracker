@@ -13,7 +13,7 @@ import (
 // ChatRepository is the persistence interface for WcChatService.
 type ChatRepository interface {
 	Save(msg *model.WcChatMessage) error
-	ListLast100() ([]model.WcChatMessage, error)
+	ListMessages(limit int, before *time.Time) ([]model.WcChatMessage, error)
 }
 
 // ChatHubBroadcaster is the interface WcChatService depends on for broadcasting.
@@ -68,7 +68,7 @@ func (s *WcChatService) SendMessage(userID uuid.UUID, userName, avatarURL, text 
 	return nil
 }
 
-// ListHistory returns the last 100 messages ordered oldest → newest.
-func (s *WcChatService) ListHistory() ([]model.WcChatMessage, error) {
-	return s.repo.ListLast100()
+// ListHistory returns up to limit messages, optionally before a cursor timestamp.
+func (s *WcChatService) ListHistory(limit int, before *time.Time) ([]model.WcChatMessage, error) {
+	return s.repo.ListMessages(limit, before)
 }

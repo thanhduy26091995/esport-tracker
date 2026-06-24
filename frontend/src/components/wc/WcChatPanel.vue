@@ -5,7 +5,10 @@
       <el-button text @click="chatStore.closePanel()" class="close-btn">✕</el-button>
     </div>
 
-    <div ref="listRef" class="chat-messages">
+    <div ref="listRef" class="chat-messages" @scroll="onScroll">
+      <div v-if="chatStore.isLoadingMore" class="load-more-spinner">
+        <el-icon class="is-loading"><Loading /></el-icon>
+      </div>
       <div v-if="chatStore.messages.length === 0" class="chat-empty">
         {{ t('wc.chat.empty') }}
       </div>
@@ -55,8 +58,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Loading } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { useChatStore } from '@/stores/chatStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
@@ -70,24 +74,71 @@ const chatWs = useChatWs()
 
 const draft = ref('')
 const listRef = ref<HTMLElement | null>(null)
+// Guard: don't trigger loadMore until initial history is rendered and scrolled
+const readyToLoadMore = ref(false)
 
 const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
+const PAGE_SIZE = 20
 
 async function loadHistory() {
+  readyToLoadMore.value = false
   try {
-    const res = await axios.get<{ messages: ChatMessage[] }>(`${BASE}/chat/messages`)
-    chatStore.setHistory(res.data.messages ?? [])
+    const res = await axios.get<{ messages: ChatMessage[]; has_more: boolean }>(
+      `${BASE}/chat/messages`,
+      { params: { limit: PAGE_SIZE } },
+    )
+    chatStore.setHistory(res.data.messages ?? [], res.data.has_more ?? false)
+    // Double nextTick + rAF ensures DOM height is fully calculated before scrolling
+    await nextTick()
+    requestAnimationFrame(() => {
+      if (listRef.value) {
+        listRef.value.scrollTop = listRef.value.scrollHeight
+      }
+      // Allow loadMore only after initial scroll is done
+      readyToLoadMore.value = true
+    })
   } catch {
-    // History unavailable — chat still works via WS
+    readyToLoadMore.value = true
+  }
+}
+
+async function loadMore() {
+  if (!readyToLoadMore.value || !chatStore.hasMore || chatStore.isLoadingMore) return
+  const oldest = chatStore.messages[0]
+  if (!oldest) return
+
+  chatStore.isLoadingMore = true
+  const el = listRef.value
+  const prevScrollHeight = el?.scrollHeight ?? 0
+
+  try {
+    const res = await axios.get<{ messages: ChatMessage[]; has_more: boolean }>(
+      `${BASE}/chat/messages`,
+      { params: { limit: PAGE_SIZE, before: oldest.created_at } },
+    )
+    chatStore.prependHistory(res.data.messages ?? [], res.data.has_more ?? false)
+    await nextTick()
+    if (el) {
+      el.scrollTop = el.scrollHeight - prevScrollHeight
+    }
+  } catch {
+    // ignore
+  } finally {
+    chatStore.isLoadingMore = false
+  }
+}
+
+function onScroll() {
+  if (!listRef.value || !readyToLoadMore.value) return
+  if (listRef.value.scrollTop < 40) {
+    loadMore()
   }
 }
 
 function scrollToBottom() {
-  nextTick(() => {
-    if (listRef.value) {
-      listRef.value.scrollTop = listRef.value.scrollHeight
-    }
-  })
+  if (listRef.value) {
+    listRef.value.scrollTop = listRef.value.scrollHeight
+  }
 }
 
 function submit() {
@@ -101,21 +152,25 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// Scroll to bottom when new messages arrive
-watch(() => chatStore.messages.length, scrollToBottom)
-
-// Load history when panel first opens
+// Load history and scroll to bottom every time panel opens
 watch(
   () => chatStore.isPanelOpen,
   (open) => {
-    if (open && chatStore.messages.length === 0) loadHistory()
-    if (open) scrollToBottom()
+    if (open) loadHistory()
+    else readyToLoadMore.value = false
   },
 )
 
-onMounted(() => {
-  if (chatStore.isPanelOpen && chatStore.messages.length === 0) loadHistory()
-})
+// Scroll to bottom only when a NEW message is appended via WS
+watch(
+  () => chatStore.messages[chatStore.messages.length - 1]?.id,
+  (newId, oldId) => {
+    // Only fire for genuinely new messages, not when history is set/prepended
+    if (newId && oldId && readyToLoadMore.value) {
+      nextTick(scrollToBottom)
+    }
+  },
+)
 </script>
 
 <style scoped>
@@ -160,6 +215,14 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.load-more-spinner {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0;
+  color: var(--text-secondary, #909399);
+  font-size: 16px;
 }
 
 .chat-empty {

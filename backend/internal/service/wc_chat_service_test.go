@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/service"
@@ -28,7 +29,7 @@ func (r *fakeChatRepo) Save(msg *model.WcChatMessage) error {
 	return nil
 }
 
-func (r *fakeChatRepo) ListLast100() ([]model.WcChatMessage, error) {
+func (r *fakeChatRepo) ListMessages(_ int, _ *time.Time) ([]model.WcChatMessage, error) {
 	return r.history, nil
 }
 

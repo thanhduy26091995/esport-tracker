@@ -6,6 +6,8 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([])
   const unreadCount = ref(0)
   const isPanelOpen = ref(false)
+  const hasMore = ref(true)
+  const isLoadingMore = ref(false)
 
   function openPanel() {
     isPanelOpen.value = true
@@ -25,9 +27,28 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function setHistory(history: ChatMessage[]) {
+  function setHistory(history: ChatMessage[], more: boolean) {
     messages.value = history
+    hasMore.value = more
   }
 
-  return { messages, unreadCount, isPanelOpen, openPanel, closePanel, appendMessage, setHistory }
+  function prependHistory(older: ChatMessage[], more: boolean) {
+    const ids = new Set(messages.value.map((m) => m.id))
+    const fresh = older.filter((m) => !ids.has(m.id))
+    messages.value = [...fresh, ...messages.value]
+    hasMore.value = more
+  }
+
+  return {
+    messages,
+    unreadCount,
+    isPanelOpen,
+    hasMore,
+    isLoadingMore,
+    openPanel,
+    closePanel,
+    appendMessage,
+    setHistory,
+    prependHistory,
+  }
 })
