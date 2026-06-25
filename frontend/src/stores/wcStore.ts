@@ -41,6 +41,7 @@ export const useWcStore = defineStore('wc', () => {
   const matchBets = ref<WcBetPublic[]>([])
 
   const loading = ref(false)
+  const leaderboardLoading = ref(false)
 
   async function fetchPublicConfig() {
     try {
@@ -183,11 +184,11 @@ export const useWcStore = defineStore('wc', () => {
   }
 
   async function fetchLeaderboard() {
-    loading.value = true
+    leaderboardLoading.value = true
     try {
       leaderboard.value = (await wcService.getLeaderboard()) ?? []
     } finally {
-      loading.value = false
+      leaderboardLoading.value = false
     }
   }
 
@@ -251,6 +252,7 @@ export const useWcStore = defineStore('wc', () => {
     bets,
     matchBets,
     leaderboard,
+    leaderboardLoading,
     allWallets,
     allUsers,
     settlements,

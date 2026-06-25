@@ -99,6 +99,9 @@
         </div>
       </header>
 
+      <!-- WC Top-3 Honor Banner -->
+      <WcTop3Banner v-if="isWcRoute && wcAuth.isLoggedIn" />
+
       <!-- Scrollable page -->
       <main class="page-scroll">
         <router-view />
@@ -126,6 +129,7 @@ import { useChatStore } from '@/stores/chatStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import WcChatButton from '@/components/wc/WcChatButton.vue'
 import WcChatPanel from '@/components/wc/WcChatPanel.vue'
+import WcTop3Banner from '@/components/wc/WcTop3Banner.vue'
 
 useActivityFeed()
 

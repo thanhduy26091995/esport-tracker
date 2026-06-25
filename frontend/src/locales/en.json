@@ -119,6 +119,12 @@
     "correct": "Correct",
     "rank": "Rank",
     "noLeaderboard": "No results yet",
+    "top3Banner": {
+      "label": "🏆 Top 3",
+      "pts": "pts",
+      "rank": "Rank",
+      "ariaLabel": "Top 3 Leaderboard"
+    },
     "adminPanel": "WC Admin",
     "featureToggle": "Feature Toggle",
     "featureEnabled": "Enabled",

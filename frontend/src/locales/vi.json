@@ -116,6 +116,12 @@
     "correct": "Đúng",
     "rank": "Hạng",
     "noLeaderboard": "Chưa có kết quả",
+    "top3Banner": {
+      "label": "🏆 BXH Top 3",
+      "pts": "điểm",
+      "rank": "Hạng",
+      "ariaLabel": "Bảng xếp hạng Top 3"
+    },
     "adminPanel": "Quản trị WC",
     "featureToggle": "Bật/tắt tính năng",
     "featureEnabled": "Đang bật",
