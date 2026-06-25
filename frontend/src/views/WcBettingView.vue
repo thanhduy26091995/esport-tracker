@@ -202,7 +202,8 @@ const betFilterOptions = computed(() => [
 ])
 
 function isBettable(m: WcMatch): boolean {
-  if (m.status === 'completed' || m.status === 'cancelled') return false
+  if (m.status === 'live' || m.status === 'completed' || m.status === 'cancelled') return false
+  if (new Date(m.match_date).getTime() <= Date.now()) return false
   if (m.bets_locked_at && new Date(m.bets_locked_at) <= new Date()) return false
   return true
 }

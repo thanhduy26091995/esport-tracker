@@ -39,19 +39,19 @@
             v-model="draft"
             :placeholder="t('wc.chat.placeholder')"
             :maxlength="500"
-            @keydown.enter.exact.prevent="submit"
-            @keydown.escape="closeMentionDropdown"
+            @keydown="onKeydown"
             @input="onInput"
             :disabled="!chatWs.isConnected.value"
             class="chat-input"
             size="default"
           />
           <!-- @mention autocomplete dropdown -->
-          <div v-if="mentionDropdown.open" class="mention-dropdown">
+          <div v-if="mentionDropdown.open" ref="mentionListRef" class="mention-dropdown">
             <div
-              v-for="user in mentionDropdown.filtered"
+              v-for="(user, idx) in mentionDropdown.filtered"
               :key="user.id"
               class="mention-item"
+              :class="{ 'is-selected': idx === mentionDropdown.selectedIndex }"
               @mousedown.prevent="selectMention(user)"
             >
               <el-avatar :src="user.avatar_url || undefined" :size="20" class="mention-avatar">
@@ -96,6 +96,7 @@ const chatWs = useChatWs()
 
 const draft = ref('')
 const listRef = ref<HTMLElement | null>(null)
+const mentionListRef = ref<HTMLElement | null>(null)
 const readyToLoadMore = ref(false)
 
 const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
@@ -109,11 +110,61 @@ const mentionDropdown = reactive({
   query: '',
   filtered: [] as WcUserForMention[],
   triggerIndex: -1, // position of '@' in draft
+  selectedIndex: -1, // keyboard-navigated selection; -1 = none
 })
+
+function onKeydown(e: KeyboardEvent) {
+  if (mentionDropdown.open && mentionDropdown.filtered.length > 0) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      mentionDropdown.selectedIndex =
+        mentionDropdown.selectedIndex >= mentionDropdown.filtered.length - 1
+          ? 0
+          : mentionDropdown.selectedIndex + 1
+      scrollSelectedIntoView()
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      mentionDropdown.selectedIndex =
+        mentionDropdown.selectedIndex <= 0
+          ? mentionDropdown.filtered.length - 1
+          : mentionDropdown.selectedIndex - 1
+      scrollSelectedIntoView()
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault()
+      const idx = mentionDropdown.selectedIndex >= 0 ? mentionDropdown.selectedIndex : 0
+      selectMention(mentionDropdown.filtered[idx])
+      return
+    }
+  }
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault()
+    submit()
+  } else if (e.key === 'Escape') {
+    closeMentionDropdown()
+  }
+}
+
+function scrollSelectedIntoView() {
+  nextTick(() => {
+    if (!mentionListRef.value) return
+    const items = mentionListRef.value.querySelectorAll<HTMLElement>('.mention-item')
+    items[mentionDropdown.selectedIndex]?.scrollIntoView({ block: 'nearest' })
+  })
+}
+
+function filterCandidates(query: string): WcUserForMention[] {
+  const selfId = auth.user?.id
+  return chatStore.wcUsers
+    .filter((u) => u.id !== selfId && u.name.toLowerCase().includes(query))
+    .slice(0, 6)
+}
 
 function onInput() {
   const val = draft.value
-  const cursorPos = val.length // input cursor is always at end for simplicity
   // Find last '@' that has not been resolved yet
   const lastAt = val.lastIndexOf('@')
   if (lastAt === -1) {
@@ -128,17 +179,15 @@ function onInput() {
   }
   mentionDropdown.triggerIndex = lastAt
   mentionDropdown.query = afterAt.toLowerCase()
-  mentionDropdown.filtered = chatStore.wcUsers
-    .filter((u) => u.name.toLowerCase().includes(mentionDropdown.query))
-    .slice(0, 6)
+  mentionDropdown.filtered = filterCandidates(mentionDropdown.query)
+  mentionDropdown.selectedIndex = -1
   mentionDropdown.open = mentionDropdown.filtered.length > 0 || mentionDropdown.query.length === 0
 
   // Load users lazily on first '@'
   if (!chatStore.wcUsersLoaded) {
     chatStore.loadWcUsers().then(() => {
-      mentionDropdown.filtered = chatStore.wcUsers
-        .filter((u) => u.name.toLowerCase().includes(mentionDropdown.query))
-        .slice(0, 6)
+      mentionDropdown.filtered = filterCandidates(mentionDropdown.query)
+      mentionDropdown.selectedIndex = -1
     })
   }
 }
@@ -153,6 +202,7 @@ function selectMention(user: WcUserForMention) {
 
 function closeMentionDropdown() {
   mentionDropdown.open = false
+  mentionDropdown.selectedIndex = -1
 }
 
 // --- highlight mentions in rendered messages ---
@@ -437,8 +487,13 @@ watch(
   transition: background 0.12s;
 }
 
-.mention-item:hover {
+.mention-item:hover,
+.mention-item.is-selected {
   background: var(--surface-page, #f5f7fa);
+}
+
+.mention-item.is-selected .mention-name {
+  color: var(--el-color-primary, #409eff);
 }
 
 .mention-avatar {

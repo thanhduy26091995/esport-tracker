@@ -36,7 +36,7 @@
           Đã cược <strong>{{ bet.my_entry.stake }}</strong> điểm
         </span>
         <el-button
-          v-if="bet.status === 'open' && matchStatus !== 'live'"
+          v-if="bet.status === 'open' && !isMatchLive"
           size="small"
           text
           type="danger"
@@ -105,8 +105,14 @@ const stake = ref(wcStore.minPoints)
 const placing = ref(false)
 const cancelling = ref(false)
 
-const canBet = computed(() => props.bet.status === 'open')
-const matchStatus = computed(() => wcStore.matches.find(m => m.id === props.bet.match_id)?.status)
+const isMatchLive = computed(() => {
+  const match = wcStore.matches.find(m => m.id === props.bet.match_id)
+  if (!match) return false
+  if (match.status === 'live' || match.status === 'completed' || match.status === 'cancelled') return true
+  return new Date(match.match_date).getTime() <= Date.now()
+})
+
+const canBet = computed(() => props.bet.status === 'open' && !isMatchLive.value)
 
 const statusTagType = computed(() => {
   switch (props.bet.status) {

@@ -132,6 +132,13 @@ func (s *WcCustomBetService) PlaceEntry(betID, userID, optionID uuid.UUID, stake
 	if bet.Status != model.WcCustomBetStatusOpen {
 		return fmt.Errorf("kèo đã đóng")
 	}
+	betMatch, err := s.wcRepo.GetMatch(bet.MatchID)
+	if err != nil {
+		return fmt.Errorf("match not found")
+	}
+	if betMatch.Status == model.WcStatusLive || betMatch.Status == model.WcStatusCompleted || betMatch.Status == model.WcStatusCancelled {
+		return fmt.Errorf("không thể đặt cược khi trận đang diễn ra hoặc đã kết thúc")
+	}
 	opt, err := s.repo.GetOptionByID(optionID)
 	if err != nil || opt.CustomBetID != betID {
 		return fmt.Errorf("lựa chọn không hợp lệ")
@@ -190,8 +197,14 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 	if bet.Status != model.WcCustomBetStatusOpen {
 		return fmt.Errorf("kèo đã đóng, không thể huỷ")
 	}
+	cancelMatch, err := s.wcRepo.GetMatch(bet.MatchID)
+	if err != nil {
+		return fmt.Errorf("match not found")
+	}
+	if cancelMatch.Status == model.WcStatusLive || cancelMatch.Status == model.WcStatusCompleted || cancelMatch.Status == model.WcStatusCancelled {
+		return fmt.Errorf("không thể huỷ cược khi trận đang diễn ra hoặc đã kết thúc")
+	}
 	opt, _ := s.repo.GetOptionByID(entry.OptionID)
-	match, _ := s.wcRepo.GetMatch(bet.MatchID)
 
 	db := s.wcRepo.DB()
 	if err := db.Transaction(func(tx *gorm.DB) error {
@@ -200,7 +213,8 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 		return err
 	}
 
-	if s.hub != nil && match != nil {
+	if s.hub != nil {
+		match := cancelMatch
 		user, _ := s.userRepo.GetByID(userID)
 		userName := ""
 		if user != nil {

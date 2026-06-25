@@ -103,7 +103,8 @@ const deletingId = ref<string | null>(null)
 
 function isEditable(bet: WcBetWithMatch): boolean {
   if (bet.result) return false
-  if (bet.match_status === 'completed' || bet.match_status === 'cancelled') return false
+  if (bet.match_status === 'live' || bet.match_status === 'completed' || bet.match_status === 'cancelled') return false
+  if (new Date(bet.match_date).getTime() <= Date.now()) return false
   if (bet.bets_locked_at && new Date(bet.bets_locked_at) <= new Date()) return false
   return true
 }

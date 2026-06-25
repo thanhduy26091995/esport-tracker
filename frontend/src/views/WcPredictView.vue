@@ -102,7 +102,7 @@
 
         <!-- HISTORY TAB -->
         <el-tab-pane :label="t('wc.tabHistory')" name="history">
-          <WcPredictionHistoryList :predictions="settledPredictions" />
+          <WcPredictionHistoryList :predictions="settledPredictions" :groupByDate="true" />
         </el-tab-pane>
 
         <!-- LEADERBOARD TAB -->

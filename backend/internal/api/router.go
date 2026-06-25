@@ -26,7 +26,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	corsConfig := cors.Config{
 		AllowOrigins:     strings.Split(os.Getenv("CORS_ORIGINS"), ","),
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Content-Type", "Authorization", "X-Internal-Key"},
 		AllowCredentials: true,
 	}
 	router.Use(cors.New(corsConfig))
@@ -130,8 +130,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	router.GET("/ws", wsHandler.Handle)
 	router.GET("/ws/chat", chatWsHandler.Handle)
 
-	// API v1 group
-	v1 := router.Group("/api/v1")
+	// API v1 group — non-WC routes protected by X-Internal-Key
+	v1 := router.Group("/api/v1", middleware.InternalKeyMiddleware())
 	{
 		// User routes
 		users := v1.Group("/users")

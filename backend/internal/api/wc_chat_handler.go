@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/middleware"
 	"github.com/duyb/esport-score-tracker/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -45,7 +46,7 @@ func (h *WcChatHandler) ListMessages(c *gin.Context) {
 
 // GetUnreadMentionCount handles GET /wc/chat/mentions/unread-count
 func (h *WcChatHandler) GetUnreadMentionCount(c *gin.Context) {
-	userID, _ := c.Get("wcUserID")
+	userID, _ := c.Get(middleware.WcUserIDKey)
 	uid, ok := userID.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -61,7 +62,7 @@ func (h *WcChatHandler) GetUnreadMentionCount(c *gin.Context) {
 
 // MarkMentionsRead handles POST /wc/chat/mentions/read
 func (h *WcChatHandler) MarkMentionsRead(c *gin.Context) {
-	userID, _ := c.Get("wcUserID")
+	userID, _ := c.Get(middleware.WcUserIDKey)
 	uid, ok := userID.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})

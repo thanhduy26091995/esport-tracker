@@ -1,9 +1,9 @@
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElNotification } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import { useChatStore } from '@/stores/chatStore'
-import type { ChatMessageEvent, ChatMentionEvent, ChatSendFrame } from '@/types/chat'
+import type { ChatMessageEvent, ChatMentionEvent, ChatSendFrame, ChatErrorFrame } from '@/types/chat'
 
 export function useChatWs() {
   const auth = useWcAuthStore()
@@ -34,7 +34,7 @@ export function useChatWs() {
 
     ws.onmessage = (e: MessageEvent) => {
       try {
-        const frame = JSON.parse(e.data) as ChatMessageEvent | ChatMentionEvent
+        const frame = JSON.parse(e.data) as ChatMessageEvent | ChatMentionEvent | ChatErrorFrame
         if (frame.type === 'chat_message') {
           const msg = frame as ChatMessageEvent
           chatStore.appendMessage({
@@ -55,6 +55,9 @@ export function useChatWs() {
             position: isPanelOpen.value ? 'top-right' : 'bottom-right',
             type: 'success',
           })
+        } else if (frame.type === 'error') {
+          const err = frame as ChatErrorFrame
+          ElNotification({ title: 'Chat error', message: err.message, type: 'error', duration: 4000 })
         }
       } catch {
         // Ignore malformed frames
@@ -72,6 +75,25 @@ export function useChatWs() {
       ws?.close()
     }
   }
+
+  // If the token becomes available after mount (page reload, token loaded from storage),
+  // close the current guest connection and reconnect as an authenticated user.
+  watch(() => auth.token, (newToken, oldToken) => {
+    if (newToken === oldToken) return
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (ws) {
+      // Null out handlers first so close() doesn't trigger auto-reconnect for this stale conn.
+      ws.onclose = null
+      ws.onerror = null
+      ws.close()
+      ws = null
+      isConnected.value = false
+    }
+    if (newToken) connect()
+  })
 
   function sendMessage(text: string, mentions: string[] = []) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return

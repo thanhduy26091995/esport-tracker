@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
 import type { WcMatch } from '@/types/wc'
 
@@ -13,6 +13,19 @@ export interface MatchFilterOption {
 export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilterKey = 'incoming') {
   const search = ref('')
   const activeFilter = ref<MatchFilterKey>(defaultFilter)
+  const now = ref(Date.now())
+
+  let timer: ReturnType<typeof setInterval>
+  onMounted(() => { timer = setInterval(() => { now.value = Date.now() }, 30_000) })
+  onUnmounted(() => clearInterval(timer))
+
+  // A match is considered live client-side if the backend says so OR its start time has passed
+  // (handles the gap between kick-off and the next API sync)
+  function isEffectivelyLive(m: WcMatch): boolean {
+    if (m.status === 'live') return true
+    if (m.status === 'scheduled' && new Date(m.match_date).getTime() <= now.value) return true
+    return false
+  }
 
   function isPredictionsOpen(m: WcMatch): boolean {
     if (!m.predictions_open) return false
@@ -29,8 +42,8 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
       incoming: 0, open: 0, live: 0, locked: 0, completed: 0, all: matches.value.length,
     }
     for (const m of matches.value) {
-      if (m.status === 'scheduled') result.incoming++
-      if (m.status === 'live') result.live++
+      if (m.status === 'scheduled' && !isEffectivelyLive(m)) result.incoming++
+      if (isEffectivelyLive(m)) result.live++
       if (m.status === 'completed') result.completed++
       if (isClosedForPredictions(m)) result.locked++
       if (isPredictionsOpen(m)) result.open++
@@ -43,13 +56,13 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
 
     switch (activeFilter.value) {
       case 'incoming':
-        list = list.filter(m => m.status === 'scheduled')
+        list = list.filter(m => m.status === 'scheduled' && !isEffectivelyLive(m))
         break
       case 'open':
         list = list.filter(m => isPredictionsOpen(m))
         break
       case 'live':
-        list = list.filter(m => m.status === 'live')
+        list = list.filter(m => isEffectivelyLive(m))
         break
       case 'locked':
         list = list.filter(m => isClosedForPredictions(m))
@@ -75,5 +88,5 @@ export function useMatchFilter(matches: Ref<WcMatch[]>, defaultFilter: MatchFilt
     })
   })
 
-  return { search, activeFilter, filtered, counts }
+  return { search, activeFilter, filtered, counts, isEffectivelyLive }
 }

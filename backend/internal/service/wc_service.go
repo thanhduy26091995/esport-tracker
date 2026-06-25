@@ -1102,7 +1102,7 @@ func (s *WcService) DeleteScoreOdds(id uuid.UUID) error {
 // --- Helpers ---
 
 func isBetLocked(m *model.WcMatch) bool {
-	if m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled {
+	if m.Status == model.WcStatusLive || m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled {
 		return true
 	}
 	if m.BetsLockedAt != nil && time.Now().After(*m.BetsLockedAt) {
@@ -1110,8 +1110,6 @@ func isBetLocked(m *model.WcMatch) bool {
 	}
 	return false
 }
-
-// --- Helpers ---
 
 func isLocked(m *model.WcMatch) bool {
 	if m.Status == model.WcStatusLive || m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled {
