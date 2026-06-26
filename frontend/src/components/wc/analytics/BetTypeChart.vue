@@ -15,13 +15,14 @@ const props = defineProps<{
   handicap: number
   exactScore: number
   overUnder: number
+  custom: number
 }>()
 
 const chartData = computed(() => ({
-  labels: ['Handicap', 'Tỷ số', 'Tài/Xỉu'],
+  labels: ['Handicap', 'Tỷ số', 'Tài/Xỉu', 'Kèo phụ'],
   datasets: [{
-    data: [props.handicap, props.exactScore, props.overUnder],
-    backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6'],
+    data: [props.handicap, props.exactScore, props.overUnder, props.custom],
+    backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#10b981'],
     borderWidth: 0,
   }],
 }))

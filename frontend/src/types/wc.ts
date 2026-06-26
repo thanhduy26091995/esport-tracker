@@ -356,7 +356,7 @@ export interface MyAnalyticsResponse {
   current_win_streak: number
   current_lose_streak: number
   longest_win_streak: number
-  bet_type_distribution: { handicap: number; exact_score: number; over_under: number }
+  bet_type_distribution: { handicap: number; exact_score: number; over_under: number; custom: number }
   favorite_teams: TeamCountEntry[]
   favorite_scorelines: ScorelineCountEntry[]
   accuracy_timeline: AnalyticsTimelinePoint[]

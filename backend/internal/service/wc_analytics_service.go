@@ -203,6 +203,7 @@ func (s *WcAnalyticsService) BuildMyResponse(userID uuid.UUID, period repository
 			"handicap":    stats.HandicapBets,
 			"exact_score": stats.ExactScoreBets,
 			"over_under":  stats.OverUnderBets,
+			"custom":      stats.CustomBets,
 		},
 		FavoriteTeams:      favoriteTeams,
 		FavoriteScorelines: favoriteScorelines,

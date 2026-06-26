@@ -97,6 +97,7 @@
             :handicap="data.bet_type_distribution.handicap"
             :exact-score="data.bet_type_distribution.exact_score"
             :over-under="data.bet_type_distribution.over_under"
+            :custom="data.bet_type_distribution.custom"
           />
         </div>
         <div v-if="data.compare_metrics.home_bias !== null" class="analytics-section analytics-section--half">
