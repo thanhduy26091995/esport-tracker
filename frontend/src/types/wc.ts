@@ -307,6 +307,80 @@ export interface StatsApiFixtureRef {
   match_date: string
 }
 
+// --- Analytics ---
+
+export interface AnalyticsTimelinePoint {
+  period: string
+  wins: number
+  losses: number
+  accuracy: number
+}
+
+export interface AnalyticsCompareMetrics {
+  home_bias: number | null
+  avg_goals_predicted: number | null
+  exact_score_rate: number
+  underdog_rate: number | null
+  avg_stake: number
+  over_preference_rate: number | null
+  exact_score_hit_rate: number | null
+  bet_frequency: number
+  last_minute_rate: number
+}
+
+export interface TeamCountEntry {
+  team: string
+  bet_count: number
+}
+
+export interface ScorelineCountEntry {
+  scoreline: string
+  count: number
+}
+
+export interface TopPredictorEntry {
+  user_id: string
+  name: string
+  avatar_url: string | null
+  accuracy: number
+  settled_matches: number
+}
+
+export interface MyAnalyticsResponse {
+  accuracy: number
+  settled_matches: number
+  wins: number
+  losses: number
+  pending_bets: number
+  profile_label: string | null
+  current_win_streak: number
+  current_lose_streak: number
+  longest_win_streak: number
+  bet_type_distribution: { handicap: number; exact_score: number; over_under: number }
+  favorite_teams: TeamCountEntry[]
+  favorite_scorelines: ScorelineCountEntry[]
+  accuracy_timeline: AnalyticsTimelinePoint[]
+  compare_metrics: AnalyticsCompareMetrics
+}
+
+export interface CommunityAnalyticsResponse {
+  total_bets_placed: number
+  active_users: number
+  avg_accuracy: number
+  prediction_distribution: { home: number; away: number; other: number }
+  trending_teams: TeamCountEntry[]
+  trending_scorelines: ScorelineCountEntry[]
+  community_compare_metrics: AnalyticsCompareMetrics
+  top_predictors: TopPredictorEntry[]
+}
+
+export interface CompareAnalyticsResponse {
+  me: AnalyticsCompareMetrics
+  community: AnalyticsCompareMetrics
+  my_accuracy: number
+  community_accuracy: number
+}
+
 export interface MappedMatch {
   wc_match_id: string
   home_team: string

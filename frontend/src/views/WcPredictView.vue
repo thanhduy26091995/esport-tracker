@@ -110,6 +110,11 @@
           <WcLeaderboard :entries="store.leaderboard" />
         </el-tab-pane>
 
+        <!-- ANALYTICS TAB -->
+        <el-tab-pane :label="t('wc.analytics.tab')" name="analytics">
+          <WcAnalyticsPanel v-if="activeTab === 'analytics'" />
+        </el-tab-pane>
+
         <!-- CHAMPION TAB -->
         <el-tab-pane label="🏆 Vô địch" name="champion">
           <WcChampionPanel />
@@ -144,6 +149,7 @@ import WcPredictionHistoryList from '@/components/wc/WcPredictionHistoryList.vue
 import WcMatchPredictionList from '@/components/wc/WcMatchPredictionList.vue'
 import WcLeaderboard from '@/components/wc/WcLeaderboard.vue'
 import WcChampionPanel from '@/components/wc/WcChampionPanel.vue'
+import WcAnalyticsPanel from '@/components/wc/WcAnalyticsPanel.vue'
 import type { WcMatchWithOdds, WcScoreMultiplier, WcMatch, WcPredictionPublic } from '@/types/wc'
 import { wcService } from '@/services/wcService'
 

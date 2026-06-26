@@ -51,6 +51,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcChampionRepo := repository.NewWcChampionRepository(db)
 	wcCustomBetRepo := repository.NewWcCustomBetRepository(db)
 	wcChatRepo := repository.NewWcChatRepository(db)
+	wcAnalyticsRepo := repository.NewWcAnalyticsRepository(db)
 
 	// Initialize services
 	configService := service.NewConfigService(configRepo)
@@ -106,6 +107,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcChampionHandler := NewWcChampionHandler(wcChampionService)
 	wcCustomBetHandler := NewWcCustomBetHandler(wcCustomBetService)
 	wcChatHandler := NewWcChatHandler(wcChatService)
+	wcAnalyticsService := service.NewWcAnalyticsService(wcAnalyticsRepo)
+	wcAnalyticsHandler := NewWcAnalyticsHandler(wcAnalyticsService)
 	wsHandler := ws.NewHandler(wsHub)
 
 	// Token verifier adapter for ChatHandler
@@ -284,6 +287,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAuth.GET("/custom-bet-entries", wcCustomBetHandler.GetMyCustomBetEntries)
 				wcAuth.POST("/custom-bets/:id/entry", wcCustomBetHandler.PlaceEntry)
 				wcAuth.DELETE("/custom-bet-entries/:id", wcCustomBetHandler.CancelEntry)
+				// Analytics
+				wcAuth.GET("/analytics/my", wcAnalyticsHandler.GetMyAnalytics)
+				wcAuth.GET("/analytics/community", wcAnalyticsHandler.GetCommunityAnalytics)
+				wcAuth.GET("/analytics/compare", wcAnalyticsHandler.GetCompareAnalytics)
 				// Chat mention
 				wcAuth.GET("/users", wcHandler.ListUsersForMention)
 				wcAuth.GET("/chat/mentions/unread-count", wcChatHandler.GetUnreadMentionCount)

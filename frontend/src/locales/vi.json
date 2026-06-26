@@ -210,6 +210,72 @@
       "empty": "Chưa có tin nhắn nào. Hãy là người đầu tiên!",
       "errorSend": "Không thể gửi tin nhắn",
       "disconnected": "Mất kết nối, đang kết nối lại..."
+    },
+    "analytics": {
+      "tab": "Phân tích",
+      "myTab": "Của tôi",
+      "communityTab": "Cộng đồng",
+      "compareTab": "So sánh",
+      "period": {
+        "today": "Hôm nay",
+        "7d": "7 ngày",
+        "14d": "14 ngày",
+        "30d": "30 ngày",
+        "custom": "Tùy chọn"
+      },
+      "accuracy": "Độ chính xác",
+      "settledMatches": "Trận đã tính",
+      "wins": "Thắng",
+      "losses": "Thua",
+      "pending": "Đang chờ",
+      "currentWinStreak": "Chuỗi thắng",
+      "currentLoseStreak": "Chuỗi thua",
+      "longestWinStreak": "Chuỗi thắng dài nhất",
+      "profileLabel": "Phong cách dự đoán",
+      "betDistribution": "Phân bổ loại kèo",
+      "favoriteTeams": "Đội hay cược nhất",
+      "favoriteScorelines": "Tỷ số hay đặt nhất",
+      "homeBias": "Xu hướng đội nhà",
+      "homeTeam": "Đội nhà",
+      "awayTeam": "Đội khách",
+      "accuracyTimeline": "Lịch sử độ chính xác",
+      "noData": "Chưa đủ dữ liệu",
+      "noDataDesc": "Hãy đặt thêm kèo để xem phân tích của bạn.",
+      "bets": "lượt",
+      "community": {
+        "totalBets": "Tổng lượt cược",
+        "activeUsers": "Người dùng hoạt động",
+        "avgAccuracy": "Độ chính xác TB",
+        "predictionDist": "Phân bổ dự đoán",
+        "trendingTeams": "Đội được cược nhiều nhất (7 ngày)",
+        "trendingScorelines": "Tỷ số xu hướng",
+        "topPredictors": "Người dự đoán xuất sắc",
+        "noData": "Chưa có dữ liệu cộng đồng"
+      },
+      "compare": {
+        "metric": "Chỉ số",
+        "me": "Tôi",
+        "community": "Cộng đồng",
+        "noData": "Chưa đủ dữ liệu để so sánh",
+        "metrics": {
+          "homeBias": "Tỷ lệ chọn đội nhà",
+          "avgGoals": "Số bàn thắng TB dự đoán",
+          "exactScoreRate": "Tỷ lệ đặt kèo tỷ số",
+          "underdogRate": "Tỷ lệ chọn kèo yếu",
+          "avgStake": "Điểm cược TB",
+          "overPreference": "Tỷ lệ chọn Tài",
+          "exactScoreHitRate": "Tỷ lệ đúng tỷ số chính xác",
+          "betFrequency": "Tần suất cược/trận",
+          "lastMinuteRate": "Tỷ lệ cược phút chót"
+        }
+      },
+      "profiles": {
+        "balanced_predictor": "Người dự đoán cân bằng",
+        "aggressive_predictor": "Người dự đoán mạo hiểm",
+        "conservative_predictor": "Người dự đoán thận trọng",
+        "underdog_lover": "Người yêu kèo yếu",
+        "goal_hunter": "Thợ săn bàn thắng"
+      }
     }
   },
   "dashboard": {

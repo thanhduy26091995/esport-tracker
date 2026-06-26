@@ -72,6 +72,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | WC live chat — global chat room via WebSocket, last 100 messages persisted, JWT auth to send, floating FAB button | `docs/ai/design/2026-06-24-feature-wc-live-chat.md` |
 | WC chat @mention — tag users with @, real-time WS notification, persistent unread badge, @name highlight in bubbles | `docs/ai/design/2026-06-24-feature-wc-chat-mention.md` |
 | WC top-3 honor banner — continuously animated CSS marquee on all WC auth pages celebrating the top 3 leaderboard players | `docs/ai/design/feature-wc-top3-honor-banner.md` |
+| WC prediction analytics — personal accuracy/profile/streaks, community trending teams/scorelines, me-vs-community compare | `docs/ai/design/feature-analysis-trending-bet.md` |
 
 ## Dev Commands
 

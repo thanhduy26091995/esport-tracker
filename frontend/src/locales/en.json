@@ -210,6 +210,72 @@
       "empty": "No messages yet. Be the first!",
       "errorSend": "Failed to send message",
       "disconnected": "Disconnected, reconnecting..."
+    },
+    "analytics": {
+      "tab": "Analytics",
+      "myTab": "My Stats",
+      "communityTab": "Community",
+      "compareTab": "Compare",
+      "period": {
+        "today": "Today",
+        "7d": "7 Days",
+        "14d": "14 Days",
+        "30d": "30 Days",
+        "custom": "Custom"
+      },
+      "accuracy": "Accuracy",
+      "settledMatches": "Settled",
+      "wins": "Wins",
+      "losses": "Losses",
+      "pending": "Pending",
+      "currentWinStreak": "Win Streak",
+      "currentLoseStreak": "Lose Streak",
+      "longestWinStreak": "Best Win Streak",
+      "profileLabel": "Prediction Style",
+      "betDistribution": "Bet Type Distribution",
+      "favoriteTeams": "Most Bet Teams",
+      "favoriteScorelines": "Most Predicted Scorelines",
+      "homeBias": "Home Team Preference",
+      "homeTeam": "Home",
+      "awayTeam": "Away",
+      "accuracyTimeline": "Accuracy Timeline",
+      "noData": "Not enough data",
+      "noDataDesc": "Place more bets to see your analytics.",
+      "bets": "bets",
+      "community": {
+        "totalBets": "Total Bets",
+        "activeUsers": "Active Users",
+        "avgAccuracy": "Avg Accuracy",
+        "predictionDist": "Community Prediction Distribution",
+        "trendingTeams": "Trending Teams (7 Days)",
+        "trendingScorelines": "Trending Scorelines",
+        "topPredictors": "Top Predictors",
+        "noData": "No community data yet"
+      },
+      "compare": {
+        "metric": "Metric",
+        "me": "Me",
+        "community": "Community",
+        "noData": "Not enough data to compare",
+        "metrics": {
+          "homeBias": "Home Team Rate",
+          "avgGoals": "Avg Goals Predicted",
+          "exactScoreRate": "Exact Score Bet Rate",
+          "underdogRate": "Underdog Pick Rate",
+          "avgStake": "Avg Stake",
+          "overPreference": "Over Preference Rate",
+          "exactScoreHitRate": "Exact Score Hit Rate",
+          "betFrequency": "Bet Frequency/Match",
+          "lastMinuteRate": "Last-Minute Bet Rate"
+        }
+      },
+      "profiles": {
+        "balanced_predictor": "Balanced Predictor",
+        "aggressive_predictor": "Aggressive Predictor",
+        "conservative_predictor": "Conservative Predictor",
+        "underdog_lover": "Underdog Lover",
+        "goal_hunter": "Goal Hunter"
+      }
     }
   },
   "dashboard": {
