@@ -17,6 +17,7 @@ import {
   Tooltip,
   Legend,
   Filler,
+  type ChartOptions,
 } from 'chart.js'
 import type { AnalyticsTimelinePoint } from '@/types/wc'
 
@@ -40,21 +41,21 @@ const chartData = computed(() => ({
   ],
 }))
 
-const chartOptions = {
+const chartOptions: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   scales: {
     y: {
       min: 0,
       max: 100,
-      ticks: { callback: (v: number) => `${v}%` },
+      ticks: { callback: (v: number | string) => `${v}%` },
     },
   },
   plugins: {
     legend: { display: false },
     tooltip: {
       callbacks: {
-        label: (ctx: { raw: number }) => `${ctx.raw}%`,
+        label: (ctx) => `${ctx.raw as number}%`,
       },
     },
   },
