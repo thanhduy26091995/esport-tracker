@@ -38,14 +38,14 @@ type TimelineRow struct {
 
 // TeamCountRow holds a team name and bet count.
 type TeamCountRow struct {
-	Team     string
-	BetCount int
+	Team     string `json:"team"`
+	BetCount int    `json:"bet_count"`
 }
 
 // ScorelineCountRow holds a scoreline string and count.
 type ScorelineCountRow struct {
-	Scoreline string
-	Count     int
+	Scoreline string `json:"scoreline"`
+	Count     int    `json:"count"`
 }
 
 // BetTypeDistribution holds counts per bet type.
