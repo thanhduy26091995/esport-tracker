@@ -170,7 +170,7 @@ type WcPrediction struct {
 
 	// Handicap prediction fields (nullable for exact_score predictions)
 	PredictionChoice     *string  `gorm:"type:varchar(5);uniqueIndex:idx_prediction_hc_dedup" json:"prediction_choice,omitempty"`
-	HandicapSnapshot     *float64 `gorm:"type:numeric(4,1)" json:"handicap_snapshot,omitempty"`
+	HandicapSnapshot     *float64 `gorm:"type:numeric(5,2)" json:"handicap_snapshot,omitempty"`
 	HandicapTeamSnapshot *string  `gorm:"type:varchar(5)" json:"handicap_team_snapshot,omitempty"`
 
 	// Exact score prediction fields (nullable for handicap predictions)

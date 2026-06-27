@@ -114,6 +114,9 @@ func runSchemaMigrations(db *gorm.DB) error {
 		// Configurable bet limits
 		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS min_points INTEGER NOT NULL DEFAULT 1`,
 		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS max_points INTEGER NOT NULL DEFAULT 5`,
+		// Fix wc_predictions.handicap_snapshot precision: numeric(4,1) rounded 0.25→0.3, breaking quarter-ball detection.
+		// USING clause rounds existing data to nearest 0.25 (e.g. 0.3→0.25, 0.8→0.75) before widening type.
+		`ALTER TABLE wc_predictions ALTER COLUMN handicap_snapshot TYPE NUMERIC(5,2) USING ROUND(handicap_snapshot::numeric * 4) / 4.0`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {
