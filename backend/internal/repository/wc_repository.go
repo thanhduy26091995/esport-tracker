@@ -329,20 +329,20 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 	rows := make([]*model.WcLeaderboardEntry, 0)
 	err := r.db.Raw(`
 		SELECT
-			u.id                                                            AS wc_user_id,
+			u.id                                AS wc_user_id,
 			u.name,
 			u.avatar_url,
-			COALESCE(pred.net_predictions, 0) + COALESCE(cbet.net_custom, 0) AS net_points,
-			COALESCE(pred.total_predictions, 0)                             AS total_predictions,
-			COALESCE(pred.correct, 0)                                       AS correct,
-			COALESCE(pred.win_half, 0)                                      AS win_half,
-			COALESCE(pred.lose_half, 0)                                     AS lose_half,
-			COALESCE(pred.incorrect, 0)                                     AS incorrect
+			COALESCE(w.balance, 0)              AS net_points,
+			COALESCE(pred.total_predictions, 0) AS total_predictions,
+			COALESCE(pred.correct, 0)           AS correct,
+			COALESCE(pred.win_half, 0)          AS win_half,
+			COALESCE(pred.lose_half, 0)         AS lose_half,
+			COALESCE(pred.incorrect, 0)         AS incorrect
 		FROM wc_users u
+		LEFT JOIN wc_wallets w ON w.wc_user_id = u.id
 		LEFT JOIN (
 			SELECT
 				b.wc_user_id,
-				SUM(COALESCE(b.points_earned, 0) - b.points)          AS net_predictions,
 				COUNT(b.id)                                            AS total_predictions,
 				COUNT(b.id) FILTER (WHERE b.result = 'correct')       AS correct,
 				COUNT(b.id) FILTER (WHERE b.result = 'win_half')      AS win_half,
@@ -352,19 +352,7 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 			WHERE b.result IS NOT NULL
 			GROUP BY b.wc_user_id
 		) pred ON pred.wc_user_id = u.id
-		LEFT JOIN (
-			SELECT
-				e.wc_user_id,
-				SUM(CASE e.status
-					WHEN 'won'  THEN COALESCE(e.payout, ROUND(e.stake::numeric * e.odds_snapshot, 2)) - e.stake
-					WHEN 'lost' THEN -e.stake::numeric
-					ELSE 0
-				END) AS net_custom
-			FROM wc_custom_bet_entries e
-			WHERE e.status IN ('won', 'lost')
-			GROUP BY e.wc_user_id
-		) cbet ON cbet.wc_user_id = u.id
-		WHERE pred.wc_user_id IS NOT NULL OR cbet.wc_user_id IS NOT NULL
+		WHERE w.wc_user_id IS NOT NULL
 		ORDER BY net_points DESC, correct DESC, u.name ASC
 	`).Scan(&rows).Error
 	if err != nil {

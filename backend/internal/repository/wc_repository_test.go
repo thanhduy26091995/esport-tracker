@@ -471,6 +471,241 @@ func TestGetGroupStandings_OnlyGroupStageReturned(t *testing.T) {
 	}
 }
 
+// ─── GetLeaderboard ───────────────────────────────────────────────────────────
+
+// openLeaderboardTestDB migrates all tables needed for GetLeaderboard tests.
+func openLeaderboardTestDB(t *testing.T) (*WcRepository, *gorm.DB) {
+	t.Helper()
+	db := openTestDB(t)
+	require.NoError(t, db.AutoMigrate(
+		&model.WcMatch{},
+		&model.WcUser{},
+		&model.WcWallet{},
+		&model.WcPrediction{},
+	))
+	return NewWcRepository(db), db
+}
+
+func seedLbUser(t *testing.T, db *gorm.DB, name string) *model.WcUser {
+	t.Helper()
+	u := &model.WcUser{ID: uuid.New(), Name: name}
+	require.NoError(t, db.Create(u).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(u) })
+	return u
+}
+
+func seedLbWallet(t *testing.T, db *gorm.DB, userID uuid.UUID, balance float64) *model.WcWallet {
+	t.Helper()
+	w := &model.WcWallet{ID: uuid.New(), WcUserID: userID, Balance: balance}
+	require.NoError(t, db.Create(w).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(w) })
+	return w
+}
+
+func seedLbMatch(t *testing.T, db *gorm.DB) *model.WcMatch {
+	t.Helper()
+	m := &model.WcMatch{
+		ID:         uuid.New(),
+		ExternalID: uuid.NewString(),
+		HomeTeam:   "A",
+		AwayTeam:   "B",
+		MatchDate:  time.Now().UTC(),
+		Stage:      model.WcStageGroup,
+		Status:     model.WcStatusCompleted,
+	}
+	require.NoError(t, db.Create(m).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(m) })
+	return m
+}
+
+func seedLbPrediction(t *testing.T, db *gorm.DB, userID, matchID uuid.UUID, result string) *model.WcPrediction {
+	t.Helper()
+	r := result
+	earned := 0.0
+	p := &model.WcPrediction{
+		ID:                 uuid.New(),
+		WcUserID:           userID,
+		MatchID:            matchID,
+		PredictionType:     "handicap",
+		Points:             10,
+		MultiplierSnapshot: 1.0,
+		Result:             &r,
+		PointsEarned:       &earned,
+	}
+	require.NoError(t, db.Create(p).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(p) })
+	return p
+}
+
+func findLbEntry(entries []*model.WcLeaderboardEntry, id uuid.UUID) *model.WcLeaderboardEntry {
+	for _, e := range entries {
+		if e.WcUserID == id {
+			return e
+		}
+	}
+	return nil
+}
+
+// TestGetLeaderboard_NetPointsFromWallet verifies that net_points equals the wallet balance
+// and is not computed from prediction sums (so admin top-ups and other wallet changes count).
+func TestGetLeaderboard_NetPointsFromWallet(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Alice")
+	seedLbWallet(t, db, u.ID, 42.5)
+
+	entries, err := repo.GetLeaderboard()
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry, "user with wallet must appear in leaderboard")
+	assert.Equal(t, 42.5, entry.NetPoints)
+	assert.Equal(t, 0, entry.TotalPredictions)
+}
+
+// TestGetLeaderboard_AdminTopupReflectedInNetPoints verifies that updating the wallet balance
+// (simulating an admin top-up) is immediately visible in the leaderboard net_points.
+func TestGetLeaderboard_AdminTopupReflectedInNetPoints(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Bob")
+	w := seedLbWallet(t, db, u.ID, -29.0)
+
+	require.NoError(t, db.Model(&model.WcWallet{}).
+		Where("id = ?", w.ID).
+		UpdateColumn("balance", gorm.Expr("balance + ?", 1.0)).Error)
+
+	entries, err := repo.GetLeaderboard()
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry)
+	assert.Equal(t, -28.0, entry.NetPoints, "leaderboard must reflect admin top-up via wallet balance")
+}
+
+// TestGetLeaderboard_PredictionStatsAggregatedCorrectly verifies that correct/win_half/lose_half/incorrect
+// counts are aggregated from wc_predictions.result, independent of wallet balance.
+func TestGetLeaderboard_PredictionStatsAggregatedCorrectly(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Carol")
+	seedLbWallet(t, db, u.ID, 0)
+
+	for _, r := range []string{"correct", "correct", "win_half", "lose_half", "incorrect"} {
+		m := seedLbMatch(t, db)
+		seedLbPrediction(t, db, u.ID, m.ID, r)
+	}
+
+	entries, err := repo.GetLeaderboard()
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry)
+	assert.Equal(t, 5, entry.TotalPredictions)
+	assert.Equal(t, 2, entry.Correct)
+	assert.Equal(t, 1, entry.WinHalf)
+	assert.Equal(t, 1, entry.LoseHalf)
+	assert.Equal(t, 1, entry.Incorrect)
+}
+
+// TestGetLeaderboard_Ordering verifies sort order: net_points DESC, correct DESC, name ASC.
+func TestGetLeaderboard_Ordering(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	// Dave: 10 pts, 0 correct → highest net_points
+	dave := seedLbUser(t, db, pfx+"-Dave")
+	seedLbWallet(t, db, dave.ID, 10)
+
+	// Eve: 5 pts, 3 correct → second (lower pts, but most correct among the 5-pt group)
+	eve := seedLbUser(t, db, pfx+"-Eve")
+	seedLbWallet(t, db, eve.ID, 5)
+	for range 3 {
+		m := seedLbMatch(t, db)
+		seedLbPrediction(t, db, eve.ID, m.ID, "correct")
+	}
+
+	// Frank: 5 pts, 1 correct → before Grace (F < G alphabetically, tiebreak on name)
+	frank := seedLbUser(t, db, pfx+"-Frank")
+	seedLbWallet(t, db, frank.ID, 5)
+	{
+		m := seedLbMatch(t, db)
+		seedLbPrediction(t, db, frank.ID, m.ID, "correct")
+	}
+
+	// Grace: 5 pts, 1 correct → after Frank (G > F alphabetically)
+	grace := seedLbUser(t, db, pfx+"-Grace")
+	seedLbWallet(t, db, grace.ID, 5)
+	{
+		m := seedLbMatch(t, db)
+		seedLbPrediction(t, db, grace.ID, m.ID, "correct")
+	}
+
+	entries, err := repo.GetLeaderboard()
+	require.NoError(t, err)
+
+	pos := func(id uuid.UUID) int {
+		for i, e := range entries {
+			if e.WcUserID == id {
+				return i
+			}
+		}
+		return -1
+	}
+
+	davePos, evePos, frankPos, gracePos := pos(dave.ID), pos(eve.ID), pos(frank.ID), pos(grace.ID)
+	require.NotEqual(t, -1, davePos, "Dave must appear in leaderboard")
+	require.NotEqual(t, -1, evePos, "Eve must appear in leaderboard")
+	require.NotEqual(t, -1, frankPos, "Frank must appear in leaderboard")
+	require.NotEqual(t, -1, gracePos, "Grace must appear in leaderboard")
+
+	assert.Less(t, davePos, evePos, "Dave (10 pts) must rank above Eve (5 pts)")
+	assert.Less(t, evePos, frankPos, "Eve (3 correct) must rank above Frank (1 correct) at same net_points")
+	assert.Less(t, frankPos, gracePos, "Frank must rank above Grace by name tiebreak (F < G)")
+}
+
+// TestGetLeaderboard_UserWithoutWalletExcluded verifies that a user with no wallet record
+// is excluded from the leaderboard (WHERE w.wc_user_id IS NOT NULL).
+func TestGetLeaderboard_UserWithoutWalletExcluded(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Heidi")
+	// intentionally no wallet seeded
+
+	entries, err := repo.GetLeaderboard()
+	require.NoError(t, err)
+
+	for _, e := range entries {
+		assert.NotEqual(t, u.ID, e.WcUserID, "user without wallet must not appear in leaderboard")
+	}
+}
+
+// TestGetLeaderboard_UserWithWalletButNoPredictions verifies that a user with a wallet
+// but no predictions still appears in the leaderboard with correct balance and zero stats.
+func TestGetLeaderboard_UserWithWalletButNoPredictions(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Ivan")
+	seedLbWallet(t, db, u.ID, -5.0)
+
+	entries, err := repo.GetLeaderboard()
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry, "user with wallet but no predictions must appear in leaderboard")
+	assert.Equal(t, -5.0, entry.NetPoints)
+	assert.Equal(t, 0, entry.TotalPredictions)
+	assert.Equal(t, 0, entry.Correct)
+	assert.Equal(t, 0, entry.WinHalf)
+	assert.Equal(t, 0, entry.LoseHalf)
+	assert.Equal(t, 0, entry.Incorrect)
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 func matchIDs(matches []*model.WcMatch) []uuid.UUID {

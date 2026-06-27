@@ -172,7 +172,8 @@ function isHidden(item: PredItem): boolean {
 }
 
 function dateKey(pred: WcPredictionWithMatch): string {
-  return pred.match_date.slice(0, 10) // YYYY-MM-DD
+  // sv-SE locale gives YYYY-MM-DD in the browser's local timezone (GMT+7 for Vietnam)
+  return new Date(pred.match_date).toLocaleDateString('sv-SE')
 }
 
 function dateLabel(key: string): string {
