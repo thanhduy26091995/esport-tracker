@@ -353,6 +353,11 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 			GROUP BY b.wc_user_id
 		) pred ON pred.wc_user_id = u.id
 		WHERE w.wc_user_id IS NOT NULL
+		  AND (
+		      EXISTS (SELECT 1 FROM wc_predictions       p  WHERE p.wc_user_id  = u.id)
+		   OR EXISTS (SELECT 1 FROM wc_custom_bet_entries c  WHERE c.wc_user_id  = u.id)
+		   OR EXISTS (SELECT 1 FROM wc_champion_predictions cp WHERE cp.wc_user_id = u.id)
+		  )
 		ORDER BY net_points DESC, correct DESC, u.name ASC
 	`).Scan(&rows).Error
 	if err != nil {
