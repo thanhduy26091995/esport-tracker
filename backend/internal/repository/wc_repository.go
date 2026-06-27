@@ -852,3 +852,87 @@ func sortStrings(s []string) {
 		}
 	}
 }
+
+// --- Tournament Analytics ---
+
+// GetCompletedMatchStats returns aggregate match stats for the analytics page.
+// Source of truth for total goals, H/A/D, clean sheets, goals by stage, and highest-scoring match.
+func (r *WcRepository) GetCompletedMatchStats() (*model.WcTournamentMatchStats, error) {
+	type aggRow struct {
+		TotalMatches int
+		TotalGoals   int
+		HomeWins     int
+		AwayWins     int
+		Draws        int
+		CleanSheets  int
+	}
+	var a aggRow
+	err := r.db.Raw(`
+		SELECT
+			COUNT(*)                                                              AS total_matches,
+			COALESCE(SUM(home_score + away_score), 0)                            AS total_goals,
+			SUM(CASE WHEN home_score > away_score THEN 1 ELSE 0 END)             AS home_wins,
+			SUM(CASE WHEN away_score > home_score THEN 1 ELSE 0 END)             AS away_wins,
+			SUM(CASE WHEN home_score = away_score THEN 1 ELSE 0 END)             AS draws,
+			SUM(CASE WHEN home_score = 0 OR away_score = 0 THEN 1 ELSE 0 END)   AS clean_sheets
+		FROM wc_matches
+		WHERE status = 'completed' AND home_score IS NOT NULL
+	`).Scan(&a).Error
+	if err != nil {
+		return nil, err
+	}
+
+	type stageRow struct {
+		Stage   string
+		Matches int
+		Goals   int
+	}
+	var stageRows []stageRow
+	r.db.Raw(`
+		SELECT stage, COUNT(*) AS matches, SUM(home_score + away_score) AS goals
+		FROM wc_matches
+		WHERE status = 'completed' AND home_score IS NOT NULL
+		GROUP BY stage
+		ORDER BY MIN(match_date)
+	`).Scan(&stageRows)
+
+	stageGoals := make([]model.WcStageGoalsStat, len(stageRows))
+	for i, s := range stageRows {
+		stageGoals[i] = model.WcStageGoalsStat{Stage: s.Stage, Matches: s.Matches, Goals: s.Goals}
+	}
+
+	var top model.WcMatch
+	r.db.Where("status = 'completed' AND home_score IS NOT NULL").
+		Order("(home_score + away_score) DESC").
+		First(&top)
+
+	var highest *model.WcTournamentMatchResult
+	if top.ID != uuid.Nil {
+		total := *top.HomeScore + *top.AwayScore
+		highest = &model.WcTournamentMatchResult{
+			HomeTeam:   top.HomeTeam,
+			AwayTeam:   top.AwayTeam,
+			HomeScore:  *top.HomeScore,
+			AwayScore:  *top.AwayScore,
+			Stage:      top.Stage,
+			TotalGoals: total,
+		}
+	}
+
+	avg := 0.0
+	if a.TotalMatches > 0 {
+		avg = math.Round(float64(a.TotalGoals)/float64(a.TotalMatches)*100) / 100
+	}
+
+	return &model.WcTournamentMatchStats{
+		TotalMatches:        a.TotalMatches,
+		TotalGoals:          a.TotalGoals,
+		AvgGoalsPerMatch:    avg,
+		HomeWins:            a.HomeWins,
+		AwayWins:            a.AwayWins,
+		Draws:               a.Draws,
+		CleanSheets:         a.CleanSheets,
+		HighestScoringMatch: highest,
+		GoalsByStage:        stageGoals,
+	}, nil
+}

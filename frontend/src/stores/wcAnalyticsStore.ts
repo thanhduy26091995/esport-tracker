@@ -1,16 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { wcAnalyticsService } from '@/services/wcAnalyticsService'
-import type { MyAnalyticsResponse, CommunityAnalyticsResponse, CompareAnalyticsResponse } from '@/types/wc'
+import type { MyAnalyticsResponse, CommunityAnalyticsResponse, CompareAnalyticsResponse, WcAnalyticsResponse } from '@/types/wc'
 
 export const useWcAnalyticsStore = defineStore('wcAnalytics', () => {
   const myData = ref<MyAnalyticsResponse | null>(null)
   const communityData = ref<CommunityAnalyticsResponse | null>(null)
   const compareData = ref<CompareAnalyticsResponse | null>(null)
+  const wc2026Data = ref<WcAnalyticsResponse | null>(null)
   const myPeriod = ref('30d')
   const myDateFrom = ref<string | undefined>(undefined)
   const myDateTo = ref<string | undefined>(undefined)
   const loading = ref(false)
+  const wc2026Loading = ref(false)
   const error = ref<string | null>(null)
 
   async function loadMyAnalytics(period?: string, dateFrom?: string, dateTo?: string) {
@@ -71,18 +73,32 @@ export const useWcAnalyticsStore = defineStore('wcAnalytics', () => {
     }
   }
 
+  async function loadWC2026Analytics() {
+    wc2026Loading.value = true
+    try {
+      wc2026Data.value = await wcAnalyticsService.getWC2026Analytics()
+    } catch {
+      // fail silently — component shows empty state
+    } finally {
+      wc2026Loading.value = false
+    }
+  }
+
   return {
     myData,
     communityData,
     compareData,
+    wc2026Data,
     myPeriod,
     myDateFrom,
     myDateTo,
     loading,
+    wc2026Loading,
     error,
     loadMyAnalytics,
     loadCommunityAnalytics,
     loadCompareAnalytics,
+    loadWC2026Analytics,
     loadAll,
   }
 })

@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/duyb/esport-score-tracker/internal/cron"
 	"github.com/duyb/esport-score-tracker/internal/middleware"
@@ -13,6 +14,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	gocache "github.com/patrickmn/go-cache"
 	"gorm.io/gorm"
 )
 
@@ -107,7 +109,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcChampionHandler := NewWcChampionHandler(wcChampionService)
 	wcCustomBetHandler := NewWcCustomBetHandler(wcCustomBetService)
 	wcChatHandler := NewWcChatHandler(wcChatService)
-	wcAnalyticsService := service.NewWcAnalyticsService(wcAnalyticsRepo)
+	analyticsCache := gocache.New(30*time.Minute, 10*time.Minute)
+	wcFdClient := service.NewWcFootballDataClient(os.Getenv("FOOTBALL_DATA_API_KEY"))
+	wcOfClient := service.NewWcOpenFootballClient()
+	wcAnalyticsService := service.NewWcAnalyticsService(wcAnalyticsRepo, wcRepo, analyticsCache, wcFdClient, wcOfClient)
 	wcAnalyticsHandler := NewWcAnalyticsHandler(wcAnalyticsService)
 	wsHandler := ws.NewHandler(wsHub)
 
@@ -291,6 +296,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAuth.GET("/analytics/my", wcAnalyticsHandler.GetMyAnalytics)
 				wcAuth.GET("/analytics/community", wcAnalyticsHandler.GetCommunityAnalytics)
 				wcAuth.GET("/analytics/compare", wcAnalyticsHandler.GetCompareAnalytics)
+				wcAuth.GET("/analytics/world-cup-2026", wcAnalyticsHandler.GetWorldCup2026Analytics)
 				// Chat mention
 				wcAuth.GET("/users", wcHandler.ListUsersForMention)
 				wcAuth.GET("/chat/mentions/unread-count", wcChatHandler.GetUnreadMentionCount)

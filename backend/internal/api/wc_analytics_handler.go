@@ -56,3 +56,13 @@ func (h *WcAnalyticsHandler) GetCompareAnalytics(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+// GetWorldCup2026Analytics handles GET /api/v1/wc/analytics/world-cup-2026
+func (h *WcAnalyticsHandler) GetWorldCup2026Analytics(c *gin.Context) {
+	resp, err := h.svc.GetWorldCup2026Analytics()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load tournament analytics"})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}

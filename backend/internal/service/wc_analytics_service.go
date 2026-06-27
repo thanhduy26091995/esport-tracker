@@ -1,18 +1,111 @@
 package service
 
 import (
+	"log"
 	"time"
 
+	gocache "github.com/patrickmn/go-cache"
+
+	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
 )
 
 type WcAnalyticsService struct {
-	repo *repository.WcAnalyticsRepository
+	repo      *repository.WcAnalyticsRepository
+	wcRepo    *repository.WcRepository
+	cache     *gocache.Cache
+	fdClient  *WcFootballDataClient
+	ofClient  *WcOpenFootballClient
 }
 
-func NewWcAnalyticsService(repo *repository.WcAnalyticsRepository) *WcAnalyticsService {
-	return &WcAnalyticsService{repo: repo}
+func NewWcAnalyticsService(
+	repo *repository.WcAnalyticsRepository,
+	wcRepo *repository.WcRepository,
+	cache *gocache.Cache,
+	fdClient *WcFootballDataClient,
+	ofClient *WcOpenFootballClient,
+) *WcAnalyticsService {
+	return &WcAnalyticsService{
+		repo:     repo,
+		wcRepo:   wcRepo,
+		cache:    cache,
+		fdClient: fdClient,
+		ofClient: ofClient,
+	}
+}
+
+// --- Tournament Analytics ---
+
+const (
+	cacheKeyWC2026       = "wc:analytics:wc2026"
+	cacheKeyScorers      = "wc:analytics:scorers"
+	cacheKeyOpenFootball = "wc:analytics:openfootball"
+	cacheTTLWC2026       = 5 * time.Minute
+	cacheTTLScorers      = 30 * time.Minute
+	cacheTTLOpenFootball = 15 * time.Minute
+)
+
+type scorersCacheEntry struct {
+	scorers   []model.WcTournamentScorer
+	fetchedAt time.Time
+}
+
+func (s *WcAnalyticsService) GetWorldCup2026Analytics() (*model.WcAnalyticsResponse, error) {
+	// Tier 1: full response cache — absorbs burst traffic
+	if cached, found := s.cache.Get(cacheKeyWC2026); found {
+		r := cached.(model.WcAnalyticsResponse)
+		return &r, nil
+	}
+
+	matchStats, err := s.wcRepo.GetCompletedMatchStats()
+	if err != nil {
+		return nil, err
+	}
+	resp := &model.WcAnalyticsResponse{MatchStats: *matchStats}
+
+	// Tier 2: football-data.org scorers (goals + assists + team crest)
+	if cached, found := s.cache.Get(cacheKeyScorers); found {
+		entry := cached.(scorersCacheEntry)
+		resp.TopScorers = entry.scorers
+		t := entry.fetchedAt
+		resp.ScorersUpdatedAt = &t
+	} else {
+		scorers, fetchedAt, err := s.fdClient.GetWCScorers(20)
+		if err != nil {
+			log.Printf("[wc-analytics] football-data.org unavailable: %v", err)
+		} else {
+			s.cache.Set(cacheKeyScorers, scorersCacheEntry{scorers, fetchedAt}, cacheTTLScorers)
+			resp.TopScorers = scorers
+			resp.ScorersUpdatedAt = &fetchedAt
+		}
+	}
+
+	// Tier 3: openfootball goal events
+	if cached, found := s.cache.Get(cacheKeyOpenFootball); found {
+		ofData := cached.(*WcOpenFootballData)
+		applyOpenFootballData(resp, ofData)
+	} else {
+		ofData, err := s.ofClient.GetWCData()
+		if err != nil {
+			log.Printf("[wc-analytics] openfootball unavailable: %v", err)
+		} else {
+			s.cache.Set(cacheKeyOpenFootball, ofData, cacheTTLOpenFootball)
+			applyOpenFootballData(resp, ofData)
+		}
+	}
+
+	s.cache.Set(cacheKeyWC2026, *resp, cacheTTLWC2026)
+	return resp, nil
+}
+
+func applyOpenFootballData(resp *model.WcAnalyticsResponse, d *WcOpenFootballData) {
+	resp.GoalTiming = d.GoalTiming
+	resp.HalfTimeStats = &d.HalfTimeStats
+	resp.TeamStats = d.TeamStats
+	resp.GoalsByGroup = d.GoalsByGroup
+	resp.TopScoringMatches = d.TopScoringMatches
+	resp.VenueStats = d.VenueStats
 }
 
 // --- DTOs ---

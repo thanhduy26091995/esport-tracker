@@ -657,3 +657,101 @@ export interface WcCustomBetEntryHistory {
   away_team: string
   match_date: string
 }
+
+// --- Tournament Analytics (WC2026) ---
+
+export interface WcAnalyticsResponse {
+  match_stats: WcTournamentMatchStats
+  top_scorers: WcTournamentScorer[]
+  scorers_updated_at?: string
+  goal_timing?: WcGoalTimingBucket[]
+  half_time_stats?: WcHalfTimeStats
+  team_stats?: WcTeamStat[]
+  goals_by_group?: WcGroupGoals[]
+  top_scoring_matches?: WcMatchDetail[]
+  venue_stats?: WcVenueStat[]
+}
+
+export interface WcTournamentMatchStats {
+  total_matches: number
+  total_goals: number
+  avg_goals_per_match: number
+  home_wins: number
+  away_wins: number
+  draws: number
+  clean_sheets: number
+  highest_scoring_match?: WcTournamentMatchResult
+  goals_by_stage: WcStageGoalsStat[]
+}
+
+export interface WcTournamentMatchResult {
+  home_team: string
+  away_team: string
+  home_score: number
+  away_score: number
+  stage: string
+  total_goals: number
+}
+
+export interface WcStageGoalsStat {
+  stage: string
+  matches: number
+  goals: number
+}
+
+export interface WcTournamentScorer {
+  rank: number
+  player_name: string
+  team_name: string
+  team_code: string
+  team_crest: string
+  goals: number
+  assists: number | null
+  played_matches: number
+}
+
+export interface WcGoalTimingBucket {
+  label: string
+  goals: number
+}
+
+export interface WcHalfTimeStats {
+  first_half_goals: number
+  second_half_goals: number
+  own_goals: number
+  penalty_goals: number
+  comebacks: number
+  held_lead: number
+}
+
+export interface WcTeamStat {
+  team_name: string
+  goals_for: number
+  goals_against: number
+  matches: number
+}
+
+export interface WcGroupGoals {
+  group: string
+  matches: number
+  goals: number
+}
+
+export interface WcMatchDetail {
+  home_team: string
+  away_team: string
+  home_score: number
+  away_score: number
+  total_goals: number
+  group?: string
+  round: string
+  date: string
+  venue: string
+}
+
+export interface WcVenueStat {
+  venue: string
+  matches: number
+  goals: number
+}
+

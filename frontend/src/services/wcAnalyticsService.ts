@@ -3,6 +3,7 @@ import type {
   MyAnalyticsResponse,
   CommunityAnalyticsResponse,
   CompareAnalyticsResponse,
+  WcAnalyticsResponse,
 } from '@/types/wc'
 
 export const wcAnalyticsService = {
@@ -19,5 +20,9 @@ export const wcAnalyticsService = {
 
   getCompareAnalytics(): Promise<CompareAnalyticsResponse> {
     return wcApi.get<CompareAnalyticsResponse>('/analytics/compare').then(r => r.data)
+  },
+
+  getWC2026Analytics(): Promise<WcAnalyticsResponse> {
+    return wcApi.get<WcAnalyticsResponse>('/analytics/world-cup-2026').then(r => r.data)
   },
 }

@@ -1,6 +1,12 @@
 <template>
   <div class="wc-analytics-panel">
     <el-tabs v-model="analyticsTab" class="analytics-sub-tabs">
+      <el-tab-pane :label="t('wc.analytics.wc2026Tab')" name="wc2026">
+        <WcTournamentPanel
+          :data="store.wc2026Data"
+          :loading="store.wc2026Loading"
+        />
+      </el-tab-pane>
       <el-tab-pane :label="t('wc.analytics.myTab')" name="my">
         <MyAnalyticsPanel
           :data="store.myData"
@@ -28,13 +34,14 @@
 import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWcAnalyticsStore } from '@/stores/wcAnalyticsStore'
+import WcTournamentPanel from './analytics/WcTournamentPanel.vue'
 import MyAnalyticsPanel from './analytics/MyAnalyticsPanel.vue'
 import CommunityPanel from './analytics/CommunityPanel.vue'
 import ComparePanel from './analytics/ComparePanel.vue'
 
 const { t } = useI18n()
 const store = useWcAnalyticsStore()
-const analyticsTab = ref('my')
+const analyticsTab = ref('wc2026')
 
 interface PeriodPayload {
   period: string
@@ -47,12 +54,13 @@ async function onPeriodChange({ period, dateFrom, dateTo }: PeriodPayload) {
 }
 
 watch(analyticsTab, async (tab) => {
+  if (tab === 'my' && !store.myData) await store.loadMyAnalytics()
   if (tab === 'community' && !store.communityData) await store.loadCommunityAnalytics()
   if (tab === 'compare' && !store.compareData) await store.loadCompareAnalytics()
 })
 
 onMounted(async () => {
-  if (!store.myData) await store.loadMyAnalytics()
+  if (!store.wc2026Data) await store.loadWC2026Analytics()
 })
 </script>
 

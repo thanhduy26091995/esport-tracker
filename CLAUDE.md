@@ -74,6 +74,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | WC top-3 honor banner — continuously animated CSS marquee on all WC auth pages celebrating the top 3 leaderboard players | `docs/ai/design/feature-wc-top3-honor-banner.md` |
 | WC prediction analytics — personal accuracy/profile/streaks, community trending teams/scorelines, me-vs-community compare | `docs/ai/design/feature-analysis-trending-bet.md` |
 | API performance optimization — caching (go-cache), DB pool config, pagination fix for GET /matches, gzip, DB indexes | `docs/ai/design/feature-api-performance-optimization.md` |
+| WC tournament analytics — total goals, avg goals/match, top scorers (football-data.org), highest scoring match, H/A/D breakdown | `docs/ai/design/feature-wc-tournament-analytics.md` |
 
 ## Dev Commands
 
