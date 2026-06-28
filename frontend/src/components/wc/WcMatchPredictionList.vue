@@ -37,7 +37,7 @@
         </span>
         <span class="wc-mb-stake">{{ pred.points }}</span>
         <span v-if="pred.result" class="wc-mb-result" :class="`wc-mb-result--${pred.result}`">
-          {{ pred.result === 'correct' ? '+' + fmtPts(pred.points_earned ?? 0) : pred.result === 'incorrect' ? '-' + pred.points : '±0' }}
+          {{ pred.result === 'correct' ? '+' + fmtPts((pred.points_earned ?? 0) - pred.points) : pred.result === 'incorrect' ? '-' + pred.points : '±0' }}
         </span>
         <span v-else class="wc-mb-result wc-mb-result--pending">?</span>
       </div>
