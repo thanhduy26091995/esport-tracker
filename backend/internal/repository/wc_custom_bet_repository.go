@@ -185,7 +185,7 @@ func (r *WcCustomBetRepository) ListCustomEntriesForMatchPublic(matchID uuid.UUI
 		            WHEN 'void' THEN 'void'
 		            ELSE NULL
 		        END                                           AS result,
-		        CASE WHEN e.status = 'won' THEN e.payout - e.stake ELSE NULL END AS points_earned,
+		        CASE WHEN e.status = 'won' THEN e.payout ELSE NULL END AS points_earned,
 		        e.created_at,
 		        b.title                                       AS bet_title`).
 		Joins("JOIN wc_users u ON u.id = e.wc_user_id").
