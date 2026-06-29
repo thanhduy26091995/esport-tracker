@@ -46,10 +46,15 @@ type footballMatch struct {
 		TLA  string `json:"tla"`
 	} `json:"awayTeam"`
 	Score struct {
-		FullTime struct {
+		Duration    string `json:"duration"` // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+		FullTime    struct {
 			Home *int `json:"home"`
 			Away *int `json:"away"`
 		} `json:"fullTime"`
+		RegularTime struct {
+			Home *int `json:"home"`
+			Away *int `json:"away"`
+		} `json:"regularTime"`
 	} `json:"score"`
 	Venue string `json:"venue"`
 }
@@ -87,6 +92,14 @@ func (c *footballClient) FetchWCMatches() ([]model.WcMatch, error) {
 		status := mapStatus(m.Status)
 		stage := mapStage(m.Stage)
 
+		// For knockout matches that go to extra time or penalties, use regularTime
+		// (90-min score) so bets are settled on the result within regular time only.
+		homeScore, awayScore := selectBettingScore(
+			m.Score.Duration,
+			m.Score.FullTime.Home, m.Score.FullTime.Away,
+			m.Score.RegularTime.Home, m.Score.RegularTime.Away,
+		)
+
 		wm := model.WcMatch{
 			ExternalID:   fmt.Sprintf("%d", m.ID),
 			HomeTeam:     m.HomeTeam.Name,
@@ -98,13 +111,23 @@ func (c *footballClient) FetchWCMatches() ([]model.WcMatch, error) {
 			Stage:        stage,
 			Venue:        m.Venue,
 			Status:       status,
-			HomeScore:    m.Score.FullTime.Home,
-			AwayScore:    m.Score.FullTime.Away,
+			HomeScore:    homeScore,
+			AwayScore:    awayScore,
 			PredictionsLockedAt: &matchDate, // auto-lock at kickoff time
 		}
 		matches = append(matches, wm)
 	}
 	return matches, nil
+}
+
+// selectBettingScore returns the score used for bet settlement.
+// For matches that went to extra time or penalties, regularTime (90-min score) is used
+// so bets are settled on the result within regulation only.
+func selectBettingScore(duration string, ftHome, ftAway, rtHome, rtAway *int) (*int, *int) {
+	if (duration == "EXTRA_TIME" || duration == "PENALTY_SHOOTOUT") && rtHome != nil && rtAway != nil {
+		return rtHome, rtAway
+	}
+	return ftHome, ftAway
 }
 
 // normalizeGroupName converts API format "GROUP_A" → "Group A".
