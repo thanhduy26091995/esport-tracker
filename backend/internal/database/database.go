@@ -73,6 +73,8 @@ func Connect() (*gorm.DB, error) {
 		// Live chat
 		&model.WcChatMessage{},
 		&model.WcChatMention{},
+		// Site access gate
+		&model.SiteAccessConfig{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
@@ -81,6 +83,7 @@ func Connect() (*gorm.DB, error) {
 	seedConfig(db)
 	seedWcConfig(db)
 	seedWcChampion(db)
+	seedSiteAccess(db)
 
 	log.Println("✅ Database connected successfully")
 	return db, nil
@@ -253,5 +256,13 @@ func seedConfig(db *gorm.DB) {
 			db.Create(&cfg)
 			log.Printf("Seeded config: %s = %s", cfg.Key, cfg.Value)
 		}
+	}
+}
+
+func seedSiteAccess(db *gorm.DB) {
+	var cfg model.SiteAccessConfig
+	if err := db.First(&cfg, 1).Error; err != nil {
+		db.Create(&model.SiteAccessConfig{ID: 1, Question: "", AnswerHash: "", Enabled: false})
+		log.Println("Seeded site_access_config: enabled = false")
 	}
 }

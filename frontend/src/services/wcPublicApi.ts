@@ -11,6 +11,12 @@ export const wcPublicApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+wcPublicApi.interceptors.request.use((config) => {
+  const siteToken = localStorage.getItem('site_access_token')
+  if (siteToken) config.headers['X-Site-Token'] = siteToken
+  return config
+})
+
 export async function listMatchesPublic(filter: WcMatchFilter = {}): Promise<WcMatch[]> {
   const r = await wcPublicApi.get<WcMatch[]>('/matches', { params: filter })
   return r.data

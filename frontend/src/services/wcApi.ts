@@ -59,14 +59,20 @@ function friendlyError(raw: string): string {
 wcApi.interceptors.request.use((config) => {
   const token = localStorage.getItem('wc_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  const siteToken = localStorage.getItem('site_access_token')
+  if (siteToken) config.headers['X-Site-Token'] = siteToken
   return config
 })
 
 wcApi.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const url = error.config?.url ?? ''
-    if (error.response?.status === 401 && !url.includes('/auth/')) {
+    if (error.response?.status === 403) {
+      const { useSiteAccessStore } = await import('@/stores/siteAccessStore')
+      useSiteAccessStore().invalidate()
+      return Promise.reject(error)
+    } else if (error.response?.status === 401 && !url.includes('/auth/')) {
       localStorage.removeItem('wc_token')
       localStorage.removeItem('wc_user')
       window.location.href = '/world-cup/login'

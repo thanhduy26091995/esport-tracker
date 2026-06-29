@@ -28,10 +28,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	corsConfig := cors.Config{
 		AllowOrigins:     strings.Split(os.Getenv("CORS_ORIGINS"), ","),
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization", "X-Internal-Key"},
+		AllowHeaders:     []string{"Content-Type", "Authorization", "X-Internal-Key", "X-Site-Token"},
 		AllowCredentials: true,
 	}
 	router.Use(cors.New(corsConfig))
+
+	// Site access gate — applied globally; exempt paths handled inside middleware.
+	siteAccessRepo := repository.NewSiteAccessRepository(db)
+	router.Use(middleware.SiteAccessMiddleware(siteAccessRepo))
 
 	// Serve uploaded avatar files (after CORS so browser can fetch cross-origin)
 	router.Static("/uploads", "./uploads")
@@ -114,6 +118,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcOfClient := service.NewWcOpenFootballClient()
 	wcAnalyticsService := service.NewWcAnalyticsService(wcAnalyticsRepo, wcRepo, analyticsCache, wcFdClient, wcOfClient)
 	wcAnalyticsHandler := NewWcAnalyticsHandler(wcAnalyticsService)
+	siteAccessService := service.NewSiteAccessService(siteAccessRepo)
+	siteAccessHandler := NewSiteAccessHandler(siteAccessService)
 	wsHandler := ws.NewHandler(wsHub)
 
 	// Token verifier adapter for ChatHandler
@@ -137,6 +143,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	// WebSocket endpoints — outside /api/v1, proxied by Nginx with Upgrade headers
 	router.GET("/ws", wsHandler.Handle)
 	router.GET("/ws/chat", chatWsHandler.Handle)
+
+	// Public site-access endpoints (exempt from X-Internal-Key and X-Site-Token)
+	router.GET("/api/v1/site-access/question", siteAccessHandler.GetQuestion)
+	router.POST("/api/v1/site-access/validate", siteAccessHandler.Validate)
 
 	// API v1 group — non-WC routes protected by X-Internal-Key
 	v1 := router.Group("/api/v1", middleware.InternalKeyMiddleware())
@@ -251,6 +261,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		wcAdminAlways := wc.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
 		{
 			wcAdminAlways.POST("/sync", wcHandler.SyncMatches)
+			wcAdminAlways.GET("/site-access", siteAccessHandler.GetAdminConfig)
+			wcAdminAlways.PUT("/site-access", siteAccessHandler.UpdateAdminConfig)
 		}
 
 		// All remaining WC routes require the feature to be enabled

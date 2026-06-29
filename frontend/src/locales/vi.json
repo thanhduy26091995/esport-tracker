@@ -803,5 +803,10 @@
     "pro": "Pro",
     "normal": "Bình thường",
     "noob": "Tệ"
+  },
+  "gate": {
+    "placeholder": "Nhập câu trả lời...",
+    "submit": "Xác nhận",
+    "error": "Câu trả lời không đúng, vui lòng thử lại."
   }
 }

@@ -803,5 +803,10 @@
     "pro": "Pro",
     "normal": "Normal",
     "noob": "Noob"
+  },
+  "gate": {
+    "placeholder": "Enter your answer...",
+    "submit": "Confirm",
+    "error": "Incorrect answer, please try again."
   }
 }

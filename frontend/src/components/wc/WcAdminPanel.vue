@@ -43,6 +43,33 @@
       </div>
     </div>
 
+    <!-- Site Access Gate -->
+    <div class="card card-body wc-admin-section">
+      <div class="wc-admin-section-title">🔒 Bảo mật truy cập (Site Access Gate)</div>
+      <div class="wc-feature-toggle-row" style="margin-bottom: 12px;">
+        <span class="wc-feature-status" :class="siteAccessForm.enabled ? 'wc-feat--on' : 'wc-feat--off'">
+          {{ siteAccessForm.enabled ? 'Đang bật' : 'Đang tắt' }}
+        </span>
+        <el-switch v-model="siteAccessForm.enabled" />
+      </div>
+      <el-form label-position="top" style="max-width: 480px;">
+        <el-form-item label="Câu hỏi hiển thị cho người dùng">
+          <el-input v-model="siteAccessForm.question" placeholder="VD: Nhóm này tên gì?" />
+        </el-form-item>
+        <el-form-item label="Đáp án mới (để trống = giữ nguyên đáp án cũ)">
+          <el-input
+            v-model="siteAccessForm.answer"
+            type="password"
+            placeholder="Nhập đáp án mới nếu muốn thay đổi"
+            show-password
+          />
+        </el-form-item>
+        <el-button type="primary" :loading="savingSiteAccess" @click="handleSaveSiteAccess">
+          Lưu cấu hình
+        </el-button>
+      </el-form>
+    </div>
+
     <!-- Match Management -->
     <div class="card card-body wc-admin-section">
       <div class="wc-admin-section-title">Quản lý trận đấu</div>
@@ -522,6 +549,7 @@ import { ElMessage } from "element-plus";
 import { useWcStore } from "@/stores/wcStore";
 import { useWcAuthStore } from "@/stores/wcAuthStore";
 import { wcService } from "@/services/wcService";
+import { wcApi } from "@/services/wcApi";
 import { useMatchFilter } from "@/composables/useMatchFilter";
 import type { WcUser, WcMatch, WcScoreMultiplier, FinalizePreviewResult } from "@/types/wc";
 import WcSettlementPreview from "./WcSettlementPreview.vue";
@@ -576,6 +604,36 @@ const customBetPanelRef = ref<InstanceType<typeof WcAdminCustomBetPanel> | null>
 const syncing = ref(false);
 const togglingFeature = ref(false);
 const configEnabled = ref(store.config?.is_enabled ?? false);
+
+const siteAccessForm = ref({ question: '', answer: '', enabled: false });
+const savingSiteAccess = ref(false);
+
+onMounted(async () => {
+  try {
+    const r = await wcApi.get<{ question: string; enabled: boolean }>('/admin/site-access');
+    siteAccessForm.value.question = r.data.question;
+    siteAccessForm.value.enabled = r.data.enabled;
+  } catch {
+    // silently ignore — admin will see empty form
+  }
+});
+
+async function handleSaveSiteAccess() {
+  savingSiteAccess.value = true;
+  try {
+    await wcApi.put('/admin/site-access', {
+      question: siteAccessForm.value.question,
+      answer: siteAccessForm.value.answer || undefined,
+      enabled: siteAccessForm.value.enabled,
+    });
+    siteAccessForm.value.answer = '';
+    ElMessage.success('Đã lưu cấu hình site access gate');
+  } catch {
+    ElMessage.error('Lỗi khi lưu cấu hình');
+  } finally {
+    savingSiteAccess.value = false;
+  }
+}
 
 const betLimitForm = ref({ minPoints: store.minPoints, maxPoints: store.maxPoints });
 const savingBetLimits = ref(false);
