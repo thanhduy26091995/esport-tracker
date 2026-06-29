@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
@@ -196,8 +197,8 @@ func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*mo
 
 			if isCorrect {
 				resStr = model.WcResultCorrect
-				pointsEarned = int(float64(p.Points) * p.OddsSnapshot)
-				delta = float64(pointsEarned)
+				pointsEarned = int(math.Round(float64(p.Points) * p.OddsSnapshot))
+				delta = float64(pointsEarned) - float64(p.Points) // net profit (deferred-deduction model)
 				result.CorrectCount++
 				result.TotalPointsAwarded += pointsEarned
 			} else {
@@ -208,7 +209,7 @@ func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*mo
 				return err
 			}
 
-			wallet, err := s.wcRepo.GetWallet(p.WcUserID)
+			wallet, err := s.wcRepo.GetWalletTx(tx, p.WcUserID)
 			if err != nil {
 				return fmt.Errorf("wallet not found for user %v", p.WcUserID)
 			}

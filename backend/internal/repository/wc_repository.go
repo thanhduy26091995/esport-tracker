@@ -221,6 +221,21 @@ func (r *WcRepository) GetWallet(wcUserID uuid.UUID) (*model.WcWallet, error) {
 	return &w, nil
 }
 
+// GetWalletTx reads the wallet within an active transaction so balance_before
+// values in wallet logs are consistent with concurrent writes.
+func (r *WcRepository) GetWalletTx(tx *gorm.DB, wcUserID uuid.UUID) (*model.WcWallet, error) {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	var w model.WcWallet
+	err := db.Where("wc_user_id = ?", wcUserID).First(&w).Error
+	if err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
 func (r *WcRepository) GetAllWallets() ([]*model.WcWalletWithUser, error) {
 	var rows []*model.WcWalletWithUser
 	err := r.db.Table("wc_wallets w").
@@ -413,6 +428,8 @@ func (r *WcRepository) UpdateSettlementDetailStatus(settlementID, wcUserID uuid.
 	if status == model.WcSettlementStatusDone {
 		now := time.Now()
 		updates["completed_at"] = &now
+	} else {
+		updates["completed_at"] = nil
 	}
 	return r.db.Model(&model.WcSettlementDetail{}).
 		Where("settlement_id = ? AND wc_user_id = ?", settlementID, wcUserID).
@@ -512,7 +529,9 @@ func (r *WcRepository) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic
 
 func (r *WcRepository) ListBetsForSettlement(matchID uuid.UUID) ([]*model.WcBet, error) {
 	var bets []*model.WcBet
-	err := r.db.Where("match_id = ?", matchID).Find(&bets).Error
+	// Exclude void bets: voided bets have no wallet effect (deferred-deduction model) and
+	// must not be overridden by a subsequent settlement run.
+	err := r.db.Where("match_id = ? AND (result IS NULL OR result != 'void')", matchID).Find(&bets).Error
 	return bets, err
 }
 

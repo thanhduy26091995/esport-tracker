@@ -64,7 +64,7 @@ func (h *WcChampionHandler) GetMyPrediction(c *gin.Context) {
 func (h *WcChampionHandler) PlacePredict(c *gin.Context) {
 	var req struct {
 		TeamID uuid.UUID `json:"team_id" binding:"required"`
-		Points int       `json:"points" binding:"required,min=1,max=5"`
+		Points int       `json:"points" binding:"required,min=1"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

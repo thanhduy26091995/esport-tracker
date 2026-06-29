@@ -411,15 +411,30 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (*FinalizeMatchResult, erro
 				return err
 			}
 
-			// Credit wallet with pointsEarned (0 for losses)
+			w, err := s.repo.GetWalletTx(tx, bet.WcUserID)
+			if err != nil {
+				return err
+			}
+			balanceBefore := w.Balance
+
 			if pointsEarned > 0 {
 				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, pointsEarned); err != nil {
 					return err
 				}
 			}
-			// Deduct points from wallet (happens on bet placement for losses only conceptually;
-			// here we track net: pointsEarned - points)
 			if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, float64(-bet.Points)); err != nil {
+				return err
+			}
+
+			netChange := pointsEarned - float64(bet.Points)
+			if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
+				WcUserID:      bet.WcUserID,
+				AdminID:       uuid.Nil,
+				Delta:         netChange,
+				BalanceBefore: balanceBefore,
+				BalanceAfter:  balanceBefore + netChange,
+				Note:          "prediction settle — " + result,
+			}); err != nil {
 				return err
 			}
 
@@ -517,14 +532,21 @@ func (s *WcService) RefinalizeAllMatches() (*FinalizeAllResult, error) {
 					continue
 				}
 
+				w, err := s.repo.GetWalletTx(tx, bet.WcUserID)
+				if err != nil {
+					return err
+				}
+				balanceBefore := w.Balance
+
 				// Reverse old wallet change if already settled.
 				// Treat NULL points_earned as 0 (covers old data that stored NULL for losses).
+				var prevNet float64
 				if bet.Result != nil {
 					var prevEarned float64
 					if bet.PointsEarned != nil {
 						prevEarned = *bet.PointsEarned
 					}
-					prevNet := prevEarned - float64(bet.Points)
+					prevNet = prevEarned - float64(bet.Points)
 					if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, -prevNet); err != nil {
 						return err
 					}
@@ -541,6 +563,24 @@ func (s *WcService) RefinalizeAllMatches() (*FinalizeAllResult, error) {
 				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, float64(-bet.Points)); err != nil {
 					return err
 				}
+
+				newNet := pointsEarned - float64(bet.Points)
+				effectiveDelta := newNet - prevNet
+				noteStr := "prediction settle — " + res
+				if bet.Result != nil {
+					noteStr = "prediction refinalize — " + res
+				}
+				if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
+					WcUserID:      bet.WcUserID,
+					AdminID:       uuid.Nil,
+					Delta:         effectiveDelta,
+					BalanceBefore: balanceBefore,
+					BalanceAfter:  balanceBefore + effectiveDelta,
+					Note:          noteStr,
+				}); err != nil {
+					return err
+				}
+
 				totalPointsEarned += pointsEarned
 			}
 
@@ -757,8 +797,11 @@ func (s *WcService) GetSettlement(id uuid.UUID) (*model.WcSettlementWithDetails,
 	return s.repo.GetSettlement(id)
 }
 
-func (s *WcService) MarkSettlementDone(settlementID, wcUserID uuid.UUID, doneNote string) error {
-	return s.repo.UpdateSettlementDetailStatus(settlementID, wcUserID, model.WcSettlementStatusDone, doneNote)
+func (s *WcService) MarkSettlementDone(settlementID, wcUserID uuid.UUID, status, doneNote string) error {
+	if status != model.WcSettlementStatusDone && status != model.WcSettlementStatusPending {
+		return fmt.Errorf("status must be 'done' or 'pending'")
+	}
+	return s.repo.UpdateSettlementDetailStatus(settlementID, wcUserID, status, doneNote)
 }
 
 // --- Wallet admin ops ---
@@ -767,16 +810,14 @@ func (s *WcService) AdminTopUp(adminID, wcUserID uuid.UUID, delta int, note stri
 	if delta == 0 {
 		return fmt.Errorf("delta cannot be 0")
 	}
-	wallet, err := s.repo.GetWallet(wcUserID)
-	if err != nil {
-		return fmt.Errorf("wallet not found for user")
-	}
-	balanceBefore := wallet.Balance
 	deltaF := float64(delta)
-	balanceAfter := balanceBefore + deltaF
-
 	db := s.repo.DB()
 	return db.Transaction(func(tx *gorm.DB) error {
+		wallet, err := s.repo.GetWalletTx(tx, wcUserID)
+		if err != nil {
+			return fmt.Errorf("wallet not found for user")
+		}
+		balanceBefore := wallet.Balance
 		if err := s.repo.UpdateWalletBalance(tx, wcUserID, deltaF); err != nil {
 			return err
 		}
@@ -785,7 +826,7 @@ func (s *WcService) AdminTopUp(adminID, wcUserID uuid.UUID, delta int, note stri
 			AdminID:       adminID,
 			Delta:         deltaF,
 			BalanceBefore: balanceBefore,
-			BalanceAfter:  balanceAfter,
+			BalanceAfter:  balanceBefore + deltaF,
 			Note:          note,
 		})
 	})
@@ -811,8 +852,8 @@ func (s *WcService) SetAdminRole(wcUserID uuid.UUID, isAdmin bool) error {
 
 // --- User block/unblock ---
 
-// BlockUser blocks targetID: voids all pending bets (refunds wallet), then sets is_blocked=true.
-// Returns the count of bets voided.
+// BlockUser blocks targetID: voids all pending bets (no wallet change — deferred deduction means
+// stake is never taken at placement), then sets is_blocked=true. Returns the count of bets voided.
 func (s *WcService) BlockUser(adminID, targetID uuid.UUID) (int, error) {
 	if adminID == targetID {
 		return 0, fmt.Errorf("cannot block yourself")
@@ -828,9 +869,8 @@ func (s *WcService) BlockUser(adminID, targetID uuid.UUID) (int, error) {
 			if err := s.repo.VoidBet(tx, bet.ID, bet.Stake); err != nil {
 				return err
 			}
-			if err := s.repo.UpdateWalletBalance(tx, targetID, float64(bet.Stake)); err != nil {
-				return err
-			}
+			// No wallet change: wc_bets uses deferred deduction — stake is never taken at
+			// placement, so there is nothing to refund when voiding on block.
 			voidedCount++
 		}
 		return s.userRepo.SetBlockedTx(tx, targetID, true)
@@ -1040,9 +1080,16 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, float64, error) {
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, bet := range bets {
+			w, err := s.repo.GetWalletTx(tx, bet.WcUserID)
+			if err != nil {
+				return err
+			}
+			balanceBefore := w.Balance
+
 			// Reverse previous settlement for idempotency
+			var prevNet float64
 			if bet.Result != nil && bet.Payout != nil {
-				prevNet := *bet.Payout - float64(bet.Stake)
+				prevNet = *bet.Payout - float64(bet.Stake)
 				if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, -prevNet); err != nil {
 					return err
 				}
@@ -1065,6 +1112,22 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, float64, error) {
 
 			netChange := payout - float64(bet.Stake)
 			if err := s.repo.UpdateWalletBalance(tx, bet.WcUserID, netChange); err != nil {
+				return err
+			}
+
+			effectiveDelta := netChange - prevNet
+			noteStr := "bet settle — " + result
+			if bet.Result != nil {
+				noteStr = "bet re-settle — " + result
+			}
+			if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
+				WcUserID:      bet.WcUserID,
+				AdminID:       uuid.Nil,
+				Delta:         effectiveDelta,
+				BalanceBefore: balanceBefore,
+				BalanceAfter:  balanceBefore + effectiveDelta,
+				Note:          noteStr,
+			}); err != nil {
 				return err
 			}
 

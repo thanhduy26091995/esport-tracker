@@ -845,8 +845,8 @@ func (h *WcHandler) MarkSettlementDone(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.svc.MarkSettlementDone(settlementID, wcUserID, req.DoneNote); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update settlement detail"})
+	if err := h.svc.MarkSettlementDone(settlementID, wcUserID, req.Status, req.DoneNote); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})

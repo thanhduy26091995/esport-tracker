@@ -484,6 +484,160 @@ func TestWcSettle_Idempotent(t *testing.T) {
 	assert.Equal(t, wallet1.Balance, wallet2.Balance, "re-settle must be idempotent")
 }
 
+// ─── BlockUser wallet correctness ─────────────────────────────────────────────
+
+func TestWcBet_BlockUser_NoWalletInflation(t *testing.T) {
+	// Regression: BlockUser must NOT add stake to wallet (deferred-deduction model).
+	db := openWcTestDB(t)
+	svc, authSvc := newWcServices(db)
+
+	admin := seedWcUser(t, authSvc, "Admin_"+uuid.NewString()[:6], "pass")
+	user := seedWcUser(t, authSvc, "Block_"+uuid.NewString()[:6], "pass")
+
+	hv := 0.5
+	oh := 1.90
+	oa := 1.95
+	m := seedWcMatch(t, db, func(m *model.WcMatch) {
+		m.HandicapTeam = model.WcTeamHome
+		m.HandicapValue = &hv
+		m.OddsHandicapHome = &oh
+		m.OddsHandicapAway = &oa
+	})
+
+	// Wallet starts at 0; place a bet — wallet stays 0 (deferred deduction)
+	home := model.WcTeamHome
+	_, err := svc.PlaceBet(user.ID, PlaceBetRequest{
+		MatchID: m.ID, BetType: model.WcBetTypeHandicap, BetChoice: &home, Stake: 100,
+	})
+	require.NoError(t, err)
+	w, _ := svc.GetWallet(user.ID)
+	assert.Equal(t, float64(0), w.Balance, "wallet must be 0 after placement (deferred deduction)")
+
+	// Block the user — wallet must still be 0 (nothing to refund)
+	_, err = svc.BlockUser(admin.ID, user.ID)
+	require.NoError(t, err)
+	w, _ = svc.GetWallet(user.ID)
+	assert.Equal(t, float64(0), w.Balance, "BlockUser must not inflate wallet — stake was never deducted")
+}
+
+func TestWcSettle_VoidedBetsSkipped(t *testing.T) {
+	// Regression: SettleMatch must skip bets with result='void' — they must not be re-settled.
+	db := openWcTestDB(t)
+	svc, authSvc := newWcServices(db)
+
+	user := seedWcUser(t, authSvc, "VoidSkip_"+uuid.NewString()[:6], "pass")
+
+	hv := 0.5
+	oh := 1.90
+	oa := 1.95
+	past := time.Now().Add(-1 * time.Hour)
+	m := &model.WcMatch{
+		ExternalID:       uuid.NewString(),
+		HomeTeam:         "A", AwayTeam: "B",
+		MatchDate:        past,
+		Stage:            model.WcStageGroup,
+		Status:           model.WcStatusCompleted,
+		BetsLockedAt:     &past,
+		HomeScore:        intPtr(2),
+		AwayScore:        intPtr(1),
+		HandicapTeam:     model.WcTeamHome,
+		HandicapValue:    &hv,
+		OddsHandicapHome: &oh,
+		OddsHandicapAway: &oa,
+	}
+	require.NoError(t, db.Create(m).Error)
+	t.Cleanup(func() {
+		db.Where("match_id = ?", m.ID).Delete(&model.WcBet{})
+		db.Delete(m)
+	})
+
+	// Create bet directly (bypassing lock check since match is already completed in test)
+	home := model.WcTeamHome
+	bet := &model.WcBet{
+		WcUserID: user.ID, MatchID: m.ID,
+		BetType: model.WcBetTypeHandicap, BetChoice: &home,
+		Stake: 100, OddsSnapshot: 1.90,
+		HandicapSnapshot: &hv, HandicapTeamSnapshot: &home,
+	}
+	require.NoError(t, db.Create(bet).Error)
+
+	// Admin voids the bet
+	require.NoError(t, svc.repo.VoidBet(db, bet.ID, bet.Stake))
+
+	// SettleMatch — voided bet must be skipped; wallet stays 0
+	_, _, err := svc.SettleMatch(m.ID)
+	require.NoError(t, err)
+
+	w, _ := svc.GetWallet(user.ID)
+	assert.Equal(t, float64(0), w.Balance, "voided bet must not be re-settled by SettleMatch")
+
+	// Confirm bet result is still 'void'
+	var settled model.WcBet
+	require.NoError(t, db.First(&settled, "id = ?", bet.ID).Error)
+	require.NotNil(t, settled.Result)
+	assert.Equal(t, "void", *settled.Result, "bet result must remain void after SettleMatch")
+}
+
+func TestWcBet_BlockUserThenSettle_WalletCorrect(t *testing.T) {
+	// Regression: blocked user's voided bets must not yield wallet credit at settlement.
+	db := openWcTestDB(t)
+	svc, authSvc := newWcServices(db)
+
+	admin := seedWcUser(t, authSvc, "Admin2_"+uuid.NewString()[:6], "pass")
+	user := seedWcUser(t, authSvc, "Block2_"+uuid.NewString()[:6], "pass")
+
+	hv := 0.5
+	oh := 1.90
+	oa := 1.95
+	future := time.Now().Add(2 * time.Hour)
+	m := &model.WcMatch{
+		ExternalID:       uuid.NewString(),
+		HomeTeam:         "A", AwayTeam: "B",
+		MatchDate:        future,
+		Stage:            model.WcStageGroup,
+		Status:           model.WcStatusScheduled,
+		BetsLockedAt:     &future,
+		HandicapTeam:     model.WcTeamHome,
+		HandicapValue:    &hv,
+		OddsHandicapHome: &oh,
+		OddsHandicapAway: &oa,
+	}
+	require.NoError(t, db.Create(m).Error)
+	t.Cleanup(func() {
+		db.Where("match_id = ?", m.ID).Delete(&model.WcBet{})
+		db.Delete(m)
+	})
+
+	// Place a bet that would WIN (home wins 2-1 with 0.5 handicap)
+	home := model.WcTeamHome
+	_, err := svc.PlaceBet(user.ID, PlaceBetRequest{
+		MatchID: m.ID, BetType: model.WcBetTypeHandicap, BetChoice: &home, Stake: 100,
+	})
+	require.NoError(t, err)
+
+	// Block user — bets voided, wallet stays 0
+	_, err = svc.BlockUser(admin.ID, user.ID)
+	require.NoError(t, err)
+	w, _ := svc.GetWallet(user.ID)
+	assert.Equal(t, float64(0), w.Balance, "wallet must be 0 after block")
+
+	// Set winning score and settle match
+	require.NoError(t, db.Model(m).Updates(map[string]interface{}{
+		"home_score": 2,
+		"away_score": 1,
+		"status":     model.WcStatusCompleted,
+	}).Error)
+	_, _, err = svc.SettleMatch(m.ID)
+	require.NoError(t, err)
+
+	// Blocked user must NOT receive any payout
+	w, _ = svc.GetWallet(user.ID)
+	assert.Equal(t, float64(0), w.Balance, "blocked user must not receive payout after SettleMatch")
+}
+
+// intPtr is a test helper to create an *int from a literal.
+func intPtr(v int) *int { return &v }
+
 // ─── Tournament settlement ────────────────────────────────────────────────────
 
 func TestWcTournamentSettlement_SnapshotAndReset(t *testing.T) {

@@ -261,22 +261,47 @@ func (s *WcCustomBetService) Settle(betID, winningOptionID, adminID uuid.UUID) e
 			return err
 		}
 		for _, entry := range entries {
+			w, err := s.wcRepo.GetWalletTx(tx, entry.WcUserID)
+			if err != nil {
+				return err
+			}
+			balanceBefore := w.Balance
+
 			if entry.OptionID == winningOptionID {
 				payout := math.Round(float64(entry.Stake)*entry.OddsSnapshot*100) / 100
 				if err := s.repo.UpdateEntryResult(tx, entry.ID, model.WcCustomBetEntryStatusWon, payout); err != nil {
 					return err
 				}
-				// Credit net profit only (stake was not deducted at placement)
 				netChange := payout - float64(entry.Stake)
 				if err := s.wcRepo.UpdateWalletBalance(tx, entry.WcUserID, netChange); err != nil {
+					return err
+				}
+				if err := s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
+					WcUserID:      entry.WcUserID,
+					AdminID:       adminID,
+					Delta:         netChange,
+					BalanceBefore: balanceBefore,
+					BalanceAfter:  balanceBefore + netChange,
+					Note:          "custom bet settle — won",
+				}); err != nil {
 					return err
 				}
 			} else {
 				if err := s.repo.UpdateEntryResult(tx, entry.ID, model.WcCustomBetEntryStatusLost, 0); err != nil {
 					return err
 				}
-				// Deduct stake at settlement (matches betting system)
-				if err := s.wcRepo.UpdateWalletBalance(tx, entry.WcUserID, -float64(entry.Stake)); err != nil {
+				delta := -float64(entry.Stake)
+				if err := s.wcRepo.UpdateWalletBalance(tx, entry.WcUserID, delta); err != nil {
+					return err
+				}
+				if err := s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
+					WcUserID:      entry.WcUserID,
+					AdminID:       adminID,
+					Delta:         delta,
+					BalanceBefore: balanceBefore,
+					BalanceAfter:  balanceBefore + delta,
+					Note:          "custom bet settle — lost",
+				}); err != nil {
 					return err
 				}
 			}
