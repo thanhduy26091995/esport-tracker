@@ -80,6 +80,11 @@
                 <template v-if="isEditable(item.pred)">
                   <el-button
                     size="small" text
+                    class="wc-bet-action-btn"
+                    @click="startEdit(item.pred)"
+                  >Sửa</el-button>
+                  <el-button
+                    size="small" text
                     class="wc-bet-action-btn wc-bet-action-btn--delete"
                     :loading="deletingId === item.pred.id"
                     @click="handleDelete(item.pred)"
@@ -252,9 +257,29 @@ function isEditable(pred: WcPredictionWithMatch): boolean {
   return true
 }
 
+function startEdit(pred: WcPredictionWithMatch) {
+  editingId.value = pred.id
+  editPoints.value = pred.points
+}
+
 function cancelEdit() { editingId.value = null }
 
 async function saveEdit(pred: WcPredictionWithMatch) {
+  const newPoints = editPoints.value
+  if (newPoints < pred.points) {
+    try {
+      const preview = await wcService.previewReducePredictionPoints(pred.id, newPoints)
+      if (preview.penalty > 0) {
+        await ElMessageBox.confirm(
+          t('wc.reducePenaltyWarning', { max: store.betReduceMaxPercent, penalty: preview.penalty }),
+          t('wc.reduceStakeTitle'),
+          { confirmButtonText: t('wc.cancelConfirm'), cancelButtonText: 'Hủy', type: 'warning' },
+        )
+      }
+    } catch {
+      return
+    }
+  }
   saving.value = true
   try {
     await store.updatePredictionPoints(pred.id, editPoints.value)
@@ -265,35 +290,80 @@ async function saveEdit(pred: WcPredictionWithMatch) {
 }
 
 async function handleDelete(pred: WcPredictionWithMatch) {
-  const label = pred.prediction_type === 'handicap'
-    ? (pred.prediction_choice === 'home' ? pred.home_team : pred.away_team)
-    : pred.prediction_type === 'over_under'
-    ? (pred.prediction_choice === 'over' ? t('wc.choiceOver') : t('wc.choiceUnder'))
-    : `${pred.predicted_home_score}–${pred.predicted_away_score}`
-  await ElMessageBox.confirm(
-    `Xoá dự đoán ${label} (${pred.points} pts)?`,
-    'Xác nhận xoá dự đoán',
-    { confirmButtonText: 'Xoá', cancelButtonText: 'Hủy', type: 'warning' },
-  )
+  const penalty = store.cancelPenaltyEnabled
+    ? Math.floor(pred.points * store.cancelPenaltyPercent / 100)
+    : 0
+
+  if (store.cancelPenaltyEnabled && penalty > 0) {
+    try {
+      await ElMessageBox.confirm(
+        t('wc.cancelPenaltyWarning', { penalty }),
+        t('wc.cancelBetTitle'),
+        { confirmButtonText: t('wc.cancelConfirm'), cancelButtonText: 'Hủy', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  } else {
+    const label = pred.prediction_type === 'handicap'
+      ? (pred.prediction_choice === 'home' ? pred.home_team : pred.away_team)
+      : pred.prediction_type === 'over_under'
+      ? (pred.prediction_choice === 'over' ? t('wc.choiceOver') : t('wc.choiceUnder'))
+      : `${pred.predicted_home_score}–${pred.predicted_away_score}`
+    try {
+      await ElMessageBox.confirm(
+        `Xoá dự đoán ${label} (${pred.points} pts)?`,
+        t('wc.cancelBetTitle'),
+        { confirmButtonText: 'Xoá', cancelButtonText: 'Hủy', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  }
+
   deletingId.value = pred.id
   try {
     await store.deletePrediction(pred.id)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Lỗi khi huỷ dự đoán'
+    ElMessage.error(msg)
   } finally {
     deletingId.value = null
   }
 }
 
 async function handleCancelCustom(pred: WcPredictionWithMatch) {
-  await ElMessageBox.confirm(
-    `Huỷ cược kèo phụ "${pred.bet_title}" — ${pred.prediction_choice} (${pred.points} pts)?`,
-    'Xác nhận huỷ',
-    { confirmButtonText: 'Huỷ cược', cancelButtonText: 'Đóng', type: 'warning' },
-  )
+  const penalty = store.cancelPenaltyEnabled
+    ? Math.floor(pred.points * store.cancelPenaltyPercent / 100)
+    : 0
+
+  if (store.cancelPenaltyEnabled && penalty > 0) {
+    try {
+      await ElMessageBox.confirm(
+        t('wc.cancelPenaltyWarning', { penalty }),
+        t('wc.cancelBetTitle'),
+        { confirmButtonText: t('wc.cancelConfirm'), cancelButtonText: 'Hủy', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  } else {
+    try {
+      await ElMessageBox.confirm(
+        `Huỷ cược kèo phụ "${pred.bet_title}" — ${pred.prediction_choice} (${pred.points} pts)?`,
+        'Xác nhận huỷ',
+        { confirmButtonText: 'Huỷ cược', cancelButtonText: 'Đóng', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  }
+
   cancellingId.value = pred.id
   try {
     await wcService.cancelCustomBetEntry(pred.id)
     ElMessage.success('Đã huỷ cược')
-    await store.fetchPredictions()
+    await Promise.all([store.fetchPredictions(), store.fetchWallet()])
   } catch {
     // error shown by wcApi interceptor
   } finally {

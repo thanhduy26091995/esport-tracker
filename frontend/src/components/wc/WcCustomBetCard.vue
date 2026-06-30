@@ -88,8 +88,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { useWcStore } from '@/stores/wcStore'
 import { wcService } from '@/services/wcService'
 import type { WcCustomBetWithOptions } from '@/types/wc'
@@ -98,6 +99,7 @@ import type { WcCustomBetWithOptions } from '@/types/wc'
 const props = defineProps<{ bet: WcCustomBetWithOptions }>()
 const emit = defineEmits<{ (e: 'refresh'): void }>()
 
+const { t } = useI18n()
 const wcStore = useWcStore()
 
 const selectedOptionId = ref<string | null>(null)
@@ -156,9 +158,26 @@ async function handlePlace() {
 
 async function handleCancel() {
   if (!props.bet.my_entry) return
+  const entry = props.bet.my_entry
+  const penalty = wcStore.cancelPenaltyEnabled
+    ? Math.floor(entry.stake * wcStore.cancelPenaltyPercent / 100)
+    : 0
+
+  if (wcStore.cancelPenaltyEnabled && penalty > 0) {
+    try {
+      await ElMessageBox.confirm(
+        t('wc.cancelPenaltyWarning', { penalty }),
+        t('wc.cancelBetTitle'),
+        { confirmButtonText: t('wc.cancelConfirm'), cancelButtonText: 'Hủy', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  }
+
   cancelling.value = true
   try {
-    await wcService.cancelCustomBetEntry(props.bet.my_entry.id)
+    await wcService.cancelCustomBetEntry(entry.id)
     ElMessage.success('Đã huỷ cược')
     emit('refresh')
   } catch {

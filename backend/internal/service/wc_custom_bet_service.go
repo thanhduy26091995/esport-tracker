@@ -190,6 +190,9 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 	if entry.Status != model.WcCustomBetEntryStatusPending {
 		return fmt.Errorf("chỉ có thể huỷ cược đang chờ kết quả")
 	}
+	if entry.CancelledAt != nil {
+		return fmt.Errorf("cược đã được huỷ rồi")
+	}
 	bet, err := s.repo.GetByID(entry.CustomBetID)
 	if err != nil {
 		return fmt.Errorf("kèo không tồn tại")
@@ -204,12 +207,42 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 	if cancelMatch.Status == model.WcStatusLive || cancelMatch.Status == model.WcStatusCompleted || cancelMatch.Status == model.WcStatusCancelled {
 		return fmt.Errorf("không thể huỷ cược khi trận đang diễn ra hoặc đã kết thúc")
 	}
+
+	cfg, err := s.wcRepo.GetConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config")
+	}
+
+	penalty := computeCancelPenalty(entry.Stake, cfg.CancelPenaltyPercent, cfg.CancelPenaltyEnabled)
+
 	opt, _ := s.repo.GetOptionByID(entry.OptionID)
 
 	db := s.wcRepo.DB()
-	if err := db.Transaction(func(tx *gorm.DB) error {
-		return s.repo.DeleteEntry(tx, entryID)
-	}); err != nil {
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.SoftCancelEntry(tx, entryID, userID, penalty); err != nil {
+			return err
+		}
+		if penalty > 0 {
+			wallet, err := s.wcRepo.GetWalletTx(tx, userID)
+			if err != nil {
+				return fmt.Errorf("wallet not found")
+			}
+			balanceBefore := wallet.Balance
+			if err := s.wcRepo.UpdateWalletBalance(tx, userID, float64(-penalty)); err != nil {
+				return err
+			}
+			return s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
+				WcUserID:      userID,
+				AdminID:       uuid.Nil,
+				Delta:         float64(-penalty),
+				BalanceBefore: balanceBefore,
+				BalanceAfter:  balanceBefore - float64(penalty),
+				Note:          fmt.Sprintf("custom bet cancel penalty — %d%%", cfg.CancelPenaltyPercent),
+			})
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 

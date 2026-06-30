@@ -635,9 +635,6 @@ func TestWcBet_BlockUserThenSettle_WalletCorrect(t *testing.T) {
 	assert.Equal(t, float64(0), w.Balance, "blocked user must not receive payout after SettleMatch")
 }
 
-// intPtr is a test helper to create an *int from a literal.
-func intPtr(v int) *int { return &v }
-
 // ─── Tournament settlement ────────────────────────────────────────────────────
 
 func TestWcTournamentSettlement_SnapshotAndReset(t *testing.T) {

@@ -26,12 +26,16 @@ func (WcUser) TableName() string {
 }
 
 type WcConfig struct {
-	ID        int        `gorm:"primaryKey;autoIncrement:false" json:"id"`
-	IsEnabled bool       `gorm:"default:false" json:"is_enabled"`
-	MinPoints int        `gorm:"not null;default:1" json:"min_points"`
-	MaxPoints int        `gorm:"not null;default:5" json:"max_points"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	UpdatedBy *uuid.UUID `gorm:"type:uuid" json:"updated_by,omitempty"`
+	ID                     int        `gorm:"primaryKey;autoIncrement:false" json:"id"`
+	IsEnabled              bool       `gorm:"default:false" json:"is_enabled"`
+	MinPoints              int        `gorm:"not null;default:1" json:"min_points"`
+	MaxPoints              int        `gorm:"not null;default:5" json:"max_points"`
+	CancelPenaltyEnabled   bool       `gorm:"not null;default:false" json:"cancel_penalty_enabled"`
+	CancelPenaltyPercent   int        `gorm:"not null;default:20" json:"cancel_penalty_percent"`
+	BetReduceMaxPercent    int        `gorm:"not null;default:50" json:"bet_reduce_max_percent"`
+	BetReducePenaltyPercent int       `gorm:"not null;default:20" json:"bet_reduce_penalty_percent"`
+	UpdatedAt              time.Time  `json:"updated_at"`
+	UpdatedBy              *uuid.UUID `gorm:"type:uuid" json:"updated_by,omitempty"`
 }
 
 func (WcConfig) TableName() string {

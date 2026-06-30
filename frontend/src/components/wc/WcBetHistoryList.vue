@@ -39,12 +39,12 @@
             <template v-else>
               <span class="wc-bet-stake">{{ bet.stake }} × {{ bet.odds_snapshot.toFixed(2) }}</span>
               <template v-if="isEditable(bet)">
-                <!-- <el-button
+                <el-button
                   size="small"
                   text
                   class="wc-bet-action-btn"
                   @click="startEdit(bet)"
-                >Sửa</el-button> -->
+                >Sửa</el-button>
                 <el-button
                   size="small"
                   text
@@ -85,8 +85,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useWcStore } from '@/stores/wcStore'
+import { wcService } from '@/services/wcService'
 import { useWcBetTypeLabel } from '@/utils/wcBetType'
 import type { WcBetWithMatch } from '@/types/wc'
 
@@ -103,10 +104,16 @@ const deletingId = ref<string | null>(null)
 
 function isEditable(bet: WcBetWithMatch): boolean {
   if (bet.result) return false
+  if (bet.cancelled_at) return false
   if (bet.match_status === 'live' || bet.match_status === 'completed' || bet.match_status === 'cancelled') return false
   if (new Date(bet.match_date).getTime() <= Date.now()) return false
   if (bet.bets_locked_at && new Date(bet.bets_locked_at) <= new Date()) return false
   return true
+}
+
+function startEdit(bet: WcBetWithMatch) {
+  editingId.value = bet.id
+  editStake.value = bet.stake
 }
 
 function cancelEdit() {
@@ -114,9 +121,25 @@ function cancelEdit() {
 }
 
 async function saveEdit(bet: WcBetWithMatch) {
+  const newStake = editStake.value
+  if (newStake < bet.stake) {
+    try {
+      const preview = await wcService.previewReduceStake(bet.id, newStake)
+      if (preview.penalty > 0) {
+        await ElMessageBox.confirm(
+          t('wc.reducePenaltyWarning', { max: store.betReduceMaxPercent, penalty: preview.penalty }),
+          t('wc.reduceStakeTitle'),
+          { confirmButtonText: t('wc.cancelConfirm'), cancelButtonText: 'Hủy', type: 'warning' },
+        )
+      }
+    } catch {
+      // user cancelled or preview failed — abort
+      return
+    }
+  }
   saving.value = true
   try {
-    await store.updateBetStake(bet.id, editStake.value)
+    await store.updateBetStake(bet.id, newStake)
     editingId.value = null
   } finally {
     saving.value = false
@@ -124,14 +147,38 @@ async function saveEdit(bet: WcBetWithMatch) {
 }
 
 async function handleDelete(bet: WcBetWithMatch) {
-  await ElMessageBox.confirm(
-    `Xoá cược ${bet.bet_type === 'handicap' ? (bet.bet_choice === 'home' ? bet.home_team : bet.away_team) : `${bet.predicted_home_score}–${bet.predicted_away_score}`} (${bet.stake} pts)?`,
-    'Xác nhận xoá cược',
-    { confirmButtonText: 'Xoá', cancelButtonText: 'Hủy', type: 'warning' },
-  )
+  const penalty = store.cancelPenaltyEnabled
+    ? Math.floor(bet.stake * store.cancelPenaltyPercent / 100)
+    : 0
+
+  if (store.cancelPenaltyEnabled && penalty > 0) {
+    try {
+      await ElMessageBox.confirm(
+        t('wc.cancelPenaltyWarning', { penalty }),
+        t('wc.cancelBetTitle'),
+        { confirmButtonText: t('wc.cancelConfirm'), cancelButtonText: 'Hủy', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  } else {
+    try {
+      await ElMessageBox.confirm(
+        `Xoá cược này (${bet.stake} pts)?`,
+        t('wc.cancelBetTitle'),
+        { confirmButtonText: 'Xoá', cancelButtonText: 'Hủy', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  }
+
   deletingId.value = bet.id
   try {
     await store.deleteBet(bet.id)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Lỗi khi huỷ cược'
+    ElMessage.error(msg)
   } finally {
     deletingId.value = null
   }

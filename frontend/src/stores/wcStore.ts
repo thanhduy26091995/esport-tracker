@@ -25,6 +25,10 @@ export const useWcStore = defineStore('wc', () => {
   const isEnabled = ref<boolean>(true)
   const minPoints = ref<number>(1)
   const maxPoints = ref<number>(5)
+  const cancelPenaltyEnabled = ref<boolean>(false)
+  const cancelPenaltyPercent = ref<number>(20)
+  const betReduceMaxPercent = ref<number>(50)
+  const betReducePenaltyPercent = ref<number>(20)
   const matches = ref<WcMatch[]>([])
   const currentMatch = ref<WcMatchWithOdds | null>(null)
   const wallet = ref<WcWallet | null>(null)
@@ -49,6 +53,10 @@ export const useWcStore = defineStore('wc', () => {
       isEnabled.value = res.is_enabled
       minPoints.value = res.min_points ?? 1
       maxPoints.value = res.max_points ?? 5
+      cancelPenaltyEnabled.value = res.cancel_penalty_enabled ?? false
+      cancelPenaltyPercent.value = res.cancel_penalty_percent ?? 20
+      betReduceMaxPercent.value = res.bet_reduce_max_percent ?? 50
+      betReducePenaltyPercent.value = res.bet_reduce_penalty_percent ?? 20
     } catch { /* silently */ }
   }
 
@@ -148,7 +156,8 @@ export const useWcStore = defineStore('wc', () => {
 
   async function deleteBet(id: string) {
     await wcService.deleteBet(id)
-    bets.value = bets.value.filter(b => b.id !== id)
+    // Refresh bets + wallet — soft-cancel may have changed cancelled_at and charged a penalty
+    await Promise.all([fetchBets(), fetchWallet()])
   }
 
   async function fetchWallet() {
@@ -168,14 +177,13 @@ export const useWcStore = defineStore('wc', () => {
 
   async function deletePrediction(id: string) {
     await wcService.deletePrediction(id)
-    predictions.value = predictions.value.filter(p => p.id !== id)
-    ElMessage.success('Đã xoá dự đoán')
+    await Promise.all([fetchPredictions(), fetchWallet()])
+    ElMessage.success('Đã huỷ dự đoán')
   }
 
   async function updatePredictionPoints(id: string, points: number) {
     await wcService.updatePredictionPoints(id, points)
-    const prediction = predictions.value.find(p => p.id === id)
-    if (prediction) prediction.points = points
+    await Promise.all([fetchPredictions(), fetchWallet()])
     ElMessage.success('Đã cập nhật điểm dự đoán')
   }
 
@@ -244,6 +252,10 @@ export const useWcStore = defineStore('wc', () => {
     isEnabled,
     minPoints,
     maxPoints,
+    cancelPenaltyEnabled,
+    cancelPenaltyPercent,
+    betReduceMaxPercent,
+    betReducePenaltyPercent,
     matches,
     currentMatch,
     wallet,

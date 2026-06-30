@@ -117,6 +117,21 @@ func runSchemaMigrations(db *gorm.DB) error {
 		// Fix wc_predictions.handicap_snapshot precision: numeric(4,1) rounded 0.25→0.3, breaking quarter-ball detection.
 		// USING clause rounds existing data to nearest 0.25 (e.g. 0.3→0.25, 0.8→0.75) before widening type.
 		`ALTER TABLE wc_predictions ALTER COLUMN handicap_snapshot TYPE NUMERIC(5,2) USING ROUND(handicap_snapshot::numeric * 4) / 4.0`,
+		// Bet cancel penalty: soft-delete + penalty tracking
+		`ALTER TABLE wc_bets ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`,
+		`ALTER TABLE wc_bets ADD COLUMN IF NOT EXISTS cancel_penalty INTEGER NULL`,
+		`ALTER TABLE wc_bets ADD COLUMN IF NOT EXISTS original_stake INTEGER NULL`,
+		`ALTER TABLE wc_custom_bet_entries ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`,
+		`ALTER TABLE wc_custom_bet_entries ADD COLUMN IF NOT EXISTS cancel_penalty INTEGER NULL`,
+		`ALTER TABLE wc_custom_bet_entries ADD COLUMN IF NOT EXISTS original_stake INTEGER NULL`,
+		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS cancel_penalty_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
+		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS cancel_penalty_percent INTEGER NOT NULL DEFAULT 20`,
+		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS bet_reduce_max_percent INTEGER NOT NULL DEFAULT 50`,
+		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS bet_reduce_penalty_percent INTEGER NOT NULL DEFAULT 20`,
+		// Prediction cancel penalty: soft-delete + penalty tracking
+		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS original_points INTEGER NULL`,
+		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`,
+		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS cancel_penalty INTEGER NULL`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {

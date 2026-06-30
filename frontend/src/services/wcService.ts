@@ -36,12 +36,14 @@ import type {
   WcCustomBetWithOptions,
   WcCustomBetEntryHistory,
   CreateCustomBetOption,
+  BetHistoryItem,
+  ReduceStakePreview,
 } from '@/types/wc'
 
 export const wcService = {
   // --- Config ---
-  async getPublicConfig(): Promise<{ is_enabled: boolean; min_points: number; max_points: number }> {
-    const r = await wcApi.get<{ is_enabled: boolean; min_points: number; max_points: number }>('/config')
+  async getPublicConfig(): Promise<Pick<WcConfig, 'is_enabled' | 'min_points' | 'max_points' | 'cancel_penalty_enabled' | 'cancel_penalty_percent' | 'bet_reduce_max_percent' | 'bet_reduce_penalty_percent'>> {
+    const r = await wcApi.get('/config')
     return r.data
   },
   async getConfig(): Promise<WcConfig> {
@@ -53,6 +55,15 @@ export const wcService = {
   },
   async updateBetLimits(minPoints: number, maxPoints: number): Promise<WcConfig> {
     const r = await wcApi.put<WcConfig>('/admin/config', { min_points: minPoints, max_points: maxPoints })
+    return r.data
+  },
+  async updatePenaltyConfig(params: {
+    cancel_penalty_enabled?: boolean
+    cancel_penalty_percent?: number
+    bet_reduce_max_percent?: number
+    bet_reduce_penalty_percent?: number
+  }): Promise<WcConfig> {
+    const r = await wcApi.put<WcConfig>('/admin/config', params)
     return r.data
   },
 
@@ -164,6 +175,10 @@ export const wcService = {
   async updatePredictionPoints(id: string, points: number): Promise<void> {
     await wcApi.put(`/predictions/${id}`, { points })
   },
+  async previewReducePredictionPoints(predId: string, newPoints: number): Promise<ReduceStakePreview> {
+    const r = await wcApi.get<ReduceStakePreview>(`/predictions/${predId}/reduce-preview`, { params: { new_points: newPoints } })
+    return r.data
+  },
   async getMatchPredictions(matchId: string): Promise<WcPredictionPublic[]> {
     const r = await wcApi.get<WcPredictionPublic[]>(`/matches/${matchId}/predictions`)
     return r.data
@@ -187,6 +202,14 @@ export const wcService = {
   },
   async deleteBet(id: string): Promise<void> {
     await wcApi.delete(`/bets/${id}`)
+  },
+  async getBetHistory(): Promise<BetHistoryItem[]> {
+    const r = await wcApi.get<BetHistoryItem[]>('/bets/history')
+    return r.data
+  },
+  async previewReduceStake(betId: string, newStake: number): Promise<ReduceStakePreview> {
+    const r = await wcApi.get<ReduceStakePreview>(`/bets/${betId}/reduce-preview`, { params: { new_stake: newStake } })
+    return r.data
   },
 
   // --- Leaderboard ---

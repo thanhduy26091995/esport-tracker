@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"errors"
+	"time"
+
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -89,7 +92,7 @@ func (r *WcCustomBetRepository) listWithOptionsAndEntries(bets []*model.WcCustom
 		Select("e.custom_bet_id, e.id, e.wc_user_id, e.option_id, o.label AS option_label, u.name, u.avatar_url, e.stake, e.odds_snapshot, e.status, e.payout, e.created_at").
 		Joins("JOIN wc_users u ON u.id = e.wc_user_id").
 		Joins("JOIN wc_custom_bet_options o ON o.id = e.option_id").
-		Where("e.custom_bet_id IN ?", ids).
+		Where("e.custom_bet_id IN ? AND e.cancelled_at IS NULL", ids).
 		Order("e.created_at ASC").
 		Scan(&allEntries).Error; err != nil {
 		return
@@ -191,7 +194,7 @@ func (r *WcCustomBetRepository) ListCustomEntriesForMatchPublic(matchID uuid.UUI
 		Joins("JOIN wc_users u ON u.id = e.wc_user_id").
 		Joins("JOIN wc_custom_bet_options o ON o.id = e.option_id").
 		Joins("JOIN wc_custom_bets b ON b.id = e.custom_bet_id").
-		Where("b.match_id = ?", matchID).
+		Where("b.match_id = ? AND e.cancelled_at IS NULL", matchID).
 		Order("e.created_at ASC").
 		Scan(&result).Error
 	return result, err
@@ -236,7 +239,7 @@ func (r *WcCustomBetRepository) GetEntriesForUser(userID uuid.UUID) ([]model.WcC
 		Joins("JOIN wc_custom_bets b ON b.id = e.custom_bet_id").
 		Joins("JOIN wc_custom_bet_options o ON o.id = e.option_id").
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
-		Where("e.wc_user_id = ?", userID).
+		Where("e.wc_user_id = ? AND e.cancelled_at IS NULL", userID).
 		Order("e.created_at DESC").
 		Scan(&result).Error
 	return result, err
@@ -281,7 +284,7 @@ func (r *WcCustomBetRepository) GetPendingEntries(tx *gorm.DB, betID uuid.UUID) 
 		db = tx
 	}
 	var entries []model.WcCustomBetEntry
-	err := db.Where("custom_bet_id = ? AND status = ?", betID, model.WcCustomBetEntryStatusPending).Find(&entries).Error
+	err := db.Where("custom_bet_id = ? AND status = ? AND cancelled_at IS NULL", betID, model.WcCustomBetEntryStatusPending).Find(&entries).Error
 	return entries, err
 }
 
@@ -299,7 +302,48 @@ func (r *WcCustomBetRepository) CreateEntry(tx *gorm.DB, entry *model.WcCustomBe
 	if tx != nil {
 		db = tx
 	}
+	// Immutably record original_stake at placement so reduce-penalty can compare against it.
+	if entry.OriginalStake == nil {
+		entry.OriginalStake = &entry.Stake
+	}
 	return db.Create(entry).Error
+}
+
+// SoftCancelEntry soft-deletes a custom bet entry and records the cancel penalty.
+func (r *WcCustomBetRepository) SoftCancelEntry(tx *gorm.DB, id, wcUserID uuid.UUID, penalty int) error {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	now := time.Now()
+	result := db.Model(&model.WcCustomBetEntry{}).
+		Where("id = ? AND wc_user_id = ? AND cancelled_at IS NULL", id, wcUserID).
+		Updates(map[string]interface{}{
+			"cancelled_at":   now,
+			"cancel_penalty": penalty,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("entry not found or already cancelled")
+	}
+	return nil
+}
+
+// ListCancelledOrSettledEntriesForUser returns custom bet entries that are settled or cancelled.
+func (r *WcCustomBetRepository) ListCancelledOrSettledEntriesForUser(userID uuid.UUID) ([]model.WcCustomBetEntryHistory, error) {
+	var result []model.WcCustomBetEntryHistory
+	err := r.db.Table("wc_custom_bet_entries e").
+		Select(`e.*, b.match_id, b.title AS bet_title, b.line AS bet_line, o.label AS option_label,
+		        m.home_team, m.away_team, m.match_date`).
+		Joins("JOIN wc_custom_bets b ON b.id = e.custom_bet_id").
+		Joins("JOIN wc_custom_bet_options o ON o.id = e.option_id").
+		Joins("JOIN wc_matches m ON m.id = b.match_id").
+		Where("e.wc_user_id = ? AND (e.status != ? OR e.cancelled_at IS NOT NULL)", userID, model.WcCustomBetEntryStatusPending).
+		Order("e.created_at DESC").
+		Scan(&result).Error
+	return result, err
 }
 
 func (r *WcCustomBetRepository) GetEntry(entryID uuid.UUID) (*model.WcCustomBetEntry, error) {

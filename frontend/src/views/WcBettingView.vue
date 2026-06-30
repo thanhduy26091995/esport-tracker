@@ -114,12 +114,8 @@
         </el-tab-pane>
 
         <!-- HISTORY TAB -->
-        <el-tab-pane :label="t('wc.tabHistory')" name="history">
-          <WcBetHistoryList :bets="settledBets" />
-          <div v-if="settledCustomEntries.length > 0" class="wc-custom-history-section">
-            <div class="wc-custom-history-title">Kèo phụ</div>
-            <WcCustomBetHistoryList :entries="settledCustomEntries" />
-          </div>
+        <el-tab-pane :label="t('wc.tabBetHistory')" name="history">
+          <WcBetHistoryFeed :items="betHistory" />
         </el-tab-pane>
 
         <!-- LEADERBOARD TAB -->
@@ -155,12 +151,13 @@ import { useMatchFilter } from '@/composables/useMatchFilter'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import WcBetForm from '@/components/wc/WcBetForm.vue'
 import WcBetHistoryList from '@/components/wc/WcBetHistoryList.vue'
+import WcBetHistoryFeed from '@/components/wc/WcBetHistoryFeed.vue'
 import WcMatchBetList from '@/components/wc/WcMatchBetList.vue'
 import WcLeaderboard from '@/components/wc/WcLeaderboard.vue'
 import WcAdminPanel from '@/components/wc/WcAdminPanel.vue'
 import WcCustomBetCard from '@/components/wc/WcCustomBetCard.vue'
 import WcCustomBetHistoryList from '@/components/wc/WcCustomBetHistoryList.vue'
-import type { WcMatchWithOdds, WcScoreOdds, WcMatch, WcCustomBetWithOptions, WcCustomBetEntryHistory } from '@/types/wc'
+import type { WcMatchWithOdds, WcScoreOdds, WcMatch, WcCustomBetWithOptions, WcCustomBetEntryHistory, BetHistoryItem } from '@/types/wc'
 import { wcService } from '@/services/wcService'
 
 const { t } = useI18n()
@@ -208,11 +205,10 @@ function isBettable(m: WcMatch): boolean {
   return true
 }
 
-const openBets = computed(() => store.bets.filter(b => !b.result))
-const settledBets = computed(() => store.bets.filter(b => !!b.result))
+const openBets = computed(() => store.bets.filter(b => !b.result && !b.cancelled_at))
 const customEntries = ref<WcCustomBetEntryHistory[]>([])
-const pendingCustomEntries = computed(() => customEntries.value.filter(e => e.status === 'pending'))
-const settledCustomEntries = computed(() => customEntries.value.filter(e => e.status !== 'pending'))
+const pendingCustomEntries = computed(() => customEntries.value.filter(e => e.status === 'pending' && !e.cancelled_at))
+const betHistory = ref<BetHistoryItem[]>([])
 
 async function openBetForm(match: WcMatch) {
   const full = await wcService.getMatch(match.id)
@@ -234,6 +230,7 @@ async function toggleMatchBets(matchId: string) {
 async function onBetPlaced() {
   await store.fetchWallet()
   await store.fetchBets()
+  await fetchBetHistory()
 }
 
 async function toggleCustomBets(matchId: string) {
@@ -261,11 +258,18 @@ async function fetchCustomEntries() {
   customEntries.value = await wcService.getMyCustomBetEntries()
 }
 
+async function fetchBetHistory() {
+  betHistory.value = await wcService.getBetHistory()
+}
+
 watch(activeTab, async (tab) => {
   if (tab === 'leaderboard') await store.fetchLeaderboard()
-  if (tab === 'open_bets' || tab === 'history') {
+  if (tab === 'open_bets') {
     await store.fetchBets()
     await fetchCustomEntries()
+  }
+  if (tab === 'history') {
+    await fetchBetHistory()
   }
 })
 
@@ -276,6 +280,7 @@ onMounted(async () => {
     store.fetchBets(),
     fetchCustomEntries(),
     store.fetchPublicConfig(),
+    fetchBetHistory(),
   ])
 })
 </script>

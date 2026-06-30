@@ -166,6 +166,9 @@ type WcPrediction struct {
 	MatchID        uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_prediction_hc_dedup;uniqueIndex:idx_prediction_es_dedup" json:"match_id"`
 	PredictionType string    `gorm:"type:varchar(15);not null;uniqueIndex:idx_prediction_hc_dedup" json:"prediction_type"`
 	Points         int       `gorm:"not null" json:"points"`
+	OriginalPoints *int      `gorm:"column:original_points" json:"original_points,omitempty"`
+	CancelledAt    *time.Time `gorm:"column:cancelled_at" json:"cancelled_at,omitempty"`
+	CancelPenalty  *int      `gorm:"column:cancel_penalty" json:"cancel_penalty,omitempty"`
 	MultiplierSnapshot float64 `gorm:"type:numeric(5,2);not null" json:"multiplier_snapshot"`
 
 	// Handicap prediction fields (nullable for exact_score predictions)
@@ -232,24 +235,52 @@ func (WcScoreOdds) TableName() string { return "wc_score_odds" }
 
 // WcBet stores a real-money bet placed by a user on a match.
 type WcBet struct {
-	ID                   uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	WcUserID             uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"wc_user_id"`
-	MatchID              uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"match_id"`
-	BetType              string    `gorm:"type:varchar(15);not null;uniqueIndex:idx_bet_hc_dedup" json:"bet_type"`
-	BetChoice            *string   `gorm:"type:varchar(5);uniqueIndex:idx_bet_hc_dedup" json:"bet_choice,omitempty"`
-	Stake                int       `gorm:"not null" json:"stake"`
-	OddsSnapshot         float64   `gorm:"type:numeric(5,2);not null" json:"odds_snapshot"`
-	HandicapSnapshot     *float64  `gorm:"type:numeric(5,2)" json:"handicap_snapshot,omitempty"`
-	HandicapTeamSnapshot *string   `gorm:"type:varchar(5)" json:"handicap_team_snapshot,omitempty"`
-	PredictedHomeScore   *int      `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_home_score,omitempty"`
-	PredictedAwayScore   *int      `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_away_score,omitempty"`
-	Result               *string   `gorm:"type:varchar(10)" json:"result,omitempty"`
-	Payout               *float64  `gorm:"type:numeric(10,2)" json:"payout,omitempty"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID                   uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	WcUserID             uuid.UUID  `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"wc_user_id"`
+	MatchID              uuid.UUID  `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"match_id"`
+	BetType              string     `gorm:"type:varchar(15);not null;uniqueIndex:idx_bet_hc_dedup" json:"bet_type"`
+	BetChoice            *string    `gorm:"type:varchar(5);uniqueIndex:idx_bet_hc_dedup" json:"bet_choice,omitempty"`
+	Stake                int        `gorm:"not null" json:"stake"`
+	OriginalStake        *int       `json:"original_stake,omitempty"`
+	OddsSnapshot         float64    `gorm:"type:numeric(5,2);not null" json:"odds_snapshot"`
+	HandicapSnapshot     *float64   `gorm:"type:numeric(5,2)" json:"handicap_snapshot,omitempty"`
+	HandicapTeamSnapshot *string    `gorm:"type:varchar(5)" json:"handicap_team_snapshot,omitempty"`
+	PredictedHomeScore   *int       `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_home_score,omitempty"`
+	PredictedAwayScore   *int       `gorm:"uniqueIndex:idx_bet_es_dedup" json:"predicted_away_score,omitempty"`
+	Result               *string    `gorm:"type:varchar(10)" json:"result,omitempty"`
+	Payout               *float64   `gorm:"type:numeric(10,2)" json:"payout,omitempty"`
+	CancelledAt          *time.Time `gorm:"type:timestamptz" json:"cancelled_at,omitempty"`
+	CancelPenalty        *int       `json:"cancel_penalty,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 func (WcBet) TableName() string { return "wc_bets" }
+
+// BetHistoryItem is a unified history entry for the GET /wc/bets/history endpoint,
+// combining regular wc_bets and wc_custom_bet_entries (settled or cancelled).
+type BetHistoryItem struct {
+	ID           string     `json:"id"`
+	Kind         string     `json:"kind"` // "regular" | "custom"
+	MatchID      string     `json:"match_id"`
+	HomeTeam     string     `json:"home_team"`
+	AwayTeam     string     `json:"away_team"`
+	MatchDate    time.Time  `json:"match_date"`
+	BetType      *string    `json:"bet_type,omitempty"`
+	BetChoice    *string    `json:"bet_choice,omitempty"`
+	BetTitle     *string    `json:"bet_title,omitempty"`
+	OptionLabel  *string    `json:"option_label,omitempty"`
+	Stake        int        `json:"stake"`
+	OriginalStake *int      `json:"original_stake,omitempty"`
+	OddsSnapshot float64    `json:"odds_snapshot"`
+	PredictedHomeScore *int `json:"predicted_home_score,omitempty"`
+	PredictedAwayScore *int `json:"predicted_away_score,omitempty"`
+	Result       *string    `json:"result,omitempty"`
+	Payout       *float64   `json:"payout,omitempty"`
+	CancelledAt  *time.Time `json:"cancelled_at,omitempty"`
+	CancelPenalty *int      `json:"cancel_penalty,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+}
 
 // WcBetWithMatch is used by ListBets — includes match context and live lock status.
 type WcBetWithMatch struct {

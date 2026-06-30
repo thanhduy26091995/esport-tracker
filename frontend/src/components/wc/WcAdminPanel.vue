@@ -43,6 +43,51 @@
       </div>
     </div>
 
+    <!-- Penalty Config -->
+    <div class="card card-body wc-admin-section">
+      <div class="wc-admin-section-title">{{ t('wc.penaltyConfig') }}</div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="wc-feature-toggle-row" style="gap: 16px; flex-wrap: wrap; align-items: center;">
+          <el-form-item :label="t('wc.cancelPenaltyEnabledLabel')" style="margin: 0">
+            <el-switch v-model="penaltyForm.cancelPenaltyEnabled" />
+          </el-form-item>
+          <el-form-item :label="t('wc.cancelPenaltyPercentLabel')" style="margin: 0">
+            <el-input-number
+              v-model="penaltyForm.cancelPenaltyPercent"
+              :min="0"
+              :max="100"
+              controls-position="right"
+              style="width: 100px"
+            />
+            <span style="margin-left: 6px; color: #888;">%</span>
+          </el-form-item>
+        </div>
+        <div class="wc-feature-toggle-row" style="gap: 16px; flex-wrap: wrap; align-items: center;">
+          <el-form-item :label="t('wc.reduceMaxPercentLabel')" style="margin: 0">
+            <el-input-number
+              v-model="penaltyForm.betReduceMaxPercent"
+              :min="0"
+              :max="100"
+              controls-position="right"
+              style="width: 100px"
+            />
+            <span style="margin-left: 6px; color: #888;">%</span>
+          </el-form-item>
+          <el-form-item :label="t('wc.reducePenaltyPercentLabel')" style="margin: 0">
+            <el-input-number
+              v-model="penaltyForm.betReducePenaltyPercent"
+              :min="0"
+              :max="100"
+              controls-position="right"
+              style="width: 100px"
+            />
+            <span style="margin-left: 6px; color: #888;">%</span>
+          </el-form-item>
+          <el-button type="primary" :loading="savingPenaltyConfig" @click="handleSavePenaltyConfig">Lưu</el-button>
+        </div>
+      </div>
+    </div>
+
     <!-- Match Management -->
     <div class="card card-body wc-admin-section">
       <div class="wc-admin-section-title">Quản lý trận đấu</div>
@@ -592,6 +637,31 @@ async function handleSaveBetLimits() {
   }
 }
 
+const penaltyForm = ref({
+  cancelPenaltyEnabled: store.config?.cancel_penalty_enabled ?? false,
+  cancelPenaltyPercent: store.config?.cancel_penalty_percent ?? 20,
+  betReduceMaxPercent: store.config?.bet_reduce_max_percent ?? 50,
+  betReducePenaltyPercent: store.config?.bet_reduce_penalty_percent ?? 20,
+});
+const savingPenaltyConfig = ref(false);
+async function handleSavePenaltyConfig() {
+  savingPenaltyConfig.value = true;
+  try {
+    await wcService.updatePenaltyConfig({
+      cancel_penalty_enabled: penaltyForm.value.cancelPenaltyEnabled,
+      cancel_penalty_percent: penaltyForm.value.cancelPenaltyPercent,
+      bet_reduce_max_percent: penaltyForm.value.betReduceMaxPercent,
+      bet_reduce_penalty_percent: penaltyForm.value.betReducePenaltyPercent,
+    });
+    await store.fetchPublicConfig();
+    ElMessage.success('Đã cập nhật cài đặt phạt cược');
+  } catch {
+    ElMessage.error('Lỗi khi cập nhật');
+  } finally {
+    savingPenaltyConfig.value = false;
+  }
+}
+
 type PendingAction = 'finalize-match' | 'finalize-all' | 'refinalize-all'
 const previewDialogVisible = ref(false);
 const previewData = ref<FinalizePreviewResult | null>(null);
@@ -894,6 +964,12 @@ onMounted(async () => {
   configEnabled.value = store.config?.is_enabled ?? false;
   if (store.config) {
     betLimitForm.value = { minPoints: store.config.min_points, maxPoints: store.config.max_points };
+    penaltyForm.value = {
+      cancelPenaltyEnabled: store.config.cancel_penalty_enabled,
+      cancelPenaltyPercent: store.config.cancel_penalty_percent,
+      betReduceMaxPercent: store.config.bet_reduce_max_percent,
+      betReducePenaltyPercent: store.config.bet_reduce_penalty_percent,
+    };
   }
 });
 </script>

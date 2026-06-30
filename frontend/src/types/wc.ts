@@ -21,6 +21,10 @@ export interface WcConfig {
   is_enabled: boolean
   min_points: number
   max_points: number
+  cancel_penalty_enabled: boolean
+  cancel_penalty_percent: number
+  bet_reduce_max_percent: number
+  bet_reduce_penalty_percent: number
   updated_at: string
   updated_by?: string
 }
@@ -108,6 +112,7 @@ export interface WcPrediction {
   prediction_type: WcPredictionType | 'custom'
   prediction_choice?: string
   points: number
+  original_points?: number
   multiplier_snapshot: number
   handicap_snapshot?: number
   handicap_team_snapshot?: string
@@ -115,6 +120,8 @@ export interface WcPrediction {
   predicted_away_score?: number
   result?: WcPredictionResult
   points_earned?: number
+  cancelled_at?: string
+  cancel_penalty?: number
   created_at: string
   updated_at: string
 }
@@ -202,11 +209,14 @@ export interface WcBet {
   bet_type: WcBetType
   bet_choice?: string
   stake: number
+  original_stake?: number
   odds_snapshot: number
   predicted_home_score?: number
   predicted_away_score?: number
   result?: WcBetResult
   payout?: number
+  cancelled_at?: string
+  cancel_penalty?: number
   created_at: string
   updated_at: string
 }
@@ -243,6 +253,35 @@ export interface WcPlaceBetRequest {
   stake: number
   predicted_home_score?: number
   predicted_away_score?: number
+}
+
+export interface BetHistoryItem {
+  id: string
+  kind: 'regular' | 'custom'
+  match_id: string
+  home_team: string
+  away_team: string
+  match_date: string
+  bet_type?: string
+  bet_choice?: string
+  bet_title?: string
+  option_label?: string
+  stake: number
+  original_stake?: number
+  odds_snapshot: number
+  predicted_home_score?: number
+  predicted_away_score?: number
+  result?: string
+  payout?: number
+  cancelled_at?: string
+  cancel_penalty?: number
+  created_at: string
+}
+
+export interface ReduceStakePreview {
+  penalty: number
+  excess_reduction: number
+  allowed_min_stake: number
 }
 
 export interface WcAuthUser {
@@ -595,9 +634,12 @@ export interface WcCustomBetEntry {
   option_id: string
   wc_user_id: string
   stake: number
+  original_stake?: number
   odds_snapshot: number
   payout?: number
   status: WcCustomBetEntryStatus
+  cancelled_at?: string
+  cancel_penalty?: number
   created_at: string
 }
 
@@ -646,9 +688,12 @@ export interface WcCustomBetEntryHistory {
   option_id: string
   wc_user_id: string
   stake: number
+  original_stake?: number
   odds_snapshot: number
   payout?: number
   status: WcCustomBetEntryStatus
+  cancelled_at?: string
+  cancel_penalty?: number
   created_at: string
   bet_title: string
   bet_line?: number

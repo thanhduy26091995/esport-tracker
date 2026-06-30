@@ -21,7 +21,7 @@ func NewWcHandler(svc *service.WcService, authSvc *service.WcAuthService) *WcHan
 	return &WcHandler{svc: svc, authSvc: authSvc}
 }
 
-// GetPublicConfig handles GET /api/v1/wc/config — public, returns is_enabled + bet limits
+// GetPublicConfig handles GET /api/v1/wc/config — public, returns is_enabled + bet limits + penalty config
 func (h *WcHandler) GetPublicConfig(c *gin.Context) {
 	cfg, err := h.svc.GetConfig()
 	if err != nil {
@@ -29,9 +29,13 @@ func (h *WcHandler) GetPublicConfig(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"is_enabled": cfg.IsEnabled,
-		"min_points": cfg.MinPoints,
-		"max_points": cfg.MaxPoints,
+		"is_enabled":                  cfg.IsEnabled,
+		"min_points":                  cfg.MinPoints,
+		"max_points":                  cfg.MaxPoints,
+		"cancel_penalty_enabled":      cfg.CancelPenaltyEnabled,
+		"cancel_penalty_percent":      cfg.CancelPenaltyPercent,
+		"bet_reduce_max_percent":      cfg.BetReduceMaxPercent,
+		"bet_reduce_penalty_percent":  cfg.BetReducePenaltyPercent,
 	})
 }
 
@@ -48,9 +52,13 @@ func (h *WcHandler) GetConfig(c *gin.Context) {
 // UpdateConfig handles PUT /api/v1/wc/admin/config
 func (h *WcHandler) UpdateConfig(c *gin.Context) {
 	var req struct {
-		IsEnabled *bool `json:"is_enabled"`
-		MinPoints *int  `json:"min_points"`
-		MaxPoints *int  `json:"max_points"`
+		IsEnabled             *bool `json:"is_enabled"`
+		MinPoints             *int  `json:"min_points"`
+		MaxPoints             *int  `json:"max_points"`
+		CancelPenaltyEnabled  *bool `json:"cancel_penalty_enabled"`
+		CancelPenaltyPercent  *int  `json:"cancel_penalty_percent"`
+		BetReduceMaxPercent   *int  `json:"bet_reduce_max_percent"`
+		BetReducePenaltyPercent *int `json:"bet_reduce_penalty_percent"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -79,6 +87,34 @@ func (h *WcHandler) UpdateConfig(c *gin.Context) {
 			max = *req.MaxPoints
 		}
 		if err := h.svc.SetBetLimits(min, max, adminID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	if req.CancelPenaltyEnabled != nil || req.CancelPenaltyPercent != nil || req.BetReduceMaxPercent != nil || req.BetReducePenaltyPercent != nil {
+		cfg, err := h.svc.GetConfig()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load config"})
+			return
+		}
+		cancelEnabled := cfg.CancelPenaltyEnabled
+		cancelPercent := cfg.CancelPenaltyPercent
+		reduceMax := cfg.BetReduceMaxPercent
+		reducePenalty := cfg.BetReducePenaltyPercent
+		if req.CancelPenaltyEnabled != nil {
+			cancelEnabled = *req.CancelPenaltyEnabled
+		}
+		if req.CancelPenaltyPercent != nil {
+			cancelPercent = *req.CancelPenaltyPercent
+		}
+		if req.BetReduceMaxPercent != nil {
+			reduceMax = *req.BetReduceMaxPercent
+		}
+		if req.BetReducePenaltyPercent != nil {
+			reducePenalty = *req.BetReducePenaltyPercent
+		}
+		if err := h.svc.SetPenaltyConfig(cancelEnabled, cancelPercent, reduceMax, reducePenalty, adminID); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -860,4 +896,69 @@ func (h *WcHandler) GetGroupStandings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// GetBetHistory handles GET /api/v1/wc/bets/history
+// Returns settled + cancelled regular bets and custom bet entries, merged chronologically.
+func (h *WcHandler) GetBetHistory(c *gin.Context) {
+	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	items, err := h.svc.GetBetHistory(wcUserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bet history"})
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+// PreviewReducePredictionPoints handles GET /api/v1/wc/predictions/:id/reduce-preview?new_points=X
+func (h *WcHandler) PreviewReducePredictionPoints(c *gin.Context) {
+	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	predID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prediction ID"})
+		return
+	}
+	newPointsStr := c.Query("new_points")
+	if newPointsStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "new_points is required"})
+		return
+	}
+	newPoints, err := strconv.Atoi(newPointsStr)
+	if err != nil || newPoints < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "new_points must be a positive integer"})
+		return
+	}
+	preview, err := h.svc.PreviewReducePredictionPoints(wcUserID, predID, newPoints)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, preview)
+}
+
+// PreviewReduceStake handles GET /api/v1/wc/bets/:id/reduce-preview?new_stake=X
+// Dry-run: returns the penalty that would be charged for reducing stake to new_stake.
+func (h *WcHandler) PreviewReduceStake(c *gin.Context) {
+	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
+	betID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bet ID"})
+		return
+	}
+	newStakeStr := c.Query("new_stake")
+	if newStakeStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "new_stake is required"})
+		return
+	}
+	newStake, err := strconv.Atoi(newStakeStr)
+	if err != nil || newStake < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "new_stake must be a positive integer"})
+		return
+	}
+	preview, err := h.svc.PreviewReduceStake(wcUserID, betID, newStake)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, preview)
 }

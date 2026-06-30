@@ -46,15 +46,18 @@ type WcCustomBetOption struct {
 func (WcCustomBetOption) TableName() string { return "wc_custom_bet_options" }
 
 type WcCustomBetEntry struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CustomBetID  uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_custom_bet_entry_dedup" json:"custom_bet_id"`
-	OptionID     uuid.UUID `gorm:"type:uuid;not null" json:"option_id"`
-	WcUserID     uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_custom_bet_entry_dedup" json:"wc_user_id"`
-	Stake        int       `gorm:"not null" json:"stake"`
-	OddsSnapshot float64   `gorm:"type:numeric(6,2);not null" json:"odds_snapshot"`
-	Payout       *float64  `gorm:"type:numeric(10,2)" json:"payout,omitempty"`
-	Status       string    `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID            uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CustomBetID   uuid.UUID  `gorm:"type:uuid;not null;index;uniqueIndex:idx_custom_bet_entry_dedup" json:"custom_bet_id"`
+	OptionID      uuid.UUID  `gorm:"type:uuid;not null" json:"option_id"`
+	WcUserID      uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_custom_bet_entry_dedup" json:"wc_user_id"`
+	Stake         int        `gorm:"not null" json:"stake"`
+	OriginalStake *int       `json:"original_stake,omitempty"`
+	OddsSnapshot  float64    `gorm:"type:numeric(6,2);not null" json:"odds_snapshot"`
+	Payout        *float64   `gorm:"type:numeric(10,2)" json:"payout,omitempty"`
+	Status        string     `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`
+	CancelledAt   *time.Time `gorm:"type:timestamptz" json:"cancelled_at,omitempty"`
+	CancelPenalty *int       `json:"cancel_penalty,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 func (WcCustomBetEntry) TableName() string { return "wc_custom_bet_entries" }
@@ -83,6 +86,7 @@ type WcCustomBetWithOptions struct {
 
 type WcCustomBetEntryHistory struct {
 	WcCustomBetEntry
+	MatchID     uuid.UUID `json:"match_id"`
 	BetTitle    string    `json:"bet_title"`
 	BetLine     *float64  `json:"bet_line,omitempty"`
 	OptionLabel string    `json:"option_label"`

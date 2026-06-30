@@ -285,6 +285,9 @@ func (r *WcRepository) CreatePrediction(tx *gorm.DB, bet *model.WcPrediction) er
 	if tx != nil {
 		db = tx
 	}
+	if bet.OriginalPoints == nil {
+		bet.OriginalPoints = &bet.Points
+	}
 	return db.Create(bet).Error
 }
 
@@ -293,7 +296,7 @@ func (r *WcRepository) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictio
 	err := r.db.Table("wc_predictions b").
 		Select("b.*, m.home_team, m.away_team, m.match_date, m.status AS match_status, m.predictions_open, m.predictions_locked_at").
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
-		Where("b.wc_user_id = ?", wcUserID).
+		Where("b.wc_user_id = ? AND b.cancelled_at IS NULL", wcUserID).
 		Order("b.created_at DESC").
 		Scan(&bets).Error
 	return bets, err
@@ -309,13 +312,39 @@ func (r *WcRepository) DeletePrediction(id uuid.UUID) error {
 	return r.db.Delete(&model.WcPrediction{}, "id = ?", id).Error
 }
 
+// SoftCancelPrediction sets cancelled_at and cancel_penalty without hard-deleting.
+func (r *WcRepository) SoftCancelPrediction(tx *gorm.DB, id, wcUserID uuid.UUID, penalty int) error {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	now := time.Now()
+	result := db.Model(&model.WcPrediction{}).
+		Where("id = ? AND wc_user_id = ? AND cancelled_at IS NULL", id, wcUserID).
+		Updates(map[string]interface{}{
+			"cancelled_at":   now,
+			"cancel_penalty": penalty,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("prediction not found or already cancelled")
+	}
+	return nil
+}
+
 func (r *WcRepository) UpdatePredictionPoints(id uuid.UUID, points int) error {
-	return r.db.Model(&model.WcPrediction{}).Where("id = ?", id).Update("points", points).Error
+	return r.db.Model(&model.WcPrediction{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"points":          points,
+			"original_points": gorm.Expr("COALESCE(original_points, ?)", points),
+		}).Error
 }
 
 func (r *WcRepository) ListPredictionsForMatch(matchID uuid.UUID) ([]*model.WcPrediction, error) {
 	var bets []*model.WcPrediction
-	err := r.db.Where("match_id = ?", matchID).Find(&bets).Error
+	err := r.db.Where("match_id = ? AND cancelled_at IS NULL", matchID).Find(&bets).Error
 	return bets, err
 }
 
@@ -324,7 +353,7 @@ func (r *WcRepository) ListPredictionsForMatchPublic(matchID uuid.UUID) ([]*mode
 	err := r.db.Table("wc_predictions b").
 		Select("b.id, b.wc_user_id, u.name, u.avatar_url, b.prediction_type, b.prediction_choice, b.predicted_home_score, b.predicted_away_score, b.points, b.multiplier_snapshot, b.result, b.points_earned, b.created_at").
 		Joins("JOIN wc_users u ON u.id = b.wc_user_id").
-		Where("b.match_id = ?", matchID).
+		Where("b.match_id = ? AND b.cancelled_at IS NULL", matchID).
 		Order("b.created_at ASC").
 		Scan(&bets).Error
 	return bets, err
@@ -498,7 +527,7 @@ func (r *WcRepository) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, er
 			m.home_team, m.away_team, m.match_date, m.status AS match_status, m.bets_locked_at,
 			(m.bets_locked_at IS NULL OR m.bets_locked_at > NOW()) AND m.status NOT IN ('completed','cancelled') AS betting_open`).
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
-		Where("b.wc_user_id = ?", wcUserID).
+		Where("b.wc_user_id = ? AND b.cancelled_at IS NULL", wcUserID).
 		Order("b.created_at DESC").
 		Scan(&bets).Error
 	if err != nil {
@@ -515,7 +544,7 @@ func (r *WcRepository) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic
 	err := r.db.Table("wc_bets b").
 		Select("b.id, b.wc_user_id, u.name, u.avatar_url, b.bet_type, b.bet_choice, b.stake, b.odds_snapshot, b.predicted_home_score, b.predicted_away_score, b.result, b.payout, b.created_at").
 		Joins("JOIN wc_users u ON u.id = b.wc_user_id").
-		Where("b.match_id = ?", matchID).
+		Where("b.match_id = ? AND b.cancelled_at IS NULL", matchID).
 		Order("b.created_at ASC").
 		Scan(&bets).Error
 	if err != nil {
@@ -529,20 +558,19 @@ func (r *WcRepository) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic
 
 func (r *WcRepository) ListBetsForSettlement(matchID uuid.UUID) ([]*model.WcBet, error) {
 	var bets []*model.WcBet
-	// Exclude void bets: voided bets have no wallet effect (deferred-deduction model) and
-	// must not be overridden by a subsequent settlement run.
-	err := r.db.Where("match_id = ? AND (result IS NULL OR result != 'void')", matchID).Find(&bets).Error
+	// Exclude void and cancelled bets.
+	err := r.db.Where("match_id = ? AND (result IS NULL OR result != 'void') AND cancelled_at IS NULL", matchID).Find(&bets).Error
 	return bets, err
 }
 
-// ListPendingBetsForUser returns all unsettled bets for a user (used when blocking).
+// ListPendingBetsForUser returns all unsettled, non-cancelled bets for a user (used when blocking).
 func (r *WcRepository) ListPendingBetsForUser(tx *gorm.DB, userID uuid.UUID) ([]*model.WcBet, error) {
 	db := r.db
 	if tx != nil {
 		db = tx
 	}
 	var bets []*model.WcBet
-	err := db.Where("wc_user_id = ? AND result IS NULL", userID).Find(&bets).Error
+	err := db.Where("wc_user_id = ? AND result IS NULL AND cancelled_at IS NULL", userID).Find(&bets).Error
 	return bets, err
 }
 
@@ -559,9 +587,17 @@ func (r *WcRepository) VoidBet(tx *gorm.DB, betID uuid.UUID, stake int) error {
 		}).Error
 }
 
-func (r *WcRepository) UpdateBetStake(id uuid.UUID, stake int) error {
-	return r.db.Model(&model.WcBet{}).Where("id = ?", id).
-		Updates(map[string]interface{}{"stake": stake, "updated_at": time.Now()}).Error
+func (r *WcRepository) UpdateBetStake(tx *gorm.DB, id uuid.UUID, stake int) error {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	return db.Model(&model.WcBet{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"stake":          stake,
+			"updated_at":     time.Now(),
+			"original_stake": gorm.Expr("COALESCE(original_stake, stake)"),
+		}).Error
 }
 
 func (r *WcRepository) UpdateBetResult(tx *gorm.DB, id uuid.UUID, result string, payout float64) error {
@@ -582,6 +618,63 @@ func (r *WcRepository) DeleteBet(id, wcUserID uuid.UUID) error {
 		return errors.New("bet not found or not authorized")
 	}
 	return nil
+}
+
+// SoftCancelBet sets cancelled_at and cancel_penalty on a bet (instead of hard-deleting).
+func (r *WcRepository) SoftCancelBet(tx *gorm.DB, id, wcUserID uuid.UUID, penalty int) error {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	now := time.Now()
+	result := db.Model(&model.WcBet{}).
+		Where("id = ? AND wc_user_id = ? AND cancelled_at IS NULL", id, wcUserID).
+		Updates(map[string]interface{}{
+			"cancelled_at":   now,
+			"cancel_penalty": penalty,
+			"updated_at":     now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("bet not found or not authorized")
+	}
+	return nil
+}
+
+// ListBetHistoryForUser returns settled + cancelled bets for a user, joined with match info.
+func (r *WcRepository) ListBetHistoryForUser(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
+	var bets []*model.WcBetWithMatch
+	err := r.db.Table("wc_bets b").
+		Select(`b.*,
+			m.home_team, m.away_team, m.match_date, m.status AS match_status, m.bets_locked_at,
+			false AS betting_open`).
+		Joins("JOIN wc_matches m ON m.id = b.match_id").
+		Where("b.wc_user_id = ? AND (b.result IS NOT NULL OR b.cancelled_at IS NOT NULL)", wcUserID).
+		Order("b.created_at DESC").
+		Scan(&bets).Error
+	if err != nil {
+		return nil, err
+	}
+	if bets == nil {
+		bets = []*model.WcBetWithMatch{}
+	}
+	return bets, nil
+}
+
+// UpdatePenaltyConfig updates cancel penalty and reduce stake penalty settings.
+func (r *WcRepository) UpdatePenaltyConfig(cancelEnabled bool, cancelPercent, reduceMaxPercent, reducePenaltyPercent int, updatedBy *uuid.UUID) error {
+	return r.db.Model(&model.WcConfig{}).
+		Where("id = ?", 1).
+		Updates(map[string]interface{}{
+			"cancel_penalty_enabled":    cancelEnabled,
+			"cancel_penalty_percent":    cancelPercent,
+			"bet_reduce_max_percent":    reduceMaxPercent,
+			"bet_reduce_penalty_percent": reducePenaltyPercent,
+			"updated_by":                updatedBy,
+			"updated_at":                time.Now(),
+		}).Error
 }
 
 // ListAllMatches returns all wc_matches (used by setup-mapping).
