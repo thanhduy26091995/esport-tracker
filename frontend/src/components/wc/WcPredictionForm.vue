@@ -228,7 +228,7 @@
 import { ref, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { InfoFilled } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { wcService } from "@/services/wcService";
 import { useWcStore } from "@/stores/wcStore";
 import WcCustomBetCard from "@/components/wc/WcCustomBetCard.vue";
@@ -416,6 +416,23 @@ function populateFromExisting() {
   if (!hasHc && hasScore) activeTab.value = "exact_score";
 }
 
+async function confirmReduceIfNeeded(id: string, existingPoints: number, newPoints: number): Promise<boolean> {
+  if (newPoints >= existingPoints) return true
+  try {
+    const preview = await wcService.previewReducePredictionPoints(id, newPoints)
+    if (preview.penalty > 0) {
+      await ElMessageBox.confirm(
+        t('wc.reducePenaltyWarning', { max: wcStore.betReduceMaxPercent, penalty: preview.penalty }),
+        t('wc.reduceStakeTitle'),
+        { confirmButtonText: t('wc.cancelConfirm'), cancelButtonText: t('wc.cancel'), type: 'warning' },
+      )
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function handleSubmit() {
   if (!props.match) return;
   submitting.value = true;
@@ -424,6 +441,7 @@ async function handleSubmit() {
       const existing = existingHandicapPrediction.value;
       if (existing && existing.prediction_choice === handicapChoice.value) {
         if (existing.points !== handicapPoints.value) {
+          if (!await confirmReduceIfNeeded(existing.id, existing.points, handicapPoints.value)) return;
           await wcService.updatePredictionPoints(existing.id, handicapPoints.value);
         }
       } else {
@@ -439,6 +457,7 @@ async function handleSubmit() {
       const existing = existingOUPrediction.value;
       if (existing && existing.prediction_choice === ouChoice.value) {
         if (existing.points !== ouPoints.value) {
+          if (!await confirmReduceIfNeeded(existing.id, existing.points, ouPoints.value)) return;
           await wcService.updatePredictionPoints(existing.id, ouPoints.value);
         }
       } else {
@@ -456,6 +475,7 @@ async function handleSubmit() {
         const points = selectedScores.value[so.id].points;
         if (existing) {
           if (existing.points !== points) {
+            if (!await confirmReduceIfNeeded(existing.id, existing.points, points)) return;
             await wcService.updatePredictionPoints(existing.id, points);
           }
         } else {

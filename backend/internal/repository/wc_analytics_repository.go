@@ -104,7 +104,7 @@ const settledBetsCTE = `
 
 		SELECT p.match_id, p.points::numeric AS stake, COALESCE(p.points_earned, 0) AS payout
 		FROM wc_predictions p
-		WHERE p.wc_user_id = ? AND p.result IS NOT NULL AND p.result != 'void'
+		WHERE p.wc_user_id = ? AND p.result IS NOT NULL AND p.result != 'void' AND p.cancelled_at IS NULL
 
 		UNION ALL
 
@@ -192,6 +192,7 @@ func (r *WcAnalyticsRepository) GetMyBetStats(userID uuid.UUID) (*MyBetStatsRow,
 				p.created_at
 			FROM wc_predictions p
 			WHERE p.wc_user_id = ?
+			  AND p.cancelled_at IS NULL
 			  AND (p.result IS NULL OR p.result != 'void')
 
 			UNION ALL
@@ -257,6 +258,7 @@ func (r *WcAnalyticsRepository) GetMyFavoriteTeams(userID uuid.UUID, limit int) 
 			  AND p.prediction_type = 'handicap'
 			  AND p.prediction_choice IN ('home', 'away')
 			  AND (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 		) src
 		JOIN wc_matches m ON m.id = src.match_id
 		GROUP BY team
@@ -288,6 +290,7 @@ func (r *WcAnalyticsRepository) GetMyFavoriteScorelines(userID uuid.UUID, limit 
 			  AND p.prediction_type = 'exact_score'
 			  AND p.predicted_home_score IS NOT NULL
 			  AND (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 		) src
 		GROUP BY scoreline
 		ORDER BY count DESC
@@ -320,6 +323,7 @@ func (r *WcAnalyticsRepository) GetMyAvgGoals(userID uuid.UUID) (*AvgGoalsRow, e
 			  AND p.predicted_home_score IS NOT NULL
 			  AND p.predicted_away_score IS NOT NULL
 			  AND (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 		) src
 	`, userID, userID).Scan(&row).Error
 	return &row, err
@@ -348,7 +352,8 @@ func (r *WcAnalyticsRepository) GetCommunityBetDistribution() (map[string]int, e
 
 			SELECT p.prediction_type AS bet_type, p.prediction_choice AS choice
 			FROM wc_predictions p
-			WHERE p.result IS NULL OR p.result != 'void'
+			WHERE (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 
 			UNION ALL
 
@@ -389,6 +394,7 @@ func (r *WcAnalyticsRepository) GetCommunityTrendingTeams(limit int) ([]TeamCoun
 			WHERE p.prediction_type = 'handicap'
 			  AND p.prediction_choice IN ('home', 'away')
 			  AND (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 			  AND p.created_at > NOW() - INTERVAL '7 days'
 		) src
 		JOIN wc_matches m ON m.id = src.match_id
@@ -419,6 +425,7 @@ func (r *WcAnalyticsRepository) GetCommunityTrendingScorelines(limit int) ([]Sco
 			WHERE p.prediction_type = 'exact_score'
 			  AND p.predicted_home_score IS NOT NULL
 			  AND (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 		) src
 		GROUP BY scoreline
 		ORDER BY count DESC
@@ -444,7 +451,8 @@ func (r *WcAnalyticsRepository) GetCommunityTotals() (totalBets int, activeUsers
 			UNION ALL
 
 			SELECT p.id, p.wc_user_id FROM wc_predictions p
-			WHERE p.result IS NULL OR p.result != 'void'
+			WHERE (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 
 			UNION ALL
 
@@ -468,7 +476,7 @@ func (r *WcAnalyticsRepository) GetTopPredictors(minMatches int) ([]PredictorRow
 
 			SELECT p.wc_user_id, p.match_id, p.points::numeric AS stake, COALESCE(p.points_earned, 0) AS payout
 			FROM wc_predictions p
-			WHERE p.result IS NOT NULL AND p.result != 'void'
+			WHERE p.result IS NOT NULL AND p.result != 'void' AND p.cancelled_at IS NULL
 
 			UNION ALL
 
@@ -549,7 +557,8 @@ func (r *WcAnalyticsRepository) GetCommunityAvgStats() (*CommunityAvgStats, erro
 				p.predicted_away_score,
 				p.created_at
 			FROM wc_predictions p
-			WHERE p.result IS NULL OR p.result != 'void'
+			WHERE (p.result IS NULL OR p.result != 'void')
+			  AND p.cancelled_at IS NULL
 
 			UNION ALL
 

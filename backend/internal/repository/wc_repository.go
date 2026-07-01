@@ -296,7 +296,7 @@ func (r *WcRepository) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictio
 	err := r.db.Table("wc_predictions b").
 		Select("b.*, m.home_team, m.away_team, m.match_date, m.status AS match_status, m.predictions_open, m.predictions_locked_at").
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
-		Where("b.wc_user_id = ? AND b.cancelled_at IS NULL", wcUserID).
+		Where("b.wc_user_id = ?", wcUserID).
 		Order("b.created_at DESC").
 		Scan(&bets).Error
 	return bets, err
@@ -313,7 +313,7 @@ func (r *WcRepository) DeletePrediction(id uuid.UUID) error {
 }
 
 // SoftCancelPrediction sets cancelled_at and cancel_penalty without hard-deleting.
-func (r *WcRepository) SoftCancelPrediction(tx *gorm.DB, id, wcUserID uuid.UUID, penalty int) error {
+func (r *WcRepository) SoftCancelPrediction(tx *gorm.DB, id, wcUserID uuid.UUID, penalty float64) error {
 	db := r.db
 	if tx != nil {
 		db = tx
@@ -340,6 +340,26 @@ func (r *WcRepository) UpdatePredictionPoints(id uuid.UUID, points int) error {
 			"points":          points,
 			"original_points": gorm.Expr("COALESCE(original_points, ?)", points),
 		}).Error
+}
+
+func (r *WcRepository) UpdatePredictionPointsWithPenalty(tx *gorm.DB, id uuid.UUID, points int, penalty float64) error {
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	return db.Model(&model.WcPrediction{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"points":          points,
+			"original_points": gorm.Expr("COALESCE(original_points, ?)", points),
+			"reduce_penalty":  gorm.Expr("reduce_penalty + ?", penalty),
+		}).Error
+}
+
+// BackfillOriginalPoints sets original_points = points for all predictions where original_points IS NULL.
+// Returns the number of rows updated.
+func (r *WcRepository) BackfillOriginalPoints() (int64, error) {
+	result := r.db.Exec(`UPDATE wc_predictions SET original_points = points WHERE original_points IS NULL`)
+	return result.RowsAffected, result.Error
 }
 
 func (r *WcRepository) ListPredictionsForMatch(matchID uuid.UUID) ([]*model.WcPrediction, error) {
@@ -394,6 +414,7 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 				COUNT(b.id) FILTER (WHERE b.result = 'incorrect')     AS incorrect
 			FROM wc_predictions b
 			WHERE b.result IS NOT NULL
+			  AND b.cancelled_at IS NULL
 			GROUP BY b.wc_user_id
 		) pred ON pred.wc_user_id = u.id
 		WHERE w.wc_user_id IS NOT NULL
@@ -621,7 +642,7 @@ func (r *WcRepository) DeleteBet(id, wcUserID uuid.UUID) error {
 }
 
 // SoftCancelBet sets cancelled_at and cancel_penalty on a bet (instead of hard-deleting).
-func (r *WcRepository) SoftCancelBet(tx *gorm.DB, id, wcUserID uuid.UUID, penalty int) error {
+func (r *WcRepository) SoftCancelBet(tx *gorm.DB, id, wcUserID uuid.UUID, penalty float64) error {
 	db := r.db
 	if tx != nil {
 		db = tx

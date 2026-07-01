@@ -132,6 +132,16 @@ func runSchemaMigrations(db *gorm.DB) error {
 		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS original_points INTEGER NULL`,
 		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`,
 		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS cancel_penalty INTEGER NULL`,
+		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS reduce_penalty NUMERIC(10,2) NOT NULL DEFAULT 0`,
+		// Change cancel_penalty from INTEGER to NUMERIC(10,2) to store float penalties
+		`ALTER TABLE wc_predictions ALTER COLUMN cancel_penalty TYPE NUMERIC(10,2) USING cancel_penalty::numeric`,
+		`ALTER TABLE wc_bets ALTER COLUMN cancel_penalty TYPE NUMERIC(10,2) USING cancel_penalty::numeric`,
+		`ALTER TABLE wc_custom_bet_entries ALTER COLUMN cancel_penalty TYPE NUMERIC(10,2) USING cancel_penalty::numeric`,
+		// Replace standard unique indexes with partial ones so cancelled predictions don't block re-placement
+		`DROP INDEX IF EXISTS idx_prediction_hc_dedup`,
+		`DROP INDEX IF EXISTS idx_prediction_es_dedup`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_hc_dedup ON wc_predictions(wc_user_id, match_id, prediction_type, prediction_choice) WHERE cancelled_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_es_dedup ON wc_predictions(wc_user_id, match_id, predicted_home_score, predicted_away_score) WHERE cancelled_at IS NULL`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {

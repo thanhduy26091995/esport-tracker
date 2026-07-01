@@ -266,11 +266,12 @@ func (h *WcHandler) DeletePrediction(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid prediction ID"})
 		return
 	}
-	if err := h.svc.DeletePrediction(wcUserID, predictionID); err != nil {
+	penaltyApplied, err := h.svc.DeletePrediction(wcUserID, predictionID)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "penalty_applied": penaltyApplied})
 }
 
 // UpdatePrediction handles PUT /api/v1/wc/predictions/:id
@@ -288,11 +289,12 @@ func (h *WcHandler) UpdatePrediction(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.svc.UpdatePredictionPoints(wcUserID, predictionID, body.Points); err != nil {
+	penaltyApplied, err := h.svc.UpdatePredictionPoints(wcUserID, predictionID, body.Points)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "penalty_applied": penaltyApplied})
 }
 
 // ListBets handles GET /api/v1/wc/bets
@@ -859,6 +861,17 @@ func (h *WcHandler) UnblockUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// BackfillOriginalPoints handles POST /api/v1/wc/admin/backfill-original-points
+// Sets original_points = points for predictions where original_points IS NULL. Idempotent.
+func (h *WcHandler) BackfillOriginalPoints(c *gin.Context) {
+	count, err := h.svc.BackfillOriginalPoints()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "backfill failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "rows_updated": count})
 }
 
 // MarkSettlementDone handles PUT /api/v1/wc/admin/settlements/:id/details/:wc_user_id

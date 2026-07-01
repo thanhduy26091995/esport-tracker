@@ -85,6 +85,14 @@
           </el-form-item>
           <el-button type="primary" :loading="savingPenaltyConfig" @click="handleSavePenaltyConfig">Lưu</el-button>
         </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--border-default);">
+          <div style="font-size: 13px; color: var(--text-secondary); flex: 1">
+            {{ t('wc.backfillOriginalPointsDesc') }}
+          </div>
+          <el-button type="warning" :loading="backfillingOriginalPoints" @click="handleBackfillOriginalPoints">
+            {{ t('wc.backfillOriginalPointsBtn') }}
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -563,7 +571,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { Refresh, Lock } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useWcStore } from "@/stores/wcStore";
 import { useWcAuthStore } from "@/stores/wcAuthStore";
 import { wcService } from "@/services/wcService";
@@ -659,6 +667,28 @@ async function handleSavePenaltyConfig() {
     ElMessage.error('Lỗi khi cập nhật');
   } finally {
     savingPenaltyConfig.value = false;
+  }
+}
+
+const backfillingOriginalPoints = ref(false);
+async function handleBackfillOriginalPoints() {
+  try {
+    await ElMessageBox.confirm(
+      t('wc.backfillOriginalPointsConfirm'),
+      t('wc.backfillOriginalPointsBtn'),
+      { confirmButtonText: t('wc.confirm'), cancelButtonText: t('wc.cancel'), type: 'warning' },
+    );
+  } catch {
+    return;
+  }
+  backfillingOriginalPoints.value = true;
+  try {
+    const res = await wcService.backfillOriginalPoints();
+    ElMessage.success(t('wc.backfillOriginalPointsDone', { count: res.rows_updated }));
+  } catch {
+    ElMessage.error('Lỗi khi backfill');
+  } finally {
+    backfillingOriginalPoints.value = false;
   }
 }
 

@@ -310,7 +310,7 @@ func (r *WcCustomBetRepository) CreateEntry(tx *gorm.DB, entry *model.WcCustomBe
 }
 
 // SoftCancelEntry soft-deletes a custom bet entry and records the cancel penalty.
-func (r *WcCustomBetRepository) SoftCancelEntry(tx *gorm.DB, id, wcUserID uuid.UUID, penalty int) error {
+func (r *WcCustomBetRepository) SoftCancelEntry(tx *gorm.DB, id, wcUserID uuid.UUID, penalty float64) error {
 	db := r.db
 	if tx != nil {
 		db = tx

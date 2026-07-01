@@ -168,7 +168,7 @@ const matchPredictionCounts = ref<Record<string, number>>({})
 
 const selectedMatchPredictions = computed(() =>
   selectedMatch.value
-    ? store.predictions.filter((p) => p.match_id === selectedMatch.value!.id)
+    ? store.predictions.filter((p) => p.match_id === selectedMatch.value!.id && !p.cancelled_at)
     : [],
 )
 
@@ -197,8 +197,12 @@ function isPredictable(m: WcMatch): boolean {
   return true
 }
 
-const openPredictions = computed(() => store.predictions.filter(p => !p.result))
-const settledPredictions = computed(() => store.predictions.filter(p => !!p.result))
+const openPredictions = computed(() =>
+  store.predictions.filter(p => !p.result && !p.cancelled_at)
+)
+const settledPredictions = computed(() =>
+  store.predictions.filter(p => !!p.result || !!p.cancelled_at)
+)
 
 async function openPredictionForm(match: WcMatch) {
   const full = await wcService.getMatch(match.id)

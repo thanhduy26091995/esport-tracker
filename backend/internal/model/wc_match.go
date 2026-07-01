@@ -168,7 +168,8 @@ type WcPrediction struct {
 	Points         int       `gorm:"not null" json:"points"`
 	OriginalPoints *int      `gorm:"column:original_points" json:"original_points,omitempty"`
 	CancelledAt    *time.Time `gorm:"column:cancelled_at" json:"cancelled_at,omitempty"`
-	CancelPenalty  *int      `gorm:"column:cancel_penalty" json:"cancel_penalty,omitempty"`
+	CancelPenalty  *float64  `gorm:"type:numeric(10,2);column:cancel_penalty" json:"cancel_penalty,omitempty"`
+	ReducePenalty  float64   `gorm:"type:numeric(10,2);not null;default:0" json:"reduce_penalty"`
 	MultiplierSnapshot float64 `gorm:"type:numeric(5,2);not null" json:"multiplier_snapshot"`
 
 	// Handicap prediction fields (nullable for exact_score predictions)
@@ -250,7 +251,7 @@ type WcBet struct {
 	Result               *string    `gorm:"type:varchar(10)" json:"result,omitempty"`
 	Payout               *float64   `gorm:"type:numeric(10,2)" json:"payout,omitempty"`
 	CancelledAt          *time.Time `gorm:"type:timestamptz" json:"cancelled_at,omitempty"`
-	CancelPenalty        *int       `json:"cancel_penalty,omitempty"`
+	CancelPenalty        *float64   `json:"cancel_penalty,omitempty"`
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
 }
@@ -278,7 +279,7 @@ type BetHistoryItem struct {
 	Result       *string    `json:"result,omitempty"`
 	Payout       *float64   `json:"payout,omitempty"`
 	CancelledAt  *time.Time `json:"cancelled_at,omitempty"`
-	CancelPenalty *int      `json:"cancel_penalty,omitempty"`
+	CancelPenalty *float64  `json:"cancel_penalty,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 }
 

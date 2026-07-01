@@ -120,8 +120,9 @@ export interface WcPrediction {
   predicted_away_score?: number
   result?: WcPredictionResult
   points_earned?: number
-  cancelled_at?: string
-  cancel_penalty?: number
+  cancelled_at?: string | null
+  cancel_penalty?: number | null
+  reduce_penalty?: number
   created_at: string
   updated_at: string
 }

@@ -56,7 +56,7 @@ type WcCustomBetEntry struct {
 	Payout        *float64   `gorm:"type:numeric(10,2)" json:"payout,omitempty"`
 	Status        string     `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`
 	CancelledAt   *time.Time `gorm:"type:timestamptz" json:"cancelled_at,omitempty"`
-	CancelPenalty *int       `json:"cancel_penalty,omitempty"`
+	CancelPenalty *float64   `gorm:"type:numeric(10,2)" json:"cancel_penalty,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 }
 

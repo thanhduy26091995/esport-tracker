@@ -228,15 +228,15 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 				return fmt.Errorf("wallet not found")
 			}
 			balanceBefore := wallet.Balance
-			if err := s.wcRepo.UpdateWalletBalance(tx, userID, float64(-penalty)); err != nil {
+			if err := s.wcRepo.UpdateWalletBalance(tx, userID, -penalty); err != nil {
 				return err
 			}
 			return s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
 				WcUserID:      userID,
 				AdminID:       uuid.Nil,
-				Delta:         float64(-penalty),
+				Delta:         -penalty,
 				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - float64(penalty),
+				BalanceAfter:  balanceBefore - penalty,
 				Note:          fmt.Sprintf("custom bet cancel penalty — %d%%", cfg.CancelPenaltyPercent),
 			})
 		}

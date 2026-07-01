@@ -240,6 +240,7 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 		PredictedHomeScore:   req.PredictedHomeScore,
 		PredictedAwayScore:   req.PredictedAwayScore,
 		Points:               req.Points,
+		OriginalPoints:       &req.Points,
 		MultiplierSnapshot:   multiplierSnapshot,
 		HandicapSnapshot:     handicapSnapshot,
 		HandicapTeamSnapshot: handicapTeamSnapshot,
@@ -271,31 +272,31 @@ func (s *WcService) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictionWi
 	return predictions, nil
 }
 
-func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
+func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) (penaltyApplied float64, err error) {
 	bet, err := s.repo.GetPredictionByID(betID)
 	if err != nil {
-		return fmt.Errorf("prediction not found")
+		return 0, fmt.Errorf("prediction not found")
 	}
 	if bet.WcUserID != wcUserID {
-		return fmt.Errorf("unauthorized")
+		return 0, fmt.Errorf("unauthorized")
 	}
 	if bet.Result != nil {
-		return fmt.Errorf("cannot delete a finalized prediction")
+		return 0, fmt.Errorf("cannot delete a finalized prediction")
 	}
 	if bet.CancelledAt != nil {
-		return fmt.Errorf("prediction already cancelled")
+		return 0, fmt.Errorf("prediction already cancelled")
 	}
 	m, err := s.repo.GetMatch(bet.MatchID)
 	if err != nil {
-		return fmt.Errorf("match not found")
+		return 0, fmt.Errorf("match not found")
 	}
 	if isLocked(m) {
-		return fmt.Errorf("cannot modify prediction: match is locked")
+		return 0, fmt.Errorf("cannot modify prediction: match is locked")
 	}
 
 	cfg, err := s.repo.GetConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load config")
+		return 0, fmt.Errorf("failed to load config")
 	}
 
 	penalty := computeCancelPenalty(bet.Points, cfg.CancelPenaltyPercent, cfg.CancelPenaltyEnabled)
@@ -311,22 +312,22 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
 				return fmt.Errorf("wallet not found")
 			}
 			balanceBefore := wallet.Balance
-			if err := s.repo.UpdateWalletBalance(tx, wcUserID, float64(-penalty)); err != nil {
+			if err := s.repo.UpdateWalletBalance(tx, wcUserID, -penalty); err != nil {
 				return err
 			}
 			return s.repo.LogWalletChange(tx, &model.WcWalletLog{
 				WcUserID:      wcUserID,
 				AdminID:       uuid.Nil,
-				Delta:         float64(-penalty),
+				Delta:         -penalty,
 				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - float64(penalty),
+				BalanceAfter:  balanceBefore - penalty,
 				Note:          fmt.Sprintf("prediction cancel penalty — %d%%", cfg.CancelPenaltyPercent),
 			})
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if s.hub != nil {
@@ -337,68 +338,90 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) error {
 		}
 		s.hub.Broadcast(buildCancelActivityEvent(wcUserID.String(), userName, bet.PredictionType, m.HomeTeam, m.AwayTeam, bet.MatchID.String()))
 	}
-	return nil
+	return penalty, nil
 }
 
-func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int) error {
+func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int) (penaltyApplied float64, err error) {
 	cfg, err := s.repo.GetConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load config")
+		return 0, fmt.Errorf("failed to load config")
 	}
 	if points < cfg.MinPoints || points > cfg.MaxPoints {
-		return fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
+		return 0, fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
 	}
 	bet, err := s.repo.GetPredictionByID(betID)
 	if err != nil {
-		return fmt.Errorf("prediction not found")
+		return 0, fmt.Errorf("prediction not found")
 	}
 	if bet.WcUserID != wcUserID {
-		return fmt.Errorf("unauthorized")
+		return 0, fmt.Errorf("unauthorized")
 	}
 	if bet.Result != nil {
-		return fmt.Errorf("cannot modify a finalized prediction")
+		return 0, fmt.Errorf("cannot modify a finalized prediction")
 	}
 	if bet.CancelledAt != nil {
-		return fmt.Errorf("prediction is cancelled")
+		return 0, fmt.Errorf("prediction is cancelled")
 	}
 	m, err := s.repo.GetMatch(bet.MatchID)
 	if err != nil {
-		return fmt.Errorf("match not found")
+		return 0, fmt.Errorf("match not found")
 	}
 	if isLocked(m) {
-		return fmt.Errorf("cannot modify prediction: match is locked")
+		return 0, fmt.Errorf("cannot modify prediction: match is locked")
 	}
 
-	penalty := 0
+	var penalty float64
 	if points < bet.Points && bet.OriginalPoints != nil {
 		penalty, _, _ = computeReducePenalty(*bet.OriginalPoints, points, cfg.BetReduceMaxPercent, cfg.BetReducePenaltyPercent)
 	}
 
 	if penalty > 0 {
 		db := s.repo.DB()
-		return db.Transaction(func(tx *gorm.DB) error {
-			if err := s.repo.UpdatePredictionPoints(betID, points); err != nil {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			// Soft-cancel old prediction, storing penalty as cancel_penalty
+			if err := s.repo.SoftCancelPrediction(tx, betID, wcUserID, penalty); err != nil {
 				return err
 			}
+			// Deduct penalty from wallet
 			wallet, err := s.repo.GetWalletTx(tx, wcUserID)
 			if err != nil {
 				return fmt.Errorf("wallet not found")
 			}
 			balanceBefore := wallet.Balance
-			if err := s.repo.UpdateWalletBalance(tx, wcUserID, float64(-penalty)); err != nil {
+			if err := s.repo.UpdateWalletBalance(tx, wcUserID, -penalty); err != nil {
 				return err
 			}
-			return s.repo.LogWalletChange(tx, &model.WcWalletLog{
+			if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
 				WcUserID:      wcUserID,
 				AdminID:       uuid.Nil,
-				Delta:         float64(-penalty),
+				Delta:         -penalty,
 				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - float64(penalty),
+				BalanceAfter:  balanceBefore - penalty,
 				Note:          fmt.Sprintf("prediction reduce penalty — points %d→%d", bet.Points, points),
-			})
-		})
+			}); err != nil {
+				return err
+			}
+			// Create new prediction with reduced points
+			newBet := &model.WcPrediction{
+				WcUserID:             bet.WcUserID,
+				MatchID:              bet.MatchID,
+				PredictionType:       bet.PredictionType,
+				PredictionChoice:     bet.PredictionChoice,
+				PredictedHomeScore:   bet.PredictedHomeScore,
+				PredictedAwayScore:   bet.PredictedAwayScore,
+				Points:               points,
+				OriginalPoints:       &points,
+				MultiplierSnapshot:   bet.MultiplierSnapshot,
+				HandicapSnapshot:     bet.HandicapSnapshot,
+				HandicapTeamSnapshot: bet.HandicapTeamSnapshot,
+			}
+			return s.repo.CreatePrediction(tx, newBet)
+		}); err != nil {
+			return 0, err
+		}
+		return penalty, nil
 	}
-	return s.repo.UpdatePredictionPoints(betID, points)
+	return 0, s.repo.UpdatePredictionPoints(betID, points)
 }
 
 // PreviewReducePredictionPoints computes the penalty for reducing a prediction's points (dry-run).
@@ -1100,9 +1123,9 @@ func (s *WcService) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic, e
 
 // ReduceStakePreview is returned by PreviewReduceStake (dry-run before confirm).
 type ReduceStakePreview struct {
-	Penalty         int `json:"penalty"`
-	ExcessReduction int `json:"excess_reduction"`
-	AllowedMinStake int `json:"allowed_min_stake"`
+	Penalty         float64 `json:"penalty"`
+	ExcessReduction int     `json:"excess_reduction"`
+	AllowedMinStake int     `json:"allowed_min_stake"`
 }
 
 func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
@@ -1134,7 +1157,7 @@ func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
 		return fmt.Errorf("betting is closed for this match")
 	}
 
-	penalty := 0
+	var penalty float64
 	if stake < bet.Stake && bet.OriginalStake != nil {
 		penalty, _, _ = computeReducePenalty(*bet.OriginalStake, stake, cfg.BetReduceMaxPercent, cfg.BetReducePenaltyPercent)
 	}
@@ -1150,15 +1173,15 @@ func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
 				return fmt.Errorf("wallet not found")
 			}
 			balanceBefore := wallet.Balance
-			if err := s.repo.UpdateWalletBalance(tx, wcUserID, float64(-penalty)); err != nil {
+			if err := s.repo.UpdateWalletBalance(tx, wcUserID, -penalty); err != nil {
 				return err
 			}
 			return s.repo.LogWalletChange(tx, &model.WcWalletLog{
 				WcUserID:      wcUserID,
 				AdminID:       uuid.Nil,
-				Delta:         float64(-penalty),
+				Delta:         -penalty,
 				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - float64(penalty),
+				BalanceAfter:  balanceBefore - penalty,
 				Note:          fmt.Sprintf("bet reduce penalty — stake %d→%d", bet.Stake, stake),
 			})
 		})
@@ -1239,15 +1262,15 @@ func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
 				return fmt.Errorf("wallet not found")
 			}
 			balanceBefore := wallet.Balance
-			if err := s.repo.UpdateWalletBalance(tx, wcUserID, float64(-penalty)); err != nil {
+			if err := s.repo.UpdateWalletBalance(tx, wcUserID, -penalty); err != nil {
 				return err
 			}
 			return s.repo.LogWalletChange(tx, &model.WcWalletLog{
 				WcUserID:      wcUserID,
 				AdminID:       uuid.Nil,
-				Delta:         float64(-penalty),
+				Delta:         -penalty,
 				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - float64(penalty),
+				BalanceAfter:  balanceBefore - penalty,
 				Note:          fmt.Sprintf("bet cancel penalty — %d%%", cfg.CancelPenaltyPercent),
 			})
 		}
@@ -1367,6 +1390,12 @@ func (s *WcService) SetPenaltyConfig(cancelEnabled bool, cancelPercent, reduceMa
 		return err
 	}
 	return s.repo.UpdatePenaltyConfig(cancelEnabled, cancelPercent, reduceMaxPercent, reducePenaltyPercent, &updatedBy)
+}
+
+// BackfillOriginalPoints sets original_points = points for predictions where original_points IS NULL.
+// Safe to call multiple times (idempotent). Returns number of rows updated.
+func (s *WcService) BackfillOriginalPoints() (int64, error) {
+	return s.repo.BackfillOriginalPoints()
 }
 
 // validatePenaltyConfig checks that all three percentage values are in [0, 100].

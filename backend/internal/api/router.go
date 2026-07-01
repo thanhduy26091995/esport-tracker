@@ -343,6 +343,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAdmin.GET("/settlements", wcHandler.ListSettlements)
 				wcAdmin.GET("/settlements/:id", wcHandler.GetSettlement)
 				wcAdmin.PUT("/settlements/:id/details/:wc_user_id", wcHandler.MarkSettlementDone)
+				wcAdmin.POST("/backfill-original-points", wcHandler.BackfillOriginalPoints)
 				// Champion prediction admin
 				wcAdmin.PUT("/champion/config", wcChampionHandler.AdminUpdateConfig)
 				wcAdmin.POST("/champion/teams", wcChampionHandler.AdminCreateTeam)

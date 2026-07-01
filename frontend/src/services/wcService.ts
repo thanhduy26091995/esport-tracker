@@ -67,6 +67,11 @@ export const wcService = {
     return r.data
   },
 
+  async backfillOriginalPoints(): Promise<{ ok: boolean; rows_updated: number }> {
+    const r = await wcApi.post<{ ok: boolean; rows_updated: number }>('/admin/backfill-original-points')
+    return r.data
+  },
+
   // --- Matches ---
   async listMatches(filter: WcMatchFilter = {}): Promise<WcMatch[]> {
     const r = await wcApi.get<WcMatch[]>('/matches', { params: filter })

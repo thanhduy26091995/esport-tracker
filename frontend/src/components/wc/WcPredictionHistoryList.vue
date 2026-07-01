@@ -55,7 +55,7 @@
               </span>
 
               <!-- Cancel custom bet (pending) -->
-              <template v-if="item.pred.prediction_type === 'custom' && !item.pred.result && item.pred.match_status !== 'live'">
+              <template v-if="item.pred.prediction_type === 'custom' && !item.pred.result && !item.pred.cancelled_at && item.pred.match_status !== 'live'">
                 <el-button
                   size="small" text type="danger"
                   class="wc-bet-action-btn wc-bet-action-btn--delete"
@@ -93,8 +93,18 @@
               </template>
             </div>
 
+            <!-- Penalty info -->
+            <div v-if="(item.pred.cancel_penalty ?? 0) > 0 || (item.pred.reduce_penalty ?? 0) > 0" class="wc-pred-penalty">
+              <template v-if="(item.pred.cancel_penalty ?? 0) > 0">
+                {{ t('wc.cancelPenaltyApplied', { penalty: fmtPts(item.pred.cancel_penalty!) }) }}
+              </template>
+              <template v-else-if="(item.pred.reduce_penalty ?? 0) > 0">
+                {{ t('wc.reducePenaltyApplied', { penalty: fmtPts(item.pred.reduce_penalty!) }) }}
+              </template>
+            </div>
+
             <!-- Potential outcomes — only for pending predictions -->
-            <div v-if="!item.pred.result" class="wc-pred-outcomes">
+            <div v-if="!item.pred.result && !item.pred.cancelled_at" class="wc-pred-outcomes">
               <template v-if="item.pred.prediction_type === 'handicap' || item.pred.prediction_type === 'over_under'">
                 <span class="wc-pred-outcome wc-pred-outcome--win">Thắng +{{ fmtPts(item.pred.points * (item.pred.multiplier_snapshot - 1)) }}</span>
                 <span class="wc-pred-sep">·</span>
@@ -118,7 +128,10 @@
           </div>
 
           <div class="wc-bet-result">
-            <span v-if="!item.pred.result" class="wc-result-badge wc-result--pending">
+            <span v-if="item.pred.cancelled_at" class="wc-result-badge wc-result--cancelled">
+              {{ t('wc.betCancelledBadge') }}
+            </span>
+            <span v-else-if="!item.pred.result" class="wc-result-badge wc-result--pending">
               {{ t('wc.resultPending') }}
             </span>
             <span v-else-if="item.pred.result === 'correct'" class="wc-result-badge wc-result--correct">
@@ -177,8 +190,9 @@ function isHidden(item: PredItem): boolean {
 }
 
 function dateKey(pred: WcPredictionWithMatch): string {
-  // sv-SE locale gives YYYY-MM-DD in the browser's local timezone (GMT+7 for Vietnam)
-  return new Date(pred.match_date).toLocaleDateString('sv-SE')
+  // Group by action date: cancelled_at for cancelled, created_at for active
+  const actionDate = pred.cancelled_at ?? pred.created_at
+  return new Date(actionDate).toLocaleDateString('sv-SE')
 }
 
 function dateLabel(key: string): string {
@@ -250,6 +264,7 @@ const deletingId   = ref<string | null>(null)
 const cancellingId = ref<string | null>(null)
 
 function isEditable(pred: WcPredictionWithMatch): boolean {
+  if (pred.cancelled_at) return false
   if (pred.result) return false
   if (pred.match_status === 'completed' || pred.match_status === 'cancelled') return false
   if (!pred.predictions_open) return false
@@ -291,7 +306,7 @@ async function saveEdit(pred: WcPredictionWithMatch) {
 
 async function handleDelete(pred: WcPredictionWithMatch) {
   const penalty = store.cancelPenaltyEnabled
-    ? Math.floor(pred.points * store.cancelPenaltyPercent / 100)
+    ? pred.points * store.cancelPenaltyPercent / 100
     : 0
 
   if (store.cancelPenaltyEnabled && penalty > 0) {
@@ -334,7 +349,7 @@ async function handleDelete(pred: WcPredictionWithMatch) {
 
 async function handleCancelCustom(pred: WcPredictionWithMatch) {
   const penalty = store.cancelPenaltyEnabled
-    ? Math.floor(pred.points * store.cancelPenaltyPercent / 100)
+    ? pred.points * store.cancelPenaltyPercent / 100
     : 0
 
   if (store.cancelPenaltyEnabled && penalty > 0) {
@@ -577,10 +592,18 @@ async function handleCancelCustom(pred: WcPredictionWithMatch) {
   font-variant-numeric: tabular-nums;
 }
 
-.wc-result--pending  { background: rgba(100, 116, 139, 0.1); color: #64748b; }
-.wc-result--correct  { background: rgba(22, 163, 74, 0.12);  color: #16a34a; }
-.wc-result--win-half { background: rgba(22, 163, 74, 0.08);  color: #16a34a; }
-.wc-result--lose-half{ background: rgba(239, 68, 68, 0.07);  color: #ef4444; }
-.wc-result--incorrect{ background: rgba(239, 68, 68, 0.1);   color: #ef4444; }
-.wc-result--void     { background: rgba(217, 119, 6, 0.1);   color: #d97706; }
+.wc-result--pending   { background: rgba(100, 116, 139, 0.1); color: #64748b; }
+.wc-result--correct   { background: rgba(22, 163, 74, 0.12);  color: #16a34a; }
+.wc-result--win-half  { background: rgba(22, 163, 74, 0.08);  color: #16a34a; }
+.wc-result--lose-half { background: rgba(239, 68, 68, 0.07);  color: #ef4444; }
+.wc-result--incorrect { background: rgba(239, 68, 68, 0.1);   color: #ef4444; }
+.wc-result--void      { background: rgba(217, 119, 6, 0.1);   color: #d97706; }
+.wc-result--cancelled { background: rgba(100, 116, 139, 0.15); color: #64748b; }
+
+.wc-pred-penalty {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ef4444;
+  margin-top: 2px;
+}
 </style>
