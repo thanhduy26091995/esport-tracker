@@ -218,7 +218,10 @@ const displayItems = computed((): DisplayItem[] => {
   const items: DisplayItem[] = []
   for (const key of sortedKeys) {
     const preds = groups.get(key)!
-    const netPoints = preds.reduce((sum, p) => sum + (p.points_earned ?? 0) - p.points, 0)
+    const netPoints = preds.reduce((sum, p) => {
+      if (p.cancelled_at) return sum - (p.cancel_penalty ?? 0)
+      return sum + (p.points_earned ?? 0) - p.points
+    }, 0)
     items.push({ kind: 'header', dateKey: key, label: dateLabel(key), netPoints, count: preds.length })
     for (const pred of preds) {
       items.push({ kind: 'pred', pred, groupDateKey: key })

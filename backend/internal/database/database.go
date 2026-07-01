@@ -142,6 +142,8 @@ func runSchemaMigrations(db *gorm.DB) error {
 		`DROP INDEX IF EXISTS idx_prediction_es_dedup`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_hc_dedup ON wc_predictions(wc_user_id, match_id, prediction_type, prediction_choice) WHERE cancelled_at IS NULL`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_es_dedup ON wc_predictions(wc_user_id, match_id, predicted_home_score, predicted_away_score) WHERE cancelled_at IS NULL`,
+		// Bot user flag
+		`ALTER TABLE wc_users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT FALSE`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {

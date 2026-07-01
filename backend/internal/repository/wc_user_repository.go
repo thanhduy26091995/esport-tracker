@@ -66,6 +66,10 @@ func (r *WcUserRepository) SetBlocked(userID uuid.UUID, blocked bool) error {
 	return r.db.Model(&model.WcUser{}).Where("id = ?", userID).Update("is_blocked", blocked).Error
 }
 
+func (r *WcUserRepository) SetBot(userID uuid.UUID, isBot bool) error {
+	return r.db.Model(&model.WcUser{}).Where("id = ?", userID).Update("is_bot", isBot).Error
+}
+
 func (r *WcUserRepository) SetBlockedTx(tx *gorm.DB, userID uuid.UUID, blocked bool) error {
 	return tx.Model(&model.WcUser{}).Where("id = ?", userID).Update("is_blocked", blocked).Error
 }

@@ -45,7 +45,7 @@ const wcAuthStore = useWcAuthStore()
 
 const paused = ref(false)
 
-const top3 = computed(() => wcStore.leaderboard.slice(0, 3))
+const top3 = computed(() => wcStore.leaderboard.filter(e => !e.is_bot).slice(0, 3))
 const displayEntries = computed(() => [...top3.value, ...top3.value])
 const currentUserId = computed(() => wcAuthStore.user?.id ?? null)
 

@@ -323,6 +323,7 @@ type WcLeaderboardEntry struct {
 	WcUserID         uuid.UUID `json:"wc_user_id"`
 	Name             string    `json:"name"`
 	AvatarURL        *string   `json:"avatar_url"`
+	IsBot            bool      `json:"is_bot"`
 	NetPoints        float64   `json:"net_points"`
 	TotalPredictions int       `json:"total_predictions"`
 	Correct          int       `json:"correct"`

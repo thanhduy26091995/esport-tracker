@@ -287,6 +287,7 @@
             <span class="wc-user-name-col">{{ user.name }}</span>
             <span v-if="user.is_admin" class="wc-admin-tag">Admin</span>
             <span v-if="user.is_blocked" class="wc-blocked-tag">Bị khóa</span>
+            <span v-if="user.is_bot" class="wc-bot-tag">Bot</span>
           </div>
           <div class="wc-user-wallet-col">
             <span class="wc-user-balance">
@@ -313,6 +314,13 @@
               @click="handleToggleBlock(user)"
             >
               {{ user.is_blocked ? 'Mở khóa' : 'Khóa' }}
+            </el-button>
+            <el-button
+              size="small"
+              text
+              @click="handleBotToggle(user)"
+            >
+              {{ user.is_bot ? 'Bỏ Bot' : 'Đánh dấu Bot' }}
             </el-button>
           </div>
         </div>
@@ -878,6 +886,10 @@ async function handleRoleToggle(user: WcUser) {
   await store.setUserRole(user.id, !user.is_admin);
 }
 
+async function handleBotToggle(user: WcUser) {
+  await store.setUserBot(user.id, !user.is_bot);
+}
+
 function openHandicapDialog(match: WcMatch) {
   handicapMatch.value = match;
   handicapForm.value = {
@@ -1226,6 +1238,15 @@ onMounted(async () => {
   font-weight: 700;
   background: rgba(239, 68, 68, 0.12);
   color: #ef4444;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.wc-bot-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
   padding: 1px 6px;
   border-radius: 4px;
 }

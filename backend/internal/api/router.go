@@ -326,6 +326,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				wcAdmin.PUT("/score-odds/:id", wcHandler.UpdateScoreOdds)
 				wcAdmin.DELETE("/score-odds/:id", wcHandler.DeleteScoreOdds)
 				wcAdmin.GET("/users", wcHandler.ListUsers)
+				wcAdmin.PUT("/users/:wc_user_id/bot", wcHandler.SetUserBot)
 				wcAdmin.PUT("/users/:wc_user_id/role", wcHandler.SetUserRole)
 				wcAdmin.PUT("/users/:wc_user_id/block", wcHandler.BlockUser)
 				wcAdmin.PUT("/users/:wc_user_id/unblock", wcHandler.UnblockUser)

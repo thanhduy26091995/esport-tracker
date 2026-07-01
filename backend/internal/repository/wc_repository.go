@@ -396,6 +396,7 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 			u.id                                AS wc_user_id,
 			u.name,
 			u.avatar_url,
+			u.is_bot,
 			COALESCE(w.balance, 0)              AS net_points,
 			COALESCE(pred.total_predictions, 0) AS total_predictions,
 			COALESCE(pred.correct, 0)           AS correct,

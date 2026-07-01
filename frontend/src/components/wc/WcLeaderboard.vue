@@ -22,7 +22,10 @@
           :alt="entry.name"
           @error="(e: Event) => ((e.target as HTMLImageElement).src = DEFAULT_AVATAR)"
         />
-        <div class="wc-lb-name">{{ entry.name }}</div>
+        <div class="wc-lb-name">
+          {{ entry.name }}
+          <span v-if="entry.is_bot" class="wc-lb-bot-badge">Bot</span>
+        </div>
         <div class="wc-lb-stats">
           <span class="wc-lb-stat wc-stat--win">{{ entry.correct }}W</span>
           <span v-if="entry.win_half > 0" class="wc-lb-stat wc-stat--winhalf">{{ entry.win_half }}½W</span>
@@ -110,6 +113,21 @@ defineProps<{ entries: WcLeaderboardEntry[] }>()
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-lb-bot-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.12);
+  border: 1px solid rgba(107, 114, 128, 0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
 }
 
 .wc-lb-stats {

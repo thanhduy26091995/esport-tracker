@@ -220,6 +220,12 @@ export const useWcStore = defineStore('wc', () => {
     await fetchAllUsers()
   }
 
+  async function setUserBot(wcUserId: string, isBot: boolean) {
+    await wcService.setUserBot(wcUserId, isBot)
+    ElMessage.success(isBot ? 'Đã đánh dấu là Bot' : 'Đã bỏ đánh dấu Bot')
+    await fetchAllUsers()
+  }
+
   async function fetchSettlements() {
     settlements.value = await wcService.listSettlements()
   }
@@ -296,6 +302,7 @@ export const useWcStore = defineStore('wc', () => {
     fetchAllUsers,
     topUp,
     setUserRole,
+    setUserBot,
     fetchSettlements,
     fetchSettlement,
     previewSettlement,

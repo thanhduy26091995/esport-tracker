@@ -12,6 +12,7 @@ export interface WcUser {
   name: string
   is_admin: boolean
   is_blocked: boolean
+  is_bot?: boolean
   created_at: string
   updated_at: string
 }
@@ -158,6 +159,7 @@ export interface WcLeaderboardEntry {
   wc_user_id: string
   name: string
   avatar_url: string | null
+  is_bot?: boolean
   net_points: number
   total_predictions: number
   correct: number

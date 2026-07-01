@@ -698,6 +698,27 @@ func (h *WcHandler) GetWalletLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, logs)
 }
 
+// SetUserBot handles PUT /api/v1/wc/admin/users/:wc_user_id/bot
+func (h *WcHandler) SetUserBot(c *gin.Context) {
+	targetID, err := uuid.Parse(c.Param("wc_user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	var req struct {
+		IsBot bool `json:"is_bot"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.svc.SetUserBot(targetID, req.IsBot); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update bot flag"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 // SetUserRole handles PUT /api/v1/wc/admin/users/:wc_user_id/role
 func (h *WcHandler) SetUserRole(c *gin.Context) {
 	targetID, err := uuid.Parse(c.Param("wc_user_id"))

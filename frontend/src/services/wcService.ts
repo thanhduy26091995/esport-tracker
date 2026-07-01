@@ -238,6 +238,9 @@ export const wcService = {
   async unblockUser(userId: string): Promise<void> {
     await wcApi.put(`/admin/users/${userId}/unblock`)
   },
+  async setUserBot(userId: string, isBot: boolean): Promise<void> {
+    await wcApi.put(`/admin/users/${userId}/bot`, { is_bot: isBot })
+  },
 
   // --- Settlements (admin) ---
   async previewSettlement(pointRate: number): Promise<WcSettlementPreviewRow[]> {

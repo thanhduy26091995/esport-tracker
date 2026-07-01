@@ -976,6 +976,10 @@ func (s *WcService) SetAdminRole(wcUserID uuid.UUID, isAdmin bool) error {
 	return s.userRepo.SetAdminRole(wcUserID, isAdmin)
 }
 
+func (s *WcService) SetUserBot(wcUserID uuid.UUID, isBot bool) error {
+	return s.userRepo.SetBot(wcUserID, isBot)
+}
+
 // --- User block/unblock ---
 
 // BlockUser blocks targetID: voids all pending bets (no wallet change — deferred deduction means

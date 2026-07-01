@@ -364,10 +364,20 @@ func TestPrediction_Reduce_ExceedsThreshold_PenaltyApplied(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 98.0, wallet.Balance)
 
-	// reduce_penalty should accumulate on the prediction
-	var p model.WcPrediction
-	require.NoError(t, db.First(&p, pred.ID).Error)
-	assert.Equal(t, 2.0, p.ReducePenalty)
+	// Old prediction should be soft-cancelled with cancel_penalty storing the reduce penalty
+	var oldPred model.WcPrediction
+	require.NoError(t, db.First(&oldPred, pred.ID).Error)
+	assert.NotNil(t, oldPred.CancelledAt, "old prediction should be soft-cancelled")
+	require.NotNil(t, oldPred.CancelPenalty)
+	assert.Equal(t, 2.0, *oldPred.CancelPenalty)
+
+	// A new prediction should exist with the reduced points
+	var newPreds []model.WcPrediction
+	require.NoError(t, db.Where("match_id = ? AND wc_user_id = ? AND cancelled_at IS NULL", m.ID, user.ID).Find(&newPreds).Error)
+	require.Len(t, newPreds, 1, "one active prediction should exist after reduce")
+	assert.Equal(t, 40, newPreds[0].Points)
+	require.NotNil(t, newPreds[0].OriginalPoints)
+	assert.Equal(t, 40, *newPreds[0].OriginalPoints)
 }
 
 func TestPrediction_Reduce_NullOriginalPoints_NoPenalty(t *testing.T) {

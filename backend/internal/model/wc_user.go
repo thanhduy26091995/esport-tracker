@@ -15,6 +15,7 @@ type WcUser struct {
 	AvatarURL    *string   `gorm:"type:varchar(500)" json:"avatar_url"`
 	IsAdmin      bool      `gorm:"default:false" json:"is_admin"`
 	IsBlocked    bool      `gorm:"not null;default:false" json:"is_blocked"`
+	IsBot        bool      `gorm:"not null;default:false" json:"is_bot"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
