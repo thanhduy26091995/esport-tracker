@@ -69,12 +69,26 @@ func (r *WcRepository) UpdateBetLimits(min, max int, updatedBy *uuid.UUID) error
 
 func (r *WcRepository) UpsertMatches(matches []model.WcMatch) error {
 	return r.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "external_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"home_team", "away_team", "home_team_code", "away_team_code",
-			"match_date", "group_name", "stage", "venue",
-			"home_score", "away_score", "status",
-			"predictions_locked_at", "updated_at",
+		Columns: []clause.Column{{Name: "external_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"home_team":            clause.Column{Table: "excluded", Name: "home_team"},
+			"away_team":            clause.Column{Table: "excluded", Name: "away_team"},
+			"home_team_code":       clause.Column{Table: "excluded", Name: "home_team_code"},
+			"away_team_code":       clause.Column{Table: "excluded", Name: "away_team_code"},
+			"match_date":           clause.Column{Table: "excluded", Name: "match_date"},
+			"group_name":           clause.Column{Table: "excluded", Name: "group_name"},
+			"stage":                clause.Column{Table: "excluded", Name: "stage"},
+			"venue":                clause.Column{Table: "excluded", Name: "venue"},
+			"status":               clause.Column{Table: "excluded", Name: "status"},
+			"predictions_locked_at": clause.Column{Table: "excluded", Name: "predictions_locked_at"},
+			"updated_at":           clause.Column{Table: "excluded", Name: "updated_at"},
+			// Only update scores for unsettled matches, and only when the incoming
+			// value is non-null. This prevents: (1) API data errors overwriting
+			// manually-corrected scores on settled matches; (2) a nil score from
+			// selectBettingScore (ET match before regularTime is populated) from
+			// clearing a previously stored correct score.
+			"home_score": gorm.Expr("CASE WHEN wc_matches.settled_at IS NULL AND excluded.home_score IS NOT NULL THEN excluded.home_score ELSE wc_matches.home_score END"),
+			"away_score": gorm.Expr("CASE WHEN wc_matches.settled_at IS NULL AND excluded.away_score IS NOT NULL THEN excluded.away_score ELSE wc_matches.away_score END"),
 		}),
 	}).Create(&matches).Error
 }

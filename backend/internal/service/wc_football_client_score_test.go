@@ -6,8 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func intPtr(v int) *int { return &v }
-
 // ─── selectBettingScore ───────────────────────────────────────────────────────
 
 func TestSelectBettingScore_Regular_UsesFullTime(t *testing.T) {
@@ -30,18 +28,20 @@ func TestSelectBettingScore_PenaltyShootout_UsesRegularTime(t *testing.T) {
 	assert.Equal(t, 2, *away)
 }
 
-func TestSelectBettingScore_ExtraTime_MissingRegularTime_FallsBackToFullTime(t *testing.T) {
-	// API bug or old data: duration=EXTRA_TIME but no regularTime field → fall back to fullTime
+func TestSelectBettingScore_ExtraTime_MissingRegularTime_ReturnsNil(t *testing.T) {
+	// duration=EXTRA_TIME but regularTime not yet populated by API (race condition
+	// after match ends) → return nil so the caller skips storing a score rather
+	// than recording fullTime (which includes ET goals) as the betting score.
 	home, away := selectBettingScore("EXTRA_TIME", intPtr(3), intPtr(2), nil, nil)
-	assert.Equal(t, 3, *home, "fallback to fullTime when regularTime absent")
-	assert.Equal(t, 2, *away)
+	assert.Nil(t, home, "must not fall back to fullTime when regularTime absent")
+	assert.Nil(t, away)
 }
 
-func TestSelectBettingScore_ExtraTime_OnlyOneRegularField_FallsBackToFullTime(t *testing.T) {
-	// Only rtHome present (malformed response) → fall back to fullTime
+func TestSelectBettingScore_ExtraTime_OnlyOneRegularField_ReturnsNil(t *testing.T) {
+	// Partial regularTime (malformed API response) → treat as unavailable, return nil.
 	home, away := selectBettingScore("EXTRA_TIME", intPtr(3), intPtr(2), intPtr(1), nil)
-	assert.Equal(t, 3, *home, "partial regularTime must not be used")
-	assert.Equal(t, 2, *away)
+	assert.Nil(t, home, "partial regularTime must not be used")
+	assert.Nil(t, away)
 }
 
 func TestSelectBettingScore_EmptyDuration_UsesFullTime(t *testing.T) {

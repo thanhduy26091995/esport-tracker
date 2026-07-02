@@ -124,8 +124,15 @@ func (c *footballClient) FetchWCMatches() ([]model.WcMatch, error) {
 // For matches that went to extra time or penalties, regularTime (90-min score) is used
 // so bets are settled on the result within regulation only.
 func selectBettingScore(duration string, ftHome, ftAway, rtHome, rtAway *int) (*int, *int) {
-	if (duration == "EXTRA_TIME" || duration == "PENALTY_SHOOTOUT") && rtHome != nil && rtAway != nil {
-		return rtHome, rtAway
+	if duration == "EXTRA_TIME" || duration == "PENALTY_SHOOTOUT" {
+		// Bets settle on the 90-min score, not including ET/penalty goals.
+		// If regularTime hasn't been populated by the API yet, return nil to
+		// skip storing scores — prevents fullTime (which includes ET goals) from
+		// being recorded as the betting score before regularTime is available.
+		if rtHome != nil && rtAway != nil {
+			return rtHome, rtAway
+		}
+		return nil, nil
 	}
 	return ftHome, ftAway
 }
