@@ -117,6 +117,10 @@ func runSchemaMigrations(db *gorm.DB) error {
 		// Fix wc_predictions.handicap_snapshot precision: numeric(4,1) rounded 0.25→0.3, breaking quarter-ball detection.
 		// USING clause rounds existing data to nearest 0.25 (e.g. 0.3→0.25, 0.8→0.75) before widening type.
 		`ALTER TABLE wc_predictions ALTER COLUMN handicap_snapshot TYPE NUMERIC(5,2) USING ROUND(handicap_snapshot::numeric * 4) / 4.0`,
+		// Fix wc_matches.ou_line precision: numeric(4,1) rounded 2.75→2.8, breaking quarter-ball O/U settlement.
+		// Same rounding recovery as handicap_snapshot above (e.g. 2.8→2.75, 2.3→2.25).
+		`ALTER TABLE wc_matches ALTER COLUMN ou_line TYPE NUMERIC(4,2) USING ROUND(ou_line::numeric * 4) / 4.0`,
+		`ALTER TABLE wc_bets ALTER COLUMN handicap_snapshot TYPE NUMERIC(5,2) USING ROUND(handicap_snapshot::numeric * 4) / 4.0`,
 		// Bet cancel penalty: soft-delete + penalty tracking
 		`ALTER TABLE wc_bets ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`,
 		`ALTER TABLE wc_bets ADD COLUMN IF NOT EXISTS cancel_penalty INTEGER NULL`,

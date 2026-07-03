@@ -182,6 +182,158 @@ func TestHandicap_QuarterBall_EvenStake(t *testing.T) {
 	assert.InDelta(t, 1.0, payout, 0.001) // round(1.0, 2) = 1.0
 }
 
+// ─── evaluateOverUnderBet ─────────────────────────────────────────────────────
+
+func ouBet(choice string, stake int, odds float64, line float64) *model.WcBet {
+	c := choice
+	l := line
+	return &model.WcBet{
+		ID:               uuid.New(),
+		WcUserID:         uuid.New(),
+		BetType:          model.WcBetTypeOverUnder,
+		BetChoice:        &c,
+		Stake:            stake,
+		OddsSnapshot:     odds,
+		HandicapSnapshot: &l,
+	}
+}
+
+func TestOverUnder_QuarterLine275_Total3_OverWinsHalf(t *testing.T) {
+	// Line 2.75 (split: 2.5 / 3.0), total = 3: over wins 2.5, pushes 3.0 → WIN HALF
+	bet := ouBet("over", 4, 1.90, 2.75)
+	result, payout := evaluateOverUnderBet(bet, 2, 1)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.InDelta(t, 5.8, payout, 0.001) // round(2*1.90 + 2, 2) = 5.8
+}
+
+func TestOverUnder_QuarterLine275_Total3_UnderLosesHalf(t *testing.T) {
+	// Line 2.75 (split: 2.5 / 3.0), total = 3: under loses 2.5, pushes 3.0 → LOSE HALF
+	bet := ouBet("under", 20, 1.91, 2.75)
+	result, payout := evaluateOverUnderBet(bet, 3, 0)
+	assert.Equal(t, model.WcResultLoseHalf, result)
+	assert.InDelta(t, 10.0, payout, 0.001) // half stake refunded
+}
+
+func TestOverUnder_QuarterLine275_Total4_OverWinsFull(t *testing.T) {
+	// Line 2.75, total = 4: over wins both sub-lines → WIN FULL
+	bet := ouBet("over", 3, 2.00, 2.75)
+	result, payout := evaluateOverUnderBet(bet, 3, 1)
+	assert.Equal(t, model.WcResultWin, result)
+	assert.InDelta(t, 6.0, payout, 0.001)
+}
+
+func TestOverUnder_QuarterLine275_Total2_UnderWinsFull(t *testing.T) {
+	// Line 2.75, total = 2: under wins both sub-lines → WIN FULL
+	bet := ouBet("under", 3, 1.85, 2.75)
+	result, payout := evaluateOverUnderBet(bet, 1, 1)
+	assert.Equal(t, model.WcResultWin, result)
+	assert.InDelta(t, 5.55, payout, 0.001)
+}
+
+func TestOverUnder_QuarterLine325_Total3_OverLosesHalf(t *testing.T) {
+	// Line 3.25 (split: 3.0 / 3.5), total = 3: over pushes 3.0, loses 3.5 → LOSE HALF
+	bet := ouBet("over", 4, 1.90, 3.25)
+	result, payout := evaluateOverUnderBet(bet, 2, 1)
+	assert.Equal(t, model.WcResultLoseHalf, result)
+	assert.InDelta(t, 2.0, payout, 0.001)
+}
+
+func TestOverUnder_QuarterLine325_Total3_UnderWinsHalf(t *testing.T) {
+	// Line 3.25 (split: 3.0 / 3.5), total = 3: under pushes 3.0, wins 3.5 → WIN HALF
+	bet := ouBet("under", 4, 1.90, 3.25)
+	result, payout := evaluateOverUnderBet(bet, 2, 1)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.InDelta(t, 5.8, payout, 0.001) // round(2*1.90 + 2, 2) = 5.8
+}
+
+func TestOverUnder_FullLine3_Total3_Push(t *testing.T) {
+	// Whole line 3.0, total = 3 → PUSH, stake returned (regression)
+	bet := ouBet("over", 5, 1.95, 3.0)
+	result, payout := evaluateOverUnderBet(bet, 2, 1)
+	assert.Equal(t, model.WcResultPush, result)
+	assert.InDelta(t, 5.0, payout, 0.001)
+}
+
+func TestOverUnder_HalfLine25_Total3_OverWinsFull(t *testing.T) {
+	// Half line 2.5, total = 3 → over WIN FULL (regression)
+	bet := ouBet("over", 2, 1.97, 2.5)
+	result, payout := evaluateOverUnderBet(bet, 2, 1)
+	assert.Equal(t, model.WcResultWin, result)
+	assert.InDelta(t, 3.94, payout, 0.001)
+}
+
+// ─── evaluateOverUnderPrediction ──────────────────────────────────────────────
+
+func ouPrediction(choice string, points int, mult float64, line float64) *model.WcPrediction {
+	c := choice
+	l := line
+	return &model.WcPrediction{
+		ID:                 uuid.New(),
+		WcUserID:           uuid.New(),
+		PredictionType:     model.WcPredictionTypeOverUnder,
+		PredictionChoice:   &c,
+		Points:             points,
+		MultiplierSnapshot: mult,
+		HandicapSnapshot:   &l,
+	}
+}
+
+func TestOUPrediction_QuarterLine275_Total3_OverWinHalf(t *testing.T) {
+	// Production bug: Spain 3-0 Austria, line 2.75, over → must be WIN HALF, not full win
+	bet := ouPrediction("over", 4, 1.97, 2.75)
+	result, earned := evaluateOverUnderPrediction(bet, 3, 0)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.InDelta(t, 5.94, earned, 0.001) // round(2*1.97 + 2, 2) = 5.94
+}
+
+func TestOUPrediction_QuarterLine275_Total3_UnderLoseHalf(t *testing.T) {
+	// Production bug: Spain 3-0 Austria, line 2.75, under → must be LOSE HALF (half refund), not full loss
+	bet := ouPrediction("under", 20, 1.91, 2.75)
+	result, earned := evaluateOverUnderPrediction(bet, 3, 0)
+	assert.Equal(t, model.WcResultLoseHalf, result)
+	assert.InDelta(t, 10.0, earned, 0.001)
+}
+
+func TestOUPrediction_QuarterLine325_Total3_UnderWinHalf(t *testing.T) {
+	// Line 3.25 (split: 3.0 / 3.5), total = 3: under pushes 3.0, wins 3.5 → WIN HALF
+	bet := ouPrediction("under", 5, 1.90, 3.25)
+	result, earned := evaluateOverUnderPrediction(bet, 2, 1)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.InDelta(t, 7.25, earned, 0.001) // round(2.5*1.90 + 2.5, 2) = 7.25
+}
+
+func TestOUPrediction_QuarterLine225_Total2_UnderWinHalf(t *testing.T) {
+	// Production bug #2: line 2.25 (split: 2.0 / 2.5), total = 2: under pushes 2.0, wins 2.5 → WIN HALF
+	bet := ouPrediction("under", 4, 1.95, 2.25)
+	result, earned := evaluateOverUnderPrediction(bet, 1, 1)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.InDelta(t, 5.9, earned, 0.001) // round(2*1.95 + 2, 2) = 5.9
+}
+
+func TestOUPrediction_QuarterLine225_Total2_OverLoseHalf(t *testing.T) {
+	// Production bug #2: line 2.25 (split: 2.0 / 2.5), total = 2: over pushes 2.0, loses 2.5 → LOSE HALF
+	bet := ouPrediction("over", 20, 1.90, 2.25)
+	result, earned := evaluateOverUnderPrediction(bet, 2, 0)
+	assert.Equal(t, model.WcResultLoseHalf, result)
+	assert.InDelta(t, 10.0, earned, 0.001) // half stake refunded
+}
+
+func TestOUPrediction_QuarterLine275_Total4_OverCorrectFull(t *testing.T) {
+	// Line 2.75, total = 4 → over CORRECT full (regression)
+	bet := ouPrediction("over", 3, 2.00, 2.75)
+	result, earned := evaluateOverUnderPrediction(bet, 3, 1)
+	assert.Equal(t, model.WcResultCorrect, result)
+	assert.InDelta(t, 6.0, earned, 0.001)
+}
+
+func TestOUPrediction_FullLine3_Total3_Void(t *testing.T) {
+	// Whole line 3.0, total = 3 → VOID, points returned (regression)
+	bet := ouPrediction("over", 5, 1.95, 3.0)
+	result, earned := evaluateOverUnderPrediction(bet, 2, 1)
+	assert.Equal(t, model.WcResultVoid, result)
+	assert.InDelta(t, 5.0, earned, 0.001)
+}
+
 // ─── evaluateExactScoreBet ────────────────────────────────────────────────────
 
 func TestExactScore_CorrectPrediction(t *testing.T) {

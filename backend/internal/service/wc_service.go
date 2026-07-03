@@ -1664,6 +1664,25 @@ func evaluateOverUnderPrediction(bet *model.WcPrediction, homeScore, awayScore i
 	total := float64(homeScore + awayScore)
 	line := *bet.HandicapSnapshot
 	choice := *bet.PredictionChoice
+
+	if isQuarterHandicap(line) {
+		r1 := evalSubOverUnder(total, line-0.25, choice)
+		r2 := evalSubOverUnder(total, line+0.25, choice)
+		half := float64(bet.Points) / 2
+		switch {
+		case r1 == "win" && r2 == "win":
+			return model.WcResultCorrect, round2(float64(bet.Points) * bet.MultiplierSnapshot)
+		case r1 == "lose" && r2 == "lose":
+			return model.WcResultIncorrect, 0
+		case (r1 == "win" || r2 == "win"):
+			// one win + one push
+			return model.WcResultWinHalf, round2(half*bet.MultiplierSnapshot + half)
+		default:
+			// one push + one lose
+			return model.WcResultLoseHalf, round2(half)
+		}
+	}
+
 	if total == line {
 		return model.WcResultVoid, float64(bet.Points)
 	}
@@ -1671,6 +1690,17 @@ func evaluateOverUnderPrediction(bet *model.WcPrediction, homeScore, awayScore i
 		return model.WcResultCorrect, round2(float64(bet.Points) * bet.MultiplierSnapshot)
 	}
 	return model.WcResultIncorrect, 0
+}
+
+// evalSubOverUnder evaluates a single O/U line, returning "win", "lose", or "push".
+func evalSubOverUnder(total, line float64, choice string) string {
+	if total == line {
+		return "push"
+	}
+	if (total > line && choice == model.WcChoiceOver) || (total < line && choice == model.WcChoiceUnder) {
+		return "win"
+	}
+	return "lose"
 }
 
 // evaluateHandicapBet applies Asian handicap rules for the betting system.
@@ -1747,6 +1777,25 @@ func evaluateOverUnderBet(bet *model.WcBet, homeScore, awayScore int) (string, f
 	total := float64(homeScore + awayScore)
 	line := *bet.HandicapSnapshot
 	choice := *bet.BetChoice
+
+	if isQuarterHandicap(line) {
+		r1 := evalSubOverUnder(total, line-0.25, choice)
+		r2 := evalSubOverUnder(total, line+0.25, choice)
+		half := float64(bet.Stake) / 2
+		switch {
+		case r1 == "win" && r2 == "win":
+			return model.WcResultWin, math.Round(float64(bet.Stake)*bet.OddsSnapshot*100) / 100
+		case r1 == "lose" && r2 == "lose":
+			return model.WcResultLose, 0
+		case (r1 == "win" || r2 == "win"):
+			// one win + one push: payout winning half + refund pushing half
+			return model.WcResultWinHalf, math.Round((half*bet.OddsSnapshot+half)*100) / 100
+		default:
+			// one push + one lose: refund pushing half only
+			return model.WcResultLoseHalf, math.Round(half*100) / 100
+		}
+	}
+
 	if total == line {
 		return model.WcResultPush, float64(bet.Stake)
 	}
