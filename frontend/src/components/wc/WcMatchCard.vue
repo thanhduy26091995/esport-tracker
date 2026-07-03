@@ -27,17 +27,35 @@
           <div class="wc-time-date">{{ matchDateStr }}</div>
           <div class="wc-time-clock">{{ matchTimeStr }}</div>
         </div>
-        <div v-if="match.handicap_value" class="wc-handicap-info">
-          <span class="wc-hc-label">
-            {{ handicapTeamName }} {{ t('wc.gives') }} {{ match.handicap_value }}
-          </span>
-        </div>
       </div>
 
       <div class="wc-team wc-team--away">
         <span v-if="match.away_team_code" class="wc-team-code">{{ match.away_team_code }}</span>
         <span class="wc-team-name">{{ match.away_team }}</span>
         <span class="wc-team-flag">{{ awayFlag }}</span>
+      </div>
+    </div>
+
+    <div v-if="hasOdds" class="wc-match-odds">
+      <div v-if="match.handicap_value" class="wc-odds-chip">
+        <span class="wc-odds-label">{{ t('wc.betTypeHandicap') }}</span>
+        <span class="wc-odds-val">
+          {{ handicapTeamName }} {{ t('wc.gives') }} {{ match.handicap_value }}
+        </span>
+        <span v-if="match.odds_handicap_home != null" class="wc-odds-rate">
+          @{{ fmtOdds(match.odds_handicap_home) }} / {{ fmtOdds(match.odds_handicap_away) }}
+        </span>
+      </div>
+
+      <div v-if="match.ou_line != null" class="wc-odds-chip">
+        <span class="wc-odds-label">{{ t('wc.ouShort') }} {{ match.ou_line }}</span>
+        <span v-if="match.odds_over != null" class="wc-odds-rate">
+          {{ t('wc.over') }} @{{ fmtOdds(match.odds_over) }} / {{ t('wc.under') }} @{{ fmtOdds(match.odds_under) }}
+        </span>
+      </div>
+
+      <div v-if="customBetCount > 0" class="wc-odds-badge">
+        {{ customBetCount }} {{ t('wc.customBets') }}
       </div>
     </div>
 
@@ -99,6 +117,18 @@ const matchTimeStr = computed(() =>
 const handicapTeamName = computed(() =>
   props.match.handicap_team === 'home' ? props.match.home_team : props.match.away_team,
 )
+
+const customBetCount = computed(() => props.match.custom_bet_count ?? 0)
+
+const hasOdds = computed(() =>
+  Boolean(props.match.handicap_value) ||
+  props.match.ou_line != null ||
+  customBetCount.value > 0,
+)
+
+function fmtOdds(v?: number): string {
+  return v != null ? v.toFixed(2) : '—'
+}
 
 function teamFlag(code?: string): string {
   if (!code) return '🏳️'
@@ -321,17 +351,53 @@ const awayFlag = computed(() => teamFlag(props.match.away_team_code))
   line-height: 1.2;
 }
 
-.wc-handicap-info {
-  margin-top: 6px;
+.wc-match-odds {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
 }
 
-.wc-hc-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
+.wc-odds-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
   background: rgba(100, 116, 139, 0.08);
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+
+.wc-odds-label {
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 10px;
+}
+
+.wc-odds-val {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wc-odds-rate {
+  font-weight: 700;
+  color: var(--color-primary);
+  tabular-nums: true;
+}
+
+.wc-odds-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+  padding: 3px 9px;
+  border-radius: 6px;
 }
 
 .wc-match-actions {

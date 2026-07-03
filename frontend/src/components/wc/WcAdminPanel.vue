@@ -182,6 +182,23 @@
             <span v-if="match.poisson_synced_at" class="wc-sync-chip wc-sync-chip--synced">
               Poisson {{ formatSyncTime(match.poisson_synced_at) }}
             </span>
+            <span v-if="match.handicap_value != null" class="wc-val-chip">
+              HDP
+              {{ match.handicap_team === "away" ? match.away_team : match.home_team }}
+              {{ match.handicap_value }}
+              <template v-if="match.odds_handicap_home != null">
+                @{{ match.odds_handicap_home?.toFixed(2) }}/{{ match.odds_handicap_away?.toFixed(2) }}
+              </template>
+            </span>
+            <span v-if="match.ou_line != null" class="wc-val-chip">
+              T/X {{ match.ou_line }}
+              <template v-if="match.odds_over != null">
+                @{{ match.odds_over?.toFixed(2) }}/{{ match.odds_under?.toFixed(2) }}
+              </template>
+            </span>
+            <span v-if="(match.custom_bet_count ?? 0) > 0" class="wc-val-chip wc-val-chip--custom">
+              {{ match.custom_bet_count }} kèo phụ
+            </span>
           </div>
           <div class="wc-admin-match-actions">
             <el-button
@@ -1184,6 +1201,23 @@ onMounted(async () => {
 .wc-sync-chip--synced {
   background: rgba(22, 163, 74, 0.1);
   color: #16a34a;
+}
+
+.wc-val-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
+  vertical-align: middle;
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--text-secondary);
+}
+
+.wc-val-chip--custom {
+  background: rgba(217, 119, 6, 0.12);
+  color: #d97706;
 }
 
 .wc-admin-match-actions {

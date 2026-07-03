@@ -253,6 +253,33 @@ func (r *WcCustomBetRepository) CountUnsettledForMatch(matchID uuid.UUID) (int64
 	return count, err
 }
 
+// CountOpenByMatchIDs returns the number of open custom bets per match, keyed by
+// match ID. Matches with zero open bets are omitted from the map. Used by
+// WcService.ListMatches to surface a "kèo phụ" count badge on the match list.
+func (r *WcCustomBetRepository) CountOpenByMatchIDs(ids []uuid.UUID) (map[uuid.UUID]int, error) {
+	if len(ids) == 0 {
+		return map[uuid.UUID]int{}, nil
+	}
+	type row struct {
+		MatchID uuid.UUID
+		Count   int
+	}
+	var rows []row
+	err := r.db.Model(&model.WcCustomBet{}).
+		Select("match_id, COUNT(*) AS count").
+		Where("match_id IN ? AND status = ?", ids, model.WcCustomBetStatusOpen).
+		Group("match_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID]int, len(rows))
+	for _, rw := range rows {
+		out[rw.MatchID] = rw.Count
+	}
+	return out, nil
+}
+
 func (r *WcCustomBetRepository) CountMatchesWithUnsettled() (int64, error) {
 	var count int64
 	err := r.db.Model(&model.WcCustomBet{}).
