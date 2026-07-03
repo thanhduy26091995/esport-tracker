@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func intPtr(v int) *int { return &v }
+
 // ─── selectBettingScore ───────────────────────────────────────────────────────
 
 func TestSelectBettingScore_Regular_UsesFullTime(t *testing.T) {

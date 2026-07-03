@@ -104,7 +104,7 @@ type WcMatch struct {
 	SettledAt           *time.Time `json:"settled_at"`
 	// StatsAPI integration fields
 	StatsapiFixtureID *string    `gorm:"type:varchar(64);uniqueIndex" json:"statsapi_fixture_id"`
-	OULine            *float64   `gorm:"type:numeric(4,1)" json:"ou_line"`
+	OULine            *float64   `gorm:"type:numeric(4,2)" json:"ou_line"`
 	OddsOver          *float64   `gorm:"type:numeric(5,2)" json:"odds_over"`
 	OddsUnder         *float64   `gorm:"type:numeric(5,2)" json:"odds_under"`
 	OUSyncedAt        *time.Time `json:"ou_synced_at"`
