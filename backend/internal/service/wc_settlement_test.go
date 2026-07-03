@@ -302,6 +302,22 @@ func TestOUPrediction_QuarterLine325_Total3_UnderWinHalf(t *testing.T) {
 	assert.InDelta(t, 7.25, earned, 0.001) // round(2.5*1.90 + 2.5, 2) = 7.25
 }
 
+func TestOUPrediction_QuarterLine225_Total2_UnderWinHalf(t *testing.T) {
+	// Production bug #2: line 2.25 (split: 2.0 / 2.5), total = 2: under pushes 2.0, wins 2.5 → WIN HALF
+	bet := ouPrediction("under", 4, 1.95, 2.25)
+	result, earned := evaluateOverUnderPrediction(bet, 1, 1)
+	assert.Equal(t, model.WcResultWinHalf, result)
+	assert.InDelta(t, 5.9, earned, 0.001) // round(2*1.95 + 2, 2) = 5.9
+}
+
+func TestOUPrediction_QuarterLine225_Total2_OverLoseHalf(t *testing.T) {
+	// Production bug #2: line 2.25 (split: 2.0 / 2.5), total = 2: over pushes 2.0, loses 2.5 → LOSE HALF
+	bet := ouPrediction("over", 20, 1.90, 2.25)
+	result, earned := evaluateOverUnderPrediction(bet, 2, 0)
+	assert.Equal(t, model.WcResultLoseHalf, result)
+	assert.InDelta(t, 10.0, earned, 0.001) // half stake refunded
+}
+
 func TestOUPrediction_QuarterLine275_Total4_OverCorrectFull(t *testing.T) {
 	// Line 2.75, total = 4 → over CORRECT full (regression)
 	bet := ouPrediction("over", 3, 2.00, 2.75)
