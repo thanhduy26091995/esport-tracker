@@ -64,7 +64,24 @@ func (s *WcService) SyncMatches() (int, error) {
 // --- Matches ---
 
 func (s *WcService) ListMatches(f repository.MatchFilter) ([]*model.WcMatch, error) {
-	return s.repo.ListMatches(f)
+	matches, err := s.repo.ListMatches(f)
+	if err != nil {
+		return nil, err
+	}
+	if s.customBetRepo != nil && len(matches) > 0 {
+		ids := make([]uuid.UUID, len(matches))
+		for i, m := range matches {
+			ids[i] = m.ID
+		}
+		// Best-effort enrichment: on error CustomBetCount stays 0 rather than
+		// failing the whole list.
+		if counts, err := s.customBetRepo.CountOpenByMatchIDs(ids); err == nil {
+			for _, m := range matches {
+				m.CustomBetCount = counts[m.ID]
+			}
+		}
+	}
+	return matches, nil
 }
 
 func (s *WcService) GetMatch(id uuid.UUID) (*model.WcMatch, error) {

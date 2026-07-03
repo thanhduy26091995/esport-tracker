@@ -54,6 +54,7 @@ export interface WcMatch {
   odds_under?: number
   ou_synced_at?: string
   poisson_synced_at?: string
+  custom_bet_count?: number
   predictions_open: boolean
   predictions_locked_at?: string
   bets_locked_at?: string

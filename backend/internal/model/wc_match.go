@@ -112,6 +112,9 @@ type WcMatch struct {
 	PoissonSyncedAt   *time.Time `json:"poisson_synced_at"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
+	// CustomBetCount is a non-persisted count of open custom bets (kèo phụ) for the
+	// match, populated by WcService.ListMatches for the match list UI.
+	CustomBetCount int `gorm:"-" json:"custom_bet_count"`
 }
 
 func (WcMatch) TableName() string {
