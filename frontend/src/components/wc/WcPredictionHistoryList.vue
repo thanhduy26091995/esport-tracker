@@ -275,10 +275,11 @@ function isEditable(pred: WcPredictionWithMatch): boolean {
   return true
 }
 
-function startEdit(pred: WcPredictionWithMatch) {
-  editingId.value = pred.id
-  editPoints.value = pred.points
-}
+// Edit button is commented out in the template — keep startEdit disabled with it
+// function startEdit(pred: WcPredictionWithMatch) {
+//   editingId.value = pred.id
+//   editPoints.value = pred.points
+// }
 
 function cancelEdit() { editingId.value = null }
 

@@ -111,10 +111,11 @@ function isEditable(bet: WcBetWithMatch): boolean {
   return true
 }
 
-function startEdit(bet: WcBetWithMatch) {
-  editingId.value = bet.id
-  editStake.value = bet.stake
-}
+// Edit button is commented out in the template — keep startEdit disabled with it
+// function startEdit(bet: WcBetWithMatch) {
+//   editingId.value = bet.id
+//   editStake.value = bet.stake
+// }
 
 function cancelEdit() {
   editingId.value = null
