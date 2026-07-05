@@ -94,25 +94,72 @@ const visibleEntries = computed(() => props.entries.filter((e) => !e.is_bot))
 }
 
 /* ── Per-rank row treatment (gold / silver / bronze) ── */
-.wc-lb-row--rank1 {
-  border-color: rgba(234, 179, 8, 0.6);
-  background: linear-gradient(90deg, rgba(234, 179, 8, 0.12), var(--surface-card));
-  box-shadow: 0 0 14px rgba(234, 179, 8, 0.18);
-}
-.wc-lb-row--rank2 {
-  border-color: rgba(148, 163, 184, 0.55);
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.09), var(--surface-card));
-  box-shadow: 0 0 10px rgba(148, 163, 184, 0.12);
-}
+.wc-lb-row--rank1,
+.wc-lb-row--rank2,
 .wc-lb-row--rank3 {
-  border-color: rgba(180, 120, 60, 0.5);
-  background: linear-gradient(90deg, rgba(180, 120, 60, 0.08), var(--surface-card));
+  position: relative;
+  overflow: hidden;
+  border-width: 1px 1px 1px 0; /* left edge is the accent bar (inset box-shadow) */
+}
+
+/* Diagonal light sweep across the whole podium block */
+.wc-lb-row--rank1::before,
+.wc-lb-row--rank2::before,
+.wc-lb-row--rank3::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.16) 48%, rgba(255, 255, 255, 0.16) 52%, transparent 68%);
+  transform: translateX(-120%);
+  animation: wc-lb-sheen 4.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Keep row content above the sweep */
+.wc-lb-row > * { position: relative; z-index: 1; }
+
+.wc-lb-row--rank1 {
+  border-color: rgba(234, 179, 8, 0.85);
+  background: linear-gradient(90deg, rgba(234, 179, 8, 0.24), rgba(234, 179, 8, 0.05) 55%, var(--surface-card));
+  animation: wc-lb-glow-gold 2.6s ease-in-out infinite;
+}
+.wc-lb-row--rank1::before { animation-duration: 3.5s; }
+
+.wc-lb-row--rank2 {
+  border-color: rgba(226, 232, 240, 0.9);
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.22), rgba(226, 232, 240, 0.05) 55%, var(--surface-card));
+  animation: wc-lb-glow-silver 3s ease-in-out infinite;
+}
+.wc-lb-row--rank2::before { animation-duration: 4.3s; }
+
+.wc-lb-row--rank3 {
+  border-color: rgba(210, 140, 80, 0.85);
+  background: linear-gradient(90deg, rgba(210, 140, 80, 0.2), rgba(210, 140, 80, 0.05) 55%, var(--surface-card));
+  animation: wc-lb-glow-bronze 3.4s ease-in-out infinite;
+}
+.wc-lb-row--rank3::before { animation-duration: 5.2s; }
+
+@keyframes wc-lb-sheen {
+  0%       { transform: translateX(-120%); }
+  55%,100% { transform: translateX(120%); }
+}
+@keyframes wc-lb-glow-gold {
+  0%, 100% { box-shadow: inset 4px 0 0 #f4c025, 0 0 12px rgba(234, 179, 8, 0.3); }
+  50%      { box-shadow: inset 4px 0 0 #f4c025, 0 0 28px rgba(234, 179, 8, 0.62); }
+}
+@keyframes wc-lb-glow-silver {
+  0%, 100% { box-shadow: inset 4px 0 0 #e2e8f0, 0 0 12px rgba(226, 232, 240, 0.28); }
+  50%      { box-shadow: inset 4px 0 0 #e2e8f0, 0 0 26px rgba(226, 232, 240, 0.58); }
+}
+@keyframes wc-lb-glow-bronze {
+  0%, 100% { box-shadow: inset 4px 0 0 #d28c50, 0 0 10px rgba(210, 140, 80, 0.26); }
+  50%      { box-shadow: inset 4px 0 0 #d28c50, 0 0 22px rgba(210, 140, 80, 0.52); }
 }
 
 /* Metallic avatar ring for the podium */
-.wc-lb-row--rank1 .wc-lb-avatar { box-shadow: 0 0 0 2px #eab308; }
-.wc-lb-row--rank2 .wc-lb-avatar { box-shadow: 0 0 0 2px #94a3b8; }
-.wc-lb-row--rank3 .wc-lb-avatar { box-shadow: 0 0 0 2px #b4783c; }
+.wc-lb-row--rank1 .wc-lb-avatar { box-shadow: 0 0 0 2px #f4c025, 0 0 9px rgba(234, 179, 8, 0.65); }
+.wc-lb-row--rank2 .wc-lb-avatar { box-shadow: 0 0 0 2px #e2e8f0, 0 0 9px rgba(226, 232, 240, 0.55); }
+.wc-lb-row--rank3 .wc-lb-avatar { box-shadow: 0 0 0 2px #d28c50, 0 0 9px rgba(210, 140, 80, 0.55); }
 
 .wc-lb-rank {
   width: 32px;
@@ -185,18 +232,19 @@ const visibleEntries = computed(() => props.entries.filter((e) => !e.is_bot))
 }
 
 .wc-lb-name--rank1 .wc-lb-name-text {
-  background-image: linear-gradient(100deg, #fde68a 0%, #f59e0b 25%, #fffbe6 50%, #f59e0b 75%, #fde68a 100%);
-  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.55));
+  background-image: linear-gradient(100deg, #fde68a 0%, #f5b301 25%, #fffbe6 50%, #f5b301 75%, #fde68a 100%);
+  filter: drop-shadow(0 0 7px rgba(245, 179, 1, 0.7));
   animation-duration: 2.5s;
 }
+/* Rank 2 stays bright platinum end-to-end so it reads clearly on dark bg */
 .wc-lb-name--rank2 .wc-lb-name-text {
-  background-image: linear-gradient(100deg, #e2e8f0 0%, #94a3b8 30%, #f8fafc 50%, #94a3b8 70%, #e2e8f0 100%);
-  filter: drop-shadow(0 0 4px rgba(148, 163, 184, 0.45));
+  background-image: linear-gradient(100deg, #ffffff 0%, #dbe4ee 30%, #ffffff 50%, #dbe4ee 70%, #ffffff 100%);
+  filter: drop-shadow(0 0 6px rgba(219, 228, 238, 0.75));
   animation-duration: 3.6s;
 }
 .wc-lb-name--rank3 .wc-lb-name-text {
-  background-image: linear-gradient(100deg, #dca274 0%, #b45309 35%, #f0cba6 50%, #b45309 65%, #dca274 100%);
-  filter: drop-shadow(0 0 3px rgba(180, 120, 60, 0.4));
+  background-image: linear-gradient(100deg, #f2cfa8 0%, #d98b4a 35%, #ffe8d0 50%, #d98b4a 65%, #f2cfa8 100%);
+  filter: drop-shadow(0 0 5px rgba(217, 139, 74, 0.6));
   animation-duration: 5.5s;
 }
 
@@ -209,9 +257,21 @@ const visibleEntries = computed(() => props.entries.filter((e) => !e.is_bot))
   .wc-lb-crown,
   .wc-lb-name--rank1 .wc-lb-name-text,
   .wc-lb-name--rank2 .wc-lb-name-text,
-  .wc-lb-name--rank3 .wc-lb-name-text {
+  .wc-lb-name--rank3 .wc-lb-name-text,
+  .wc-lb-row--rank1,
+  .wc-lb-row--rank2,
+  .wc-lb-row--rank3 {
     animation: none;
   }
+  .wc-lb-row--rank1::before,
+  .wc-lb-row--rank2::before,
+  .wc-lb-row--rank3::before {
+    display: none;
+  }
+  /* Keep the accent bar + a steady glow so the podium stays prominent */
+  .wc-lb-row--rank1 { box-shadow: inset 4px 0 0 #f4c025, 0 0 16px rgba(234, 179, 8, 0.42); }
+  .wc-lb-row--rank2 { box-shadow: inset 4px 0 0 #e2e8f0, 0 0 16px rgba(226, 232, 240, 0.4); }
+  .wc-lb-row--rank3 { box-shadow: inset 4px 0 0 #d28c50, 0 0 14px rgba(210, 140, 80, 0.36); }
 }
 
 .wc-lb-stats {
