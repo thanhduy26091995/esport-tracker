@@ -29,10 +29,10 @@
               <div class="wc-hc-team">{{ match!.home_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="homeGives" class="wc-hc-handi"
-                  >-{{ fmtHandicap(match!.handicap_value) }}</span
+                  >{{ match!.handicap_value === 0 ? '' : '-' }}{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ fmtHandicap(match!.handicap_value) }}</span
+                  >{{ match!.handicap_value === 0 ? '' : '+' }}{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_home?.toFixed(2) }}</span
@@ -48,10 +48,10 @@
               <div class="wc-hc-team">{{ match!.away_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="!homeGives" class="wc-hc-handi"
-                  >-{{ fmtHandicap(match!.handicap_value) }}</span
+                  >{{ match!.handicap_value === 0 ? '' : '-' }}{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ fmtHandicap(match!.handicap_value) }}</span
+                  >{{ match!.handicap_value === 0 ? '' : '+' }}{{ fmtHandicap(match!.handicap_value) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_away?.toFixed(2) }}</span
@@ -223,11 +223,10 @@ function fmtHandicap(v: number | null | undefined): string {
 
 const hasHandicap = computed(
   () =>
-    !!(
-      props.match?.handicap_value &&
-      props.match.odds_handicap_home &&
-      props.match.odds_handicap_away
-    ),
+    // handicap_value === 0 is a valid "đá đồng" (level) line — check null, not truthiness
+    props.match?.handicap_value != null &&
+    props.match.odds_handicap_home != null &&
+    props.match.odds_handicap_away != null,
 );
 
 const homeGives = computed(() => props.match?.handicap_team === "home");

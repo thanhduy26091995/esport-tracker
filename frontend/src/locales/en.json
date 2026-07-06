@@ -96,6 +96,7 @@
     "matchDate": "Date",
     "handicap": "Handicap",
     "gives": "gives",
+    "handicapLevel": "Level ball (PK)",
     "ouShort": "O/U",
     "over": "Over",
     "under": "Under",

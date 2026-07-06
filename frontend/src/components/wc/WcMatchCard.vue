@@ -37,10 +37,11 @@
     </div>
 
     <div v-if="hasOdds" class="wc-match-odds">
-      <div v-if="match.handicap_value" class="wc-odds-chip">
+      <div v-if="match.handicap_value != null" class="wc-odds-chip">
         <span class="wc-odds-label">{{ t('wc.betTypeHandicap') }}</span>
         <span class="wc-odds-val">
-          {{ handicapTeamName }} {{ t('wc.gives') }} {{ match.handicap_value }}
+          <template v-if="match.handicap_value === 0">{{ t('wc.handicapLevel') }}</template>
+          <template v-else>{{ handicapTeamName }} {{ t('wc.gives') }} {{ match.handicap_value }}</template>
         </span>
         <span v-if="match.odds_handicap_home != null" class="wc-odds-rate">
           @{{ fmtOdds(match.odds_handicap_home) }} / {{ fmtOdds(match.odds_handicap_away) }}
@@ -121,7 +122,9 @@ const handicapTeamName = computed(() =>
 const customBetCount = computed(() => props.match.custom_bet_count ?? 0)
 
 const hasOdds = computed(() =>
-  Boolean(props.match.handicap_value) ||
+  // handicap_value === 0 is a valid "đá đồng" (level) line, so check for null,
+  // not truthiness — Boolean(0) would wrongly hide it.
+  props.match.handicap_value != null ||
   props.match.ou_line != null ||
   customBetCount.value > 0,
 )

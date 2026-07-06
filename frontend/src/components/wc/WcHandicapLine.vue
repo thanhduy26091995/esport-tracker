@@ -13,7 +13,12 @@ const props = defineProps<{
 }>()
 
 const handicapText = computed(() => {
-  if (!props.handicapValue || !props.handicapTeam) return null
+  // handicapValue === 0 is a valid "đá đồng" (level) line — check null, not truthiness
+  if (props.handicapValue == null) return null
+  if (props.handicapValue === 0) {
+    return `${props.homeTeam} vs ${props.awayTeam}: kèo đồng banh`
+  }
+  if (!props.handicapTeam) return null
   if (props.handicapTeam === 'home') {
     return `${props.homeTeam} chấp ${props.awayTeam} ${props.handicapValue} trái`
   }

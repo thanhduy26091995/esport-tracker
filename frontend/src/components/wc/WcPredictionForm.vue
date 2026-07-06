@@ -29,10 +29,10 @@
               <div class="wc-hc-team">{{ match!.home_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="homeGives" class="wc-hc-handi"
-                  >-{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
+                  >{{ (match!.handicap_value ?? 0) === 0 ? '' : '-' }}{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
+                  >{{ (match!.handicap_value ?? 0) === 0 ? '' : '+' }}{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_home?.toFixed(2) }}</span
@@ -48,10 +48,10 @@
               <div class="wc-hc-team">{{ match!.away_team }}</div>
               <div class="wc-hc-odds">
                 <span v-if="!homeGives" class="wc-hc-handi"
-                  >-{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
+                  >{{ (match!.handicap_value ?? 0) === 0 ? '' : '-' }}{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span v-else class="wc-hc-handi wc-hc-handi--receive"
-                  >+{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
+                  >{{ (match!.handicap_value ?? 0) === 0 ? '' : '+' }}{{ fmtHandicap(match!.handicap_value ?? 0) }}</span
                 >
                 <span class="wc-hc-rate"
                   >@ {{ match!.odds_handicap_away?.toFixed(2) }}</span
@@ -270,11 +270,10 @@ const existingScorePredictionMap = ref<Record<string, WcPredictionWithMatch>>({}
 
 const hasHandicap = computed(
   () =>
-    !!(
-      props.match?.handicap_value &&
-      props.match.odds_handicap_home &&
-      props.match.odds_handicap_away
-    ),
+    // handicap_value === 0 is a valid "đá đồng" (level) line — check null, not truthiness
+    props.match?.handicap_value != null &&
+    props.match.odds_handicap_home != null &&
+    props.match.odds_handicap_away != null,
 );
 
 const hasOU = computed(
