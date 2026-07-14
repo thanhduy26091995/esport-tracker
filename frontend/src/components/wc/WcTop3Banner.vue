@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="top3.length >= 1 || wcStore.leaderboardLoading"
+    v-if="bottom3.length >= 1 || wcStore.leaderboardLoading"
     class="wc-top3-banner"
     role="region"
     :aria-label="t('wc.top3Banner.ariaLabel')"
@@ -8,7 +8,7 @@
     <span class="banner-label">{{ t('wc.top3Banner.label') }}</span>
 
     <!-- Skeleton while first load -->
-    <div v-if="wcStore.leaderboardLoading && top3.length === 0" class="banner-skeleton">
+    <div v-if="wcStore.leaderboardLoading && bottom3.length === 0" class="banner-skeleton">
       <div v-for="n in 3" :key="n" class="banner-skeleton-card" />
     </div>
 
@@ -24,7 +24,7 @@
           v-for="(entry, i) in displayEntries"
           :key="`${entry.wc_user_id}-${i}`"
           :entry="entry"
-          :rank="((i % top3.length) + 1) as 1 | 2 | 3"
+          :rank="((i % bottom3.length) + 1) as 1 | 2 | 3"
           :isCurrentUser="entry.wc_user_id === currentUserId"
         />
       </div>
@@ -45,8 +45,14 @@ const wcAuthStore = useWcAuthStore()
 
 const paused = ref(false)
 
-const top3 = computed(() => wcStore.leaderboard.filter(e => !e.is_bot).slice(0, 3))
-const displayEntries = computed(() => [...top3.value, ...top3.value])
+// Header shows the REVERSE of the leaderboard: lowest / most-negative points first.
+// (The leaderboard page itself keeps the normal top-first order.)
+const bottom3 = computed(() =>
+  [...wcStore.leaderboard.filter(e => !e.is_bot)]
+    .sort((a, b) => a.net_points - b.net_points)
+    .slice(0, 3),
+)
+const displayEntries = computed(() => [...bottom3.value, ...bottom3.value])
 const currentUserId = computed(() => wcAuthStore.user?.id ?? null)
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null
