@@ -28,7 +28,7 @@ jobs:
       - name: Deploy
         run: |
           ssh deploy@${{ secrets.VPS_HOST }} \
-            "cd /root/esport-tracker && \
+            "cd esport-tracker && \
              git fetch origin && \
              git reset --hard origin/main && \
              bash scripts/deploy-update.sh"
