@@ -31,4 +31,5 @@ jobs:
             "cd esport-tracker && \
              git fetch origin && \
              git reset --hard origin/main && \
+             rm -rf frontend/node_modules frontend/package-lock.json && \
              bash scripts/deploy-update.sh"
