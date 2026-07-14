@@ -27,11 +27,11 @@ const { t } = useI18n()
 
 const props = defineProps<{
   entry: WcLeaderboardEntry
-  rank: 1 | 2 | 3
+  rank: 1 | 2 | 3 | 4 | 5
   isCurrentUser: boolean
 }>()
 
-const MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' }
+const MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉', 4: '4️⃣', 5: '5️⃣' }
 
 const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23374151"/%3E%3Ccircle cx="16" cy="13" r="6" fill="%236b7280"/%3E%3Cellipse cx="16" cy="29" rx="9" ry="7" fill="%236b7280"/%3E%3C/svg%3E'
 
@@ -63,6 +63,8 @@ function fmtPts(v: number): string {
 .banner-card--rank1 { border-color: rgba(234, 179, 8, 0.45); }
 .banner-card--rank2 { border-color: rgba(148, 163, 184, 0.45); }
 .banner-card--rank3 { border-color: rgba(180, 120, 60, 0.4); }
+.banner-card--rank4,
+.banner-card--rank5 { border-color: rgba(148, 163, 184, 0.3); }
 
 .banner-card--me {
   box-shadow: 0 0 0 2px #d97706;
