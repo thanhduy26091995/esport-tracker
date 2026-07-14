@@ -77,6 +77,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | WC tournament analytics — total goals, avg goals/match, top scorers (football-data.org), highest scoring match, H/A/D breakdown | `docs/ai/design/feature-wc-tournament-analytics.md` |
 | WC bet cancel penalty — admin-controlled % penalty when user cancels a pending bet, wallet deduction + audit log, cancelled bets in Lịch sử tab | `docs/ai/design/feature-wc-bet-cancel-penalty.md` |
 | WC bot user flag — is_bot on wc_users; bots show on leaderboard with "Bot" badge but are excluded from top-3 honor banner | `docs/ai/design/feature-wc-bot-user.md` |
+| CI/CD deployment pipeline — GitHub Actions + SSH key; one-click deploy from GitHub UI, no VPS password sharing | `docs/ai/design/feature-ci-cd-deployment-pipeline.md` |
 
 ## Dev Commands
 
