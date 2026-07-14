@@ -148,6 +148,9 @@ func runSchemaMigrations(db *gorm.DB) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_es_dedup ON wc_predictions(wc_user_id, match_id, predicted_home_score, predicted_away_score) WHERE cancelled_at IS NULL`,
 		// Bot user flag
 		`ALTER TABLE wc_users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT FALSE`,
+		// Replace standard unique index with partial one so cancelled custom bet entries don't block re-placement
+		`DROP INDEX IF EXISTS idx_custom_bet_entry_dedup`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_bet_entry_dedup ON wc_custom_bet_entries(custom_bet_id, wc_user_id) WHERE cancelled_at IS NULL`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {

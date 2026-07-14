@@ -211,6 +211,8 @@ func (r *WcCustomBetRepository) ListCustomEntriesForUserAsHistory(userID uuid.UU
 		        b.title                                              AS bet_title,
 		        e.stake                                              AS points,
 		        e.odds_snapshot                                      AS multiplier_snapshot,
+		        e.cancelled_at,
+		        e.cancel_penalty,
 		        CASE e.status
 		            WHEN 'won'  THEN 'correct'
 		            WHEN 'lost' THEN 'incorrect'

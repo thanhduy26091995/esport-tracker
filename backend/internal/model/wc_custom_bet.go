@@ -47,9 +47,9 @@ func (WcCustomBetOption) TableName() string { return "wc_custom_bet_options" }
 
 type WcCustomBetEntry struct {
 	ID            uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CustomBetID   uuid.UUID  `gorm:"type:uuid;not null;index;uniqueIndex:idx_custom_bet_entry_dedup" json:"custom_bet_id"`
+	CustomBetID   uuid.UUID  `gorm:"type:uuid;not null;index" json:"custom_bet_id"`
 	OptionID      uuid.UUID  `gorm:"type:uuid;not null" json:"option_id"`
-	WcUserID      uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_custom_bet_entry_dedup" json:"wc_user_id"`
+	WcUserID      uuid.UUID  `gorm:"type:uuid;not null" json:"wc_user_id"`
 	Stake         int        `gorm:"not null" json:"stake"`
 	OriginalStake *int       `json:"original_stake,omitempty"`
 	OddsSnapshot  float64    `gorm:"type:numeric(6,2);not null" json:"odds_snapshot"`
