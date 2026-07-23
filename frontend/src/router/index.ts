@@ -277,7 +277,7 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresTournamentFeature) {
     const enabled = await isTournamentEnabled(prefix)
-    if (!enabled) return { name: 'not-found' }
+    if (!enabled) return { name: 'not-found', params: { pathMatch: to.path.substring(1).split('/') } }
   }
 
   if (to.meta.requiresWcAdmin) {
