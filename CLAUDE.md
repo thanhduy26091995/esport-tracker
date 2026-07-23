@@ -78,6 +78,7 @@ Each feature has full design + requirements + planning + implementation docs in 
 | WC bet cancel penalty — admin-controlled % penalty when user cancels a pending bet, wallet deduction + audit log, cancelled bets in Lịch sử tab | `docs/ai/design/feature-wc-bet-cancel-penalty.md` |
 | WC bot user flag — is_bot on wc_users; bots show on leaderboard with "Bot" badge but are excluded from top-3 honor banner | `docs/ai/design/feature-wc-bot-user.md` |
 | CI/CD deployment pipeline — GitHub Actions + SSH key; one-click deploy from GitHub UI, no VPS password sharing | `docs/ai/design/feature-ci-cd-deployment-pipeline.md` |
+| ASEAN Cup 2026 — extend WC platform to multi-tournament via `tournament_type` discriminator; same users/wallet, same bet types (handicap/O/U/kèo phụ/champion) | `docs/ai/design/feature-asean-cup-2026.md` |
 
 ## Dev Commands
 
