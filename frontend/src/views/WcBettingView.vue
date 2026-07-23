@@ -4,7 +4,7 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">🏆 World Cup 2026</h1>
+          <h1 class="page-title">{{ tournamentTitle }}</h1>
           <p class="page-subtitle">{{ t('wc.betting') }}</p>
         </div>
         <div class="wc-user-header">
@@ -148,6 +148,7 @@ import { useI18n } from 'vue-i18n'
 import { useWcStore } from '@/stores/wcStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import { useMatchFilter } from '@/composables/useMatchFilter'
+import { useTournamentRoutes } from '@/composables/useTournamentRoutes'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import WcBetForm from '@/components/wc/WcBetForm.vue'
 import WcBetHistoryList from '@/components/wc/WcBetHistoryList.vue'
@@ -164,6 +165,7 @@ const { t } = useI18n()
 const router = useRouter()
 const store = useWcStore()
 const authStore = useWcAuthStore()
+const { tournamentTitle, loginPath } = useTournamentRoutes()
 
 const activeTab = ref('betting')
 const betFormVisible = ref(false)
@@ -251,7 +253,7 @@ async function refreshCustomBets(matchId: string) {
 
 function handleLogout() {
   authStore.logout()
-  router.push('/world-cup/login')
+  router.push(loginPath.value)
 }
 
 async function fetchCustomEntries() {

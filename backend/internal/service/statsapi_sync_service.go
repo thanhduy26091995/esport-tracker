@@ -347,7 +347,7 @@ func (s *StatsApiSyncService) SetupMapping(previewOnly bool, adminID uuid.UUID) 
 	if err != nil {
 		return nil, err
 	}
-	matches, err := s.repo.ListAllMatches()
+	matches, err := s.repo.ListAllMatches(model.WcTournamentWorldCup)
 	if err != nil {
 		return nil, err
 	}

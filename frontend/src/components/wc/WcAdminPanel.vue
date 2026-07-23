@@ -100,16 +100,21 @@
     <div class="card card-body wc-admin-section">
       <div class="wc-admin-section-title">Quản lý trận đấu</div>
       <div class="wc-admin-row">
-        <el-button
-          type="primary"
-          :loading="syncing"
-          @click="handleSync"
-          :icon="Refresh"
-        >
-          {{ t("wc.syncMatches") }}
-        </el-button>
-        <el-button type="info" plain @click="mappingDialogRef?.open()">
-          Setup StatsAPI Mapping
+        <template v-if="!isAc">
+          <el-button
+            type="primary"
+            :loading="syncing"
+            @click="handleSync"
+            :icon="Refresh"
+          >
+            {{ t("wc.syncMatches") }}
+          </el-button>
+          <el-button type="info" plain @click="mappingDialogRef?.open()">
+            Setup StatsAPI Mapping
+          </el-button>
+        </template>
+        <el-button v-if="isAc" type="primary" plain @click="createMatchDialogVisible = true">
+          ➕ Thêm trận đấu
         </el-button>
         <el-button
           type="success"
@@ -202,6 +207,13 @@
           </div>
           <div class="wc-admin-match-actions">
             <el-button
+              size="small"
+              plain
+              @click="openEditMatchDialog(match)"
+            >
+              ✏️ Sửa
+            </el-button>
+            <el-button
               v-if="!match.predictions_open"
               size="small"
               type="success"
@@ -225,7 +237,8 @@
               size="small"
               type="success"
               @click="handleSettle(match.id)"
-              :disabled="match.status !== 'completed'"
+              :disabled="match.status !== 'completed' || match.home_score == null || match.away_score == null"
+              :title="match.home_score == null ? 'Cần nhập tỉ số trước' : ''"
             >
               {{ t("wc.finalizeMatch") }}
             </el-button>
@@ -253,29 +266,31 @@
             >
               Tài Xỉu
             </el-button>
-            <el-button
-              plain
-              size="small"
-              type="primary"
-              @click="importHandicapDialogRef?.open(match)"
-            >
-              HDP API
-            </el-button>
-            <el-button
-              plain
-              size="small"
-              type="primary"
-              @click="importOUDialogRef?.open(match)"
-            >
-              O/U API
-            </el-button>
-            <el-button
-              plain
-              size="small"
-              @click="poissonDialogRef?.open(match)"
-            >
-              Poisson
-            </el-button>
+            <template v-if="!isAc">
+              <el-button
+                plain
+                size="small"
+                type="primary"
+                @click="importHandicapDialogRef?.open(match)"
+              >
+                HDP API
+              </el-button>
+              <el-button
+                plain
+                size="small"
+                type="primary"
+                @click="importOUDialogRef?.open(match)"
+              >
+                O/U API
+              </el-button>
+              <el-button
+                plain
+                size="small"
+                @click="poissonDialogRef?.open(match)"
+              >
+                Poisson
+              </el-button>
+            </template>
             <el-button
               plain
               size="small"
@@ -289,8 +304,8 @@
       </div>
     </div>
 
-    <!-- StatsAPI Sync Logs -->
-    <div class="card card-body wc-admin-section">
+    <!-- StatsAPI Sync Logs (WC only) -->
+    <div v-if="!isAc" class="card card-body wc-admin-section">
       <div class="wc-admin-section-title">StatsAPI Sync</div>
       <WcSyncLogsPanel ref="syncLogsRef" />
     </div>
@@ -353,6 +368,9 @@
     <!-- Settlement Panel -->
     <div class="card card-body wc-admin-section">
       <div class="wc-admin-section-title">{{ t("wc.settlementPanel") }}</div>
+      <el-alert v-if="isAc" type="warning" :closable="false" style="margin-bottom:12px">
+        Quyết toán sẽ reset <strong>toàn bộ ví</strong> của tất cả người dùng (bao gồm cả điểm World Cup). Ví WC và AC dùng chung một số dư.
+      </el-alert>
       <el-tabs v-model="settlementTab">
         <el-tab-pane :label="t('wc.previewSettlement')" name="preview">
           <WcSettlementPreview />
@@ -518,11 +536,103 @@
       </template>
     </el-dialog>
 
-    <!-- StatsAPI Dialogs -->
-    <WcSetupMappingDialog ref="mappingDialogRef" @mapped="handleOddsImported" />
-    <WcImportHandicapDialog ref="importHandicapDialogRef" @imported="handleOddsImported" />
-    <WcImportOUDialog ref="importOUDialogRef" @imported="handleOddsImported" />
-    <WcGeneratePoissonDialog ref="poissonDialogRef" @saved="handleOddsImported" />
+    <!-- StatsAPI Dialogs (WC only) -->
+    <template v-if="!isAc">
+      <WcSetupMappingDialog ref="mappingDialogRef" @mapped="handleOddsImported" />
+      <WcImportHandicapDialog ref="importHandicapDialogRef" @imported="handleOddsImported" />
+      <WcImportOUDialog ref="importOUDialogRef" @imported="handleOddsImported" />
+      <WcGeneratePoissonDialog ref="poissonDialogRef" @saved="handleOddsImported" />
+    </template>
+
+    <!-- Create Match Dialog (AC only) -->
+    <el-dialog v-model="createMatchDialogVisible" title="Thêm trận đấu" width="480px">
+      <el-form label-position="top" @submit.prevent>
+        <el-form-item label="Đội nhà">
+          <el-input v-model="createMatchForm.home_team" placeholder="Ví dụ: Vietnam" />
+        </el-form-item>
+        <el-form-item label="Đội khách">
+          <el-input v-model="createMatchForm.away_team" placeholder="Ví dụ: Thailand" />
+        </el-form-item>
+        <el-form-item label="Mã đội nhà (tùy chọn)">
+          <el-input v-model="createMatchForm.home_team_code" placeholder="VIE" />
+        </el-form-item>
+        <el-form-item label="Mã đội khách (tùy chọn)">
+          <el-input v-model="createMatchForm.away_team_code" placeholder="THA" />
+        </el-form-item>
+        <el-form-item label="Ngày giờ thi đấu">
+          <el-date-picker
+            v-model="createMatchForm.match_date"
+            type="datetime"
+            placeholder="Chọn ngày giờ"
+            format="DD/MM/YYYY HH:mm"
+            value-format="YYYY-MM-DDTHH:mm:ss[Z]"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="Bảng / Giai đoạn (tùy chọn)">
+          <el-input v-model="createMatchForm.group_name" placeholder="Bảng A" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createMatchDialogVisible = false">Hủy</el-button>
+        <el-button type="primary" :loading="creatingMatch" @click="handleCreateMatch">Thêm trận</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Edit Match Dialog -->
+    <el-dialog v-model="editMatchDialogVisible" title="Sửa trận đấu" width="520px">
+      <el-form v-if="editMatchTarget" label-position="top" @submit.prevent>
+        <div style="display:flex;gap:12px">
+          <el-form-item label="Đội nhà" style="flex:1">
+            <el-input v-model="editMatchForm.home_team" />
+          </el-form-item>
+          <el-form-item label="Đội khách" style="flex:1">
+            <el-input v-model="editMatchForm.away_team" />
+          </el-form-item>
+        </div>
+        <div style="display:flex;gap:12px">
+          <el-form-item label="Mã đội nhà" style="flex:1">
+            <el-input v-model="editMatchForm.home_team_code" placeholder="VIE" />
+          </el-form-item>
+          <el-form-item label="Mã đội khách" style="flex:1">
+            <el-input v-model="editMatchForm.away_team_code" placeholder="THA" />
+          </el-form-item>
+        </div>
+        <el-form-item label="Ngày giờ thi đấu">
+          <el-date-picker
+            v-model="editMatchForm.match_date"
+            type="datetime"
+            placeholder="Chọn ngày giờ"
+            format="DD/MM/YYYY HH:mm"
+            value-format="YYYY-MM-DDTHH:mm:ss[Z]"
+            style="width:100%"
+          />
+        </el-form-item>
+        <el-divider>Kết quả</el-divider>
+        <div style="display:flex;gap:12px;align-items:center">
+          <el-form-item :label="`Bàn thắng – ${editMatchForm.home_team || 'Đội nhà'}`" style="flex:1">
+            <el-input-number v-model="editMatchForm.home_score" :min="0" :precision="0" style="width:100%" />
+          </el-form-item>
+          <span style="margin-top:22px;font-size:18px;font-weight:700;color:var(--text-muted)">–</span>
+          <el-form-item :label="`Bàn thắng – ${editMatchForm.away_team || 'Đội khách'}`" style="flex:1">
+            <el-input-number v-model="editMatchForm.away_score" :min="0" :precision="0" style="width:100%" />
+          </el-form-item>
+        </div>
+        <el-form-item label="Trạng thái">
+          <el-select v-model="editMatchForm.status" style="width:100%">
+            <el-option value="scheduled" label="Chưa diễn ra" />
+            <el-option value="live" label="Đang diễn ra" />
+            <el-option value="completed" label="Đã kết thúc" />
+            <el-option value="cancelled" label="Hủy" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editMatchDialogVisible = false">Hủy</el-button>
+        <el-button type="primary" :loading="savingEditMatch" @click="handleSaveEditMatch">Lưu</el-button>
+      </template>
+    </el-dialog>
+
     <WcAdminCustomBetPanel ref="customBetPanelRef" />
 
     <!-- Score Multipliers Dialog -->
@@ -595,6 +705,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { Refresh, Lock } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useWcStore } from "@/stores/wcStore";
@@ -615,6 +726,8 @@ import WcFinalizePreviewDialog from "./WcFinalizePreviewDialog.vue";
 import WcAdminCustomBetPanel from "./WcAdminCustomBetPanel.vue";
 
 const { t } = useI18n();
+const route = useRoute();
+const isAc = computed(() => route.meta?.tournamentType === 'asean_cup');
 const store = useWcStore();
 const authStore = useWcAuthStore();
 
@@ -653,6 +766,102 @@ const syncLogsRef = ref<InstanceType<typeof WcSyncLogsPanel> | null>(null);
 const customBetPanelRef = ref<InstanceType<typeof WcAdminCustomBetPanel> | null>(null);
 const syncing = ref(false);
 const togglingFeature = ref(false);
+const createMatchDialogVisible = ref(false);
+const creatingMatch = ref(false);
+const createMatchForm = ref({
+  home_team: '',
+  away_team: '',
+  home_team_code: '',
+  away_team_code: '',
+  match_date: '',
+  group_name: '',
+});
+async function handleCreateMatch() {
+  if (!createMatchForm.value.home_team || !createMatchForm.value.away_team || !createMatchForm.value.match_date) {
+    ElMessage.warning('Vui lòng nhập đủ thông tin trận đấu');
+    return;
+  }
+  creatingMatch.value = true;
+  try {
+    await (wcService as any).createMatch({
+      home_team: createMatchForm.value.home_team,
+      away_team: createMatchForm.value.away_team,
+      home_team_code: createMatchForm.value.home_team_code || undefined,
+      away_team_code: createMatchForm.value.away_team_code || undefined,
+      match_date: createMatchForm.value.match_date,
+      group_name: createMatchForm.value.group_name || undefined,
+    });
+    ElMessage.success('Đã thêm trận đấu');
+    createMatchDialogVisible.value = false;
+    createMatchForm.value = { home_team: '', away_team: '', home_team_code: '', away_team_code: '', match_date: '', group_name: '' };
+    await store.fetchMatches();
+  } finally {
+    creatingMatch.value = false;
+  }
+}
+// ── Edit Match ──────────────────────────────────────────────
+const editMatchDialogVisible = ref(false);
+const savingEditMatch = ref(false);
+const editMatchTarget = ref<WcMatch | null>(null);
+const editMatchForm = ref({
+  home_team: '',
+  away_team: '',
+  home_team_code: '',
+  away_team_code: '',
+  match_date: '',
+  home_score: null as number | null,
+  away_score: null as number | null,
+  status: 'scheduled' as string,
+});
+
+function openEditMatchDialog(match: WcMatch) {
+  editMatchTarget.value = match;
+  editMatchForm.value = {
+    home_team: match.home_team,
+    away_team: match.away_team,
+    home_team_code: match.home_team_code ?? '',
+    away_team_code: match.away_team_code ?? '',
+    match_date: match.match_date,
+    home_score: match.home_score ?? null,
+    away_score: match.away_score ?? null,
+    status: match.status,
+  };
+  editMatchDialogVisible.value = true;
+}
+
+async function handleSaveEditMatch() {
+  if (!editMatchTarget.value) return;
+  if (editMatchForm.value.status === 'completed' &&
+      (editMatchForm.value.home_score === null || editMatchForm.value.away_score === null)) {
+    ElMessage.warning('Vui lòng nhập tỉ số trước khi đặt trạng thái Đã kết thúc');
+    return;
+  }
+  savingEditMatch.value = true;
+  try {
+    const fields: Record<string, unknown> = {
+      home_team: editMatchForm.value.home_team,
+      away_team: editMatchForm.value.away_team,
+      match_date: editMatchForm.value.match_date,
+      status: editMatchForm.value.status,
+    };
+    if (editMatchForm.value.home_team_code) fields.home_team_code = editMatchForm.value.home_team_code;
+    if (editMatchForm.value.away_team_code) fields.away_team_code = editMatchForm.value.away_team_code;
+    if (editMatchForm.value.status === 'completed') {
+      fields.home_score = editMatchForm.value.home_score;
+      fields.away_score = editMatchForm.value.away_score;
+    }
+    await wcService.updateMatch(editMatchTarget.value.id, fields);
+    ElMessage.success('Đã cập nhật trận đấu');
+    editMatchDialogVisible.value = false;
+    await store.fetchMatches();
+  } catch {
+    ElMessage.error('Lỗi khi cập nhật trận đấu');
+  } finally {
+    savingEditMatch.value = false;
+  }
+}
+// ────────────────────────────────────────────────────────────
+
 const configEnabled = ref(store.config?.is_enabled ?? false);
 
 const betLimitForm = ref({ minPoints: store.minPoints, maxPoints: store.maxPoints });

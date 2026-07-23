@@ -22,32 +22,37 @@ func TestIsBetLocked(t *testing.T) {
 	}{
 		{
 			name:  "scheduled, no lock time — not locked",
-			match: model.WcMatch{Status: model.WcStatusScheduled},
+			match: model.WcMatch{Status: model.WcStatusScheduled, MatchDate: future},
 			want:  false,
 		},
 		{
 			name:  "live — locked",
-			match: model.WcMatch{Status: model.WcStatusLive},
+			match: model.WcMatch{Status: model.WcStatusLive, MatchDate: future},
 			want:  true,
 		},
 		{
 			name:  "completed — locked",
-			match: model.WcMatch{Status: model.WcStatusCompleted},
+			match: model.WcMatch{Status: model.WcStatusCompleted, MatchDate: future},
 			want:  true,
 		},
 		{
 			name:  "cancelled — locked",
-			match: model.WcMatch{Status: model.WcStatusCancelled},
+			match: model.WcMatch{Status: model.WcStatusCancelled, MatchDate: future},
+			want:  true,
+		},
+		{
+			name:  "scheduled, match_date passed — locked",
+			match: model.WcMatch{Status: model.WcStatusScheduled, MatchDate: past},
 			want:  true,
 		},
 		{
 			name:  "scheduled with future lock time — not yet locked",
-			match: model.WcMatch{Status: model.WcStatusScheduled, BetsLockedAt: &future},
+			match: model.WcMatch{Status: model.WcStatusScheduled, MatchDate: future, BetsLockedAt: &future},
 			want:  false,
 		},
 		{
 			name:  "scheduled with past lock time — locked",
-			match: model.WcMatch{Status: model.WcStatusScheduled, BetsLockedAt: &past},
+			match: model.WcMatch{Status: model.WcStatusScheduled, MatchDate: future, BetsLockedAt: &past},
 			want:  true,
 		},
 	}

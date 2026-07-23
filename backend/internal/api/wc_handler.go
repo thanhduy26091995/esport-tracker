@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/duyb/esport-score-tracker/internal/middleware"
+	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/duyb/esport-score-tracker/internal/service"
 	"github.com/gin-gonic/gin"
@@ -21,9 +22,18 @@ func NewWcHandler(svc *service.WcService, authSvc *service.WcAuthService) *WcHan
 	return &WcHandler{svc: svc, authSvc: authSvc}
 }
 
+// tournamentType reads the tournament type set by TournamentMiddleware, defaulting to world_cup.
+func tournamentType(c *gin.Context) string {
+	tt, _ := c.Get(middleware.TournamentTypeKey)
+	if s, ok := tt.(string); ok && s != "" {
+		return s
+	}
+	return model.WcTournamentWorldCup
+}
+
 // GetPublicConfig handles GET /api/v1/wc/config — public, returns is_enabled + bet limits + penalty config
 func (h *WcHandler) GetPublicConfig(c *gin.Context) {
-	cfg, err := h.svc.GetConfig()
+	cfg, err := h.svc.GetConfig(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load config"})
 		return
@@ -41,7 +51,7 @@ func (h *WcHandler) GetPublicConfig(c *gin.Context) {
 
 // GetConfig handles GET /api/v1/wc/admin/config
 func (h *WcHandler) GetConfig(c *gin.Context) {
-	cfg, err := h.svc.GetConfig()
+	cfg, err := h.svc.GetConfig(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load config"})
 		return
@@ -67,14 +77,14 @@ func (h *WcHandler) UpdateConfig(c *gin.Context) {
 	adminID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
 
 	if req.IsEnabled != nil {
-		if err := h.svc.SetConfig(*req.IsEnabled, adminID); err != nil {
+		if err := h.svc.SetConfig(tournamentType(c), *req.IsEnabled, adminID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update config"})
 			return
 		}
 	}
 
 	if req.MinPoints != nil || req.MaxPoints != nil {
-		cfg, err := h.svc.GetConfig()
+		cfg, err := h.svc.GetConfig(tournamentType(c))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load config"})
 			return
@@ -86,14 +96,14 @@ func (h *WcHandler) UpdateConfig(c *gin.Context) {
 		if req.MaxPoints != nil {
 			max = *req.MaxPoints
 		}
-		if err := h.svc.SetBetLimits(min, max, adminID); err != nil {
+		if err := h.svc.SetBetLimits(tournamentType(c), min, max, adminID); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 	}
 
 	if req.CancelPenaltyEnabled != nil || req.CancelPenaltyPercent != nil || req.BetReduceMaxPercent != nil || req.BetReducePenaltyPercent != nil {
-		cfg, err := h.svc.GetConfig()
+		cfg, err := h.svc.GetConfig(tournamentType(c))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load config"})
 			return
@@ -114,13 +124,13 @@ func (h *WcHandler) UpdateConfig(c *gin.Context) {
 		if req.BetReducePenaltyPercent != nil {
 			reducePenalty = *req.BetReducePenaltyPercent
 		}
-		if err := h.svc.SetPenaltyConfig(cancelEnabled, cancelPercent, reduceMax, reducePenalty, adminID); err != nil {
+		if err := h.svc.SetPenaltyConfig(tournamentType(c), cancelEnabled, cancelPercent, reduceMax, reducePenalty, adminID); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 	}
 
-	cfg, _ := h.svc.GetConfig()
+	cfg, _ := h.svc.GetConfig(tournamentType(c))
 	c.JSON(http.StatusOK, cfg)
 }
 
@@ -134,7 +144,7 @@ func (h *WcHandler) ListMatches(c *gin.Context) {
 		DateFrom: c.Query("date_from"),
 		DateTo:   c.Query("date_to"),
 	}
-	matches, err := h.svc.ListMatches(f)
+	matches, err := h.svc.ListMatches(tournamentType(c), f)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch matches"})
 		return
@@ -189,7 +199,7 @@ func (h *WcHandler) GetScoreMultipliers(c *gin.Context) {
 
 // GetLeaderboard handles GET /api/v1/wc/leaderboard
 func (h *WcHandler) GetLeaderboard(c *gin.Context) {
-	entries, err := h.svc.GetLeaderboard()
+	entries, err := h.svc.GetLeaderboard(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch leaderboard"})
 		return
@@ -250,7 +260,7 @@ func (h *WcHandler) SubmitPrediction(c *gin.Context) {
 // ListPredictions handles GET /api/v1/wc/predictions
 func (h *WcHandler) ListPredictions(c *gin.Context) {
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	predictions, err := h.svc.ListPredictions(wcUserID)
+	predictions, err := h.svc.ListPredictions(wcUserID, tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch predictions"})
 		return
@@ -300,7 +310,7 @@ func (h *WcHandler) UpdatePrediction(c *gin.Context) {
 // ListBets handles GET /api/v1/wc/bets
 func (h *WcHandler) ListBets(c *gin.Context) {
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	bets, err := h.svc.ListBets(wcUserID)
+	bets, err := h.svc.ListBets(wcUserID, tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bets"})
 		return
@@ -483,6 +493,21 @@ func (h *WcHandler) SyncMatches(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"synced": count})
 }
 
+// CreateMatch handles POST /api/v1/ac/admin/matches — manually create a match (admin only).
+func (h *WcHandler) CreateMatch(c *gin.Context) {
+	var req service.WcCreateMatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	m, err := h.svc.CreateMatch(tournamentType(c), req)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, m)
+}
+
 // UpdateMatch handles PUT /api/v1/wc/admin/matches/:id
 func (h *WcHandler) UpdateMatch(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
@@ -591,7 +616,7 @@ func (h *WcHandler) DeleteScoreMultiplier(c *gin.Context) {
 
 // FinalizeAll handles POST /api/v1/wc/admin/matches/finalize-all
 func (h *WcHandler) FinalizeAll(c *gin.Context) {
-	result, err := h.svc.FinalizeAllMatches()
+	result, err := h.svc.FinalizeAllMatches(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -602,7 +627,7 @@ func (h *WcHandler) FinalizeAll(c *gin.Context) {
 // RefinalizeAll handles POST /api/v1/wc/admin/matches/refinalize-all
 // Re-calculates points_earned for all scored matches, correcting any rounded/integer values.
 func (h *WcHandler) RefinalizeAll(c *gin.Context) {
-	result, err := h.svc.RefinalizeAllMatches()
+	result, err := h.svc.RefinalizeAllMatches(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -642,7 +667,7 @@ func (h *WcHandler) PreviewFinalizeMatch(c *gin.Context) {
 
 // PreviewFinalizeAll handles GET /api/v1/wc/admin/matches/finalize-all-preview
 func (h *WcHandler) PreviewFinalizeAll(c *gin.Context) {
-	result, err := h.svc.PreviewFinalizeAll()
+	result, err := h.svc.PreviewFinalizeAll(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build preview"})
 		return
@@ -652,7 +677,7 @@ func (h *WcHandler) PreviewFinalizeAll(c *gin.Context) {
 
 // PreviewRefinalizeAll handles GET /api/v1/wc/admin/matches/refinalize-all-preview
 func (h *WcHandler) PreviewRefinalizeAll(c *gin.Context) {
-	result, err := h.svc.PreviewRefinalizeAll()
+	result, err := h.svc.PreviewRefinalizeAll(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build preview"})
 		return
@@ -811,7 +836,7 @@ func (h *WcHandler) CreateSettlement(c *gin.Context) {
 		return
 	}
 	adminID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	s, err := h.svc.CreateSettlement(adminID, req.Name, req.PointRate, req.Note)
+	s, err := h.svc.CreateSettlement(tournamentType(c), adminID, req.Name, req.PointRate, req.Note)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -821,7 +846,7 @@ func (h *WcHandler) CreateSettlement(c *gin.Context) {
 
 // ListSettlements handles GET /api/v1/wc/admin/settlements
 func (h *WcHandler) ListSettlements(c *gin.Context) {
-	list, err := h.svc.ListSettlements()
+	list, err := h.svc.ListSettlements(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch settlements"})
 		return
@@ -846,7 +871,7 @@ func (h *WcHandler) GetSettlement(c *gin.Context) {
 
 // GetHousePnL handles GET /api/v1/wc/admin/house-pnl
 func (h *WcHandler) GetHousePnL(c *gin.Context) {
-	pnl, err := h.svc.GetHousePnL()
+	pnl, err := h.svc.GetHousePnL(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to compute P&L"})
 		return
@@ -924,7 +949,7 @@ func (h *WcHandler) MarkSettlementDone(c *gin.Context) {
 
 // GetGroupStandings handles GET /api/v1/wc/standings
 func (h *WcHandler) GetGroupStandings(c *gin.Context) {
-	resp, err := h.svc.GetGroupStandings()
+	resp, err := h.svc.GetGroupStandings(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch standings"})
 		return
@@ -936,7 +961,7 @@ func (h *WcHandler) GetGroupStandings(c *gin.Context) {
 // Returns settled + cancelled regular bets and custom bet entries, merged chronologically.
 func (h *WcHandler) GetBetHistory(c *gin.Context) {
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	items, err := h.svc.GetBetHistory(wcUserID)
+	items, err := h.svc.GetBetHistory(wcUserID, tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bet history"})
 		return

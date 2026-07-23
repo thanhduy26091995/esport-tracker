@@ -27,7 +27,7 @@ func (h *WcAnalyticsHandler) GetMyAnalytics(c *gin.Context) {
 
 	period := service.PeriodFromParam(param, dateFrom, dateTo)
 
-	resp, err := h.svc.BuildMyResponse(userID, period)
+	resp, err := h.svc.BuildMyResponse(userID, period, tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load analytics"})
 		return
@@ -37,7 +37,7 @@ func (h *WcAnalyticsHandler) GetMyAnalytics(c *gin.Context) {
 
 // GetCommunityAnalytics handles GET /api/v1/wc/analytics/community
 func (h *WcAnalyticsHandler) GetCommunityAnalytics(c *gin.Context) {
-	resp, err := h.svc.BuildCommunityResponse()
+	resp, err := h.svc.BuildCommunityResponse(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load community analytics"})
 		return
@@ -49,7 +49,7 @@ func (h *WcAnalyticsHandler) GetCommunityAnalytics(c *gin.Context) {
 func (h *WcAnalyticsHandler) GetCompareAnalytics(c *gin.Context) {
 	userID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
 
-	resp, err := h.svc.BuildCompareResponse(userID)
+	resp, err := h.svc.BuildCompareResponse(userID, tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load compare analytics"})
 		return

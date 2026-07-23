@@ -199,9 +199,9 @@ func PeriodFromParam(param string, from, to string) repository.AnalyticsPeriod {
 
 // --- Build responses ---
 
-func (s *WcAnalyticsService) BuildMyResponse(userID uuid.UUID, period repository.AnalyticsPeriod) (*MyAnalyticsResponse, error) {
+func (s *WcAnalyticsService) BuildMyResponse(userID uuid.UUID, period repository.AnalyticsPeriod, tournamentType string) (*MyAnalyticsResponse, error) {
 	// 1. Match-level results for accuracy + streak
-	matchResults, err := s.repo.GetMyMatchResults(userID, period)
+	matchResults, err := s.repo.GetMyMatchResults(userID, period, tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -224,14 +224,14 @@ func (s *WcAnalyticsService) BuildMyResponse(userID uuid.UUID, period repository
 	allResults, err := s.repo.GetMyMatchResults(userID, repository.AnalyticsPeriod{
 		From: time.Time{},
 		To:   time.Now(),
-	})
+	}, tournamentType)
 	if err != nil {
 		return nil, err
 	}
 	currentWin, currentLose, longestWin := computeStreaks(allResults)
 
 	// 3. Timeline
-	timelineRows, err := s.repo.GetMyAccuracyTimeline(userID, period)
+	timelineRows, err := s.repo.GetMyAccuracyTimeline(userID, period, tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -251,23 +251,23 @@ func (s *WcAnalyticsService) BuildMyResponse(userID uuid.UUID, period repository
 	}
 
 	// 4. Bet stats
-	stats, err := s.repo.GetMyBetStats(userID)
+	stats, err := s.repo.GetMyBetStats(userID, tournamentType)
 	if err != nil {
 		return nil, err
 	}
 
 	// 5. Favorite teams + scorelines
-	favoriteTeams, err := s.repo.GetMyFavoriteTeams(userID, 5)
+	favoriteTeams, err := s.repo.GetMyFavoriteTeams(userID, 5, tournamentType)
 	if err != nil {
 		return nil, err
 	}
-	favoriteScorelines, err := s.repo.GetMyFavoriteScorelines(userID, 5)
+	favoriteScorelines, err := s.repo.GetMyFavoriteScorelines(userID, 5, tournamentType)
 	if err != nil {
 		return nil, err
 	}
 
 	// 6. Avg goals
-	goalsRow, err := s.repo.GetMyAvgGoals(userID)
+	goalsRow, err := s.repo.GetMyAvgGoals(userID, tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -305,28 +305,28 @@ func (s *WcAnalyticsService) BuildMyResponse(userID uuid.UUID, period repository
 	}, nil
 }
 
-func (s *WcAnalyticsService) BuildCommunityResponse() (*CommunityAnalyticsResponse, error) {
-	distribution, err := s.repo.GetCommunityBetDistribution()
+func (s *WcAnalyticsService) BuildCommunityResponse(tournamentType string) (*CommunityAnalyticsResponse, error) {
+	distribution, err := s.repo.GetCommunityBetDistribution(tournamentType)
 	if err != nil {
 		return nil, err
 	}
-	trendingTeams, err := s.repo.GetCommunityTrendingTeams(10)
+	trendingTeams, err := s.repo.GetCommunityTrendingTeams(10, tournamentType)
 	if err != nil {
 		return nil, err
 	}
-	trendingScorelines, err := s.repo.GetCommunityTrendingScorelines(10)
+	trendingScorelines, err := s.repo.GetCommunityTrendingScorelines(10, tournamentType)
 	if err != nil {
 		return nil, err
 	}
-	totalBets, activeUsers, err := s.repo.GetCommunityTotals()
+	totalBets, activeUsers, err := s.repo.GetCommunityTotals(tournamentType)
 	if err != nil {
 		return nil, err
 	}
-	predictors, err := s.repo.GetTopPredictors(3)
+	predictors, err := s.repo.GetTopPredictors(3, tournamentType)
 	if err != nil {
 		return nil, err
 	}
-	communityStats, err := s.repo.GetCommunityAvgStats()
+	communityStats, err := s.repo.GetCommunityAvgStats(tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -358,15 +358,15 @@ func (s *WcAnalyticsService) BuildCommunityResponse() (*CommunityAnalyticsRespon
 	}, nil
 }
 
-func (s *WcAnalyticsService) BuildCompareResponse(userID uuid.UUID) (*CompareAnalyticsResponse, error) {
+func (s *WcAnalyticsService) BuildCompareResponse(userID uuid.UUID, tournamentType string) (*CompareAnalyticsResponse, error) {
 	// Reuse my response (all-time, 30d default)
 	period := repository.AnalyticsPeriod{From: time.Now().AddDate(0, 0, -30), To: time.Now()}
-	my, err := s.BuildMyResponse(userID, period)
+	my, err := s.BuildMyResponse(userID, period, tournamentType)
 	if err != nil {
 		return nil, err
 	}
 
-	communityStats, err := s.repo.GetCommunityAvgStats()
+	communityStats, err := s.repo.GetCommunityAvgStats(tournamentType)
 	if err != nil {
 		return nil, err
 	}

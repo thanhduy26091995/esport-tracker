@@ -24,8 +24,8 @@ func NewWcChampionService(repo *repository.WcChampionRepository, wcRepo *reposit
 
 // --- Config ---
 
-func (s *WcChampionService) GetPublicConfig() (*model.WcChampionConfigPublic, error) {
-	cfg, err := s.repo.GetConfig()
+func (s *WcChampionService) GetPublicConfig(tournamentType string) (*model.WcChampionConfigPublic, error) {
+	cfg, err := s.repo.GetConfig(tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -41,22 +41,23 @@ func (s *WcChampionService) GetPublicConfig() (*model.WcChampionConfigPublic, er
 	return pub, nil
 }
 
-func (s *WcChampionService) UpdateConfig(isOpen bool) error {
-	return s.repo.UpdateConfig(isOpen)
+func (s *WcChampionService) UpdateConfig(tournamentType string, isOpen bool) error {
+	return s.repo.UpdateConfig(tournamentType, isOpen)
 }
 
 // --- Teams ---
 
-func (s *WcChampionService) ListTeams() ([]*model.WcChampionTeam, error) {
-	return s.repo.ListTeams()
+func (s *WcChampionService) ListTeams(tournamentType string) ([]*model.WcChampionTeam, error) {
+	return s.repo.ListTeams(tournamentType)
 }
 
-func (s *WcChampionService) CreateTeam(name, code, flagEmoji string, odds float64) (*model.WcChampionTeam, error) {
+func (s *WcChampionService) CreateTeam(tournamentType, name, code, flagEmoji string, odds float64) (*model.WcChampionTeam, error) {
 	t := &model.WcChampionTeam{
-		Name:      name,
-		Code:      code,
-		FlagEmoji: flagEmoji,
-		Odds:      odds,
+		TournamentType: tournamentType,
+		Name:           name,
+		Code:           code,
+		FlagEmoji:      flagEmoji,
+		Odds:           odds,
 	}
 	return t, s.repo.CreateTeam(t)
 }
@@ -70,19 +71,19 @@ func (s *WcChampionService) UpdateTeamOdds(teamID uuid.UUID, odds float64) error
 
 // --- Predictions ---
 
-func (s *WcChampionService) GetAllPredictions() ([]*model.WcChampionPredictionPublic, error) {
-	return s.repo.GetAllPredictions()
+func (s *WcChampionService) GetAllPredictions(tournamentType string) ([]*model.WcChampionPredictionPublic, error) {
+	return s.repo.GetAllPredictions(tournamentType)
 }
 
-func (s *WcChampionService) GetMyPrediction(wcUserID uuid.UUID) (*model.WcChampionPredictionMine, error) {
-	return s.repo.GetMyPrediction(wcUserID)
+func (s *WcChampionService) GetMyPrediction(tournamentType string, wcUserID uuid.UUID) (*model.WcChampionPredictionMine, error) {
+	return s.repo.GetMyPrediction(tournamentType, wcUserID)
 }
 
-func (s *WcChampionService) GetMyPredictions(wcUserID uuid.UUID) ([]*model.WcChampionPredictionMine, error) {
-	return s.repo.GetMyPredictions(wcUserID)
+func (s *WcChampionService) GetMyPredictions(tournamentType string, wcUserID uuid.UUID) ([]*model.WcChampionPredictionMine, error) {
+	return s.repo.GetMyPredictions(tournamentType, wcUserID)
 }
 
-func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, points int) (*model.WcChampionPredictionMine, error) {
+func (s *WcChampionService) PlaceOrUpdatePrediction(tournamentType string, wcUserID, teamID uuid.UUID, points int) (*model.WcChampionPredictionMine, error) {
 	user, err := s.userRepo.GetByID(wcUserID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found")
@@ -90,14 +91,14 @@ func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, 
 	if user.IsBlocked {
 		return nil, fmt.Errorf("user is blocked from placing predictions")
 	}
-	cfg, err := s.repo.GetConfig()
+	cfg, err := s.repo.GetConfig(tournamentType)
 	if err != nil {
 		return nil, fmt.Errorf("champion config not found")
 	}
 	if !cfg.IsOpen {
 		return nil, fmt.Errorf("champion prediction window is closed")
 	}
-	betCfg, err := s.wcRepo.GetConfig()
+	betCfg, err := s.wcRepo.GetConfig(tournamentType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config")
 	}
@@ -109,10 +110,11 @@ func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, 
 		return nil, fmt.Errorf("team not found")
 	}
 	pred := &model.WcChampionPrediction{
-		WcUserID:     wcUserID,
-		TeamID:       teamID,
-		Points:       points,
-		OddsSnapshot: team.Odds,
+		TournamentType: tournamentType,
+		WcUserID:       wcUserID,
+		TeamID:         teamID,
+		Points:         points,
+		OddsSnapshot:   team.Odds,
 	}
 	if err := s.repo.CreatePrediction(pred); err != nil {
 		return nil, fmt.Errorf("already predicted this team — each team can only be picked once")
@@ -129,22 +131,22 @@ func (s *WcChampionService) PlaceOrUpdatePrediction(wcUserID, teamID uuid.UUID, 
 		})
 	}
 
-	return s.repo.GetMyPrediction(wcUserID)
+	return s.repo.GetMyPrediction(tournamentType, wcUserID)
 }
 
-func (s *WcChampionService) DeletePrediction(wcUserID uuid.UUID) error {
-	cfg, err := s.repo.GetConfig()
+func (s *WcChampionService) DeletePrediction(tournamentType string, wcUserID uuid.UUID) error {
+	cfg, err := s.repo.GetConfig(tournamentType)
 	if err != nil {
 		return fmt.Errorf("champion config not found")
 	}
 	if !cfg.IsOpen {
 		return fmt.Errorf("champion prediction window is closed — cannot delete")
 	}
-	return s.repo.DeletePrediction(wcUserID)
+	return s.repo.DeletePrediction(tournamentType, wcUserID)
 }
 
-func (s *WcChampionService) DeletePredictionByID(wcUserID, predID uuid.UUID) error {
-	cfg, err := s.repo.GetConfig()
+func (s *WcChampionService) DeletePredictionByID(tournamentType string, wcUserID, predID uuid.UUID) error {
+	cfg, err := s.repo.GetConfig(tournamentType)
 	if err != nil {
 		return fmt.Errorf("champion config not found")
 	}
@@ -163,8 +165,8 @@ func (s *WcChampionService) DeletePredictionByID(wcUserID, predID uuid.UUID) err
 // SettleChampion declares the winner and settles all predictions.
 // Winners receive payout; losers are deducted their wagered points.
 // Idempotent: returns error if already settled.
-func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*model.WcChampionSettleResult, error) {
-	cfg, err := s.repo.GetConfig()
+func (s *WcChampionService) SettleChampion(tournamentType string, adminID, winnerTeamID uuid.UUID) (*model.WcChampionSettleResult, error) {
+	cfg, err := s.repo.GetConfig(tournamentType)
 	if err != nil {
 		return nil, fmt.Errorf("champion config not found")
 	}
@@ -179,7 +181,7 @@ func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*mo
 		return nil, fmt.Errorf("winner team not found")
 	}
 
-	preds, err := s.repo.ListPredictionsForSettle()
+	preds, err := s.repo.ListPredictionsForSettle(tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +236,7 @@ func (s *WcChampionService) SettleChampion(adminID, winnerTeamID uuid.UUID) (*mo
 
 			settledUsers[p.WcUserID] = struct{}{}
 		}
-		return s.repo.MarkSettled(winnerTeamID)
+		return s.repo.MarkSettled(tournamentType, winnerTeamID)
 	})
 	if txErr != nil {
 		return nil, txErr

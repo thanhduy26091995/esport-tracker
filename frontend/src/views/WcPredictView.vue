@@ -4,11 +4,11 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">🏆 World Cup 2026</h1>
+          <h1 class="page-title">{{ tournamentTitle }}</h1>
           <p class="page-subtitle">{{ t('wc.predicting') }}</p>
         </div>
         <div class="wc-user-header">
-          <router-link :to="{ name: 'wc-schedule', query: { direct: '1' } }" class="wc-schedule-link">
+          <router-link :to="{ ...scheduleRoute, query: { direct: '1' } }" class="wc-schedule-link">
             📅 Lịch thi đấu
           </router-link>
           <div class="wc-wallet-badge">
@@ -17,7 +17,7 @@
               {{ store.wallet?.balance ?? 0 }} {{ t('wc.points') }}
             </span>
           </div>
-          <router-link to="/world-cup/profile" class="wc-user-info">
+          <router-link :to="profilePath" class="wc-user-info">
             <img
               :src="authStore.avatarUrl || DEFAULT_AVATAR"
               class="wc-user-avatar"
@@ -140,6 +140,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWcStore } from '@/stores/wcStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
+import { useTournamentRoutes } from '@/composables/useTournamentRoutes'
 
 const DEFAULT_AVATAR = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="16" fill="%23374151"/%3E%3Ccircle cx="16" cy="13" r="6" fill="%236b7280"/%3E%3Cellipse cx="16" cy="29" rx="9" ry="7" fill="%236b7280"/%3E%3C/svg%3E'
 import { useMatchFilter } from '@/composables/useMatchFilter'
@@ -157,6 +158,7 @@ const { t } = useI18n()
 const router = useRouter()
 const store = useWcStore()
 const authStore = useWcAuthStore()
+const { tournamentTitle, scheduleRoute, loginPath, profilePath } = useTournamentRoutes()
 
 const activeTab = ref('predictions')
 const predictionFormVisible = ref(false)
@@ -191,8 +193,9 @@ const betFilterOptions = computed(() => [
 ])
 
 function isPredictable(m: WcMatch): boolean {
-  if (m.status === 'completed' || m.status === 'cancelled') return false
+  if (m.status === 'live' || m.status === 'completed' || m.status === 'cancelled') return false
   if (!m.predictions_open) return false
+  if (new Date(m.match_date).getTime() <= Date.now()) return false
   if (m.predictions_locked_at && new Date(m.predictions_locked_at) <= new Date()) return false
   return true
 }
@@ -234,7 +237,7 @@ async function onPredictionPlaced() {
 
 function handleLogout() {
   authStore.logout()
-  router.push('/world-cup/login')
+  router.push(loginPath.value)
 }
 
 watch(activeTab, async (tab) => {

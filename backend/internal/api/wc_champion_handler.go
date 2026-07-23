@@ -18,9 +18,9 @@ func NewWcChampionHandler(svc *service.WcChampionService) *WcChampionHandler {
 	return &WcChampionHandler{svc: svc}
 }
 
-// GetConfig handles GET /api/v1/wc/champion/config
+// GetConfig handles GET /api/v1/{wc|ac}/champion/config
 func (h *WcChampionHandler) GetConfig(c *gin.Context) {
-	cfg, err := h.svc.GetPublicConfig()
+	cfg, err := h.svc.GetPublicConfig(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load champion config"})
 		return
@@ -28,9 +28,9 @@ func (h *WcChampionHandler) GetConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, cfg)
 }
 
-// GetTeams handles GET /api/v1/wc/champion/teams
+// GetTeams handles GET /api/v1/{wc|ac}/champion/teams
 func (h *WcChampionHandler) GetTeams(c *gin.Context) {
-	teams, err := h.svc.ListTeams()
+	teams, err := h.svc.ListTeams(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list teams"})
 		return
@@ -38,9 +38,9 @@ func (h *WcChampionHandler) GetTeams(c *gin.Context) {
 	c.JSON(http.StatusOK, teams)
 }
 
-// GetAllPredictions handles GET /api/v1/wc/champion/predictions
+// GetAllPredictions handles GET /api/v1/{wc|ac}/champion/predictions
 func (h *WcChampionHandler) GetAllPredictions(c *gin.Context) {
-	preds, err := h.svc.GetAllPredictions()
+	preds, err := h.svc.GetAllPredictions(tournamentType(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list predictions"})
 		return
@@ -48,11 +48,11 @@ func (h *WcChampionHandler) GetAllPredictions(c *gin.Context) {
 	c.JSON(http.StatusOK, preds)
 }
 
-// GetMyPrediction handles GET /api/v1/wc/champion/my-prediction
+// GetMyPrediction handles GET /api/v1/{wc|ac}/champion/my-prediction
 // Returns all predictions for the current user (array, may be empty).
 func (h *WcChampionHandler) GetMyPrediction(c *gin.Context) {
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	preds, err := h.svc.GetMyPredictions(wcUserID)
+	preds, err := h.svc.GetMyPredictions(tournamentType(c), wcUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load predictions"})
 		return
@@ -60,7 +60,7 @@ func (h *WcChampionHandler) GetMyPrediction(c *gin.Context) {
 	c.JSON(http.StatusOK, preds)
 }
 
-// PlacePredict handles POST /api/v1/wc/champion/predict
+// PlacePredict handles POST /api/v1/{wc|ac}/champion/predict
 func (h *WcChampionHandler) PlacePredict(c *gin.Context) {
 	var req struct {
 		TeamID uuid.UUID `json:"team_id" binding:"required"`
@@ -71,7 +71,7 @@ func (h *WcChampionHandler) PlacePredict(c *gin.Context) {
 		return
 	}
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	pred, err := h.svc.PlaceOrUpdatePrediction(wcUserID, req.TeamID, req.Points)
+	pred, err := h.svc.PlaceOrUpdatePrediction(tournamentType(c), wcUserID, req.TeamID, req.Points)
 	if err != nil {
 		if strings.Contains(err.Error(), "blocked") {
 			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -83,7 +83,7 @@ func (h *WcChampionHandler) PlacePredict(c *gin.Context) {
 	c.JSON(http.StatusOK, pred)
 }
 
-// DeletePredict handles DELETE /api/v1/wc/champion/predict/:id
+// DeletePredict handles DELETE /api/v1/{wc|ac}/champion/predict/:id
 func (h *WcChampionHandler) DeletePredict(c *gin.Context) {
 	predID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -91,14 +91,14 @@ func (h *WcChampionHandler) DeletePredict(c *gin.Context) {
 		return
 	}
 	wcUserID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	if err := h.svc.DeletePredictionByID(wcUserID, predID); err != nil {
+	if err := h.svc.DeletePredictionByID(tournamentType(c), wcUserID, predID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// AdminUpdateConfig handles PUT /api/v1/wc/admin/champion/config
+// AdminUpdateConfig handles PUT /api/v1/{wc|ac}/admin/champion/config
 func (h *WcChampionHandler) AdminUpdateConfig(c *gin.Context) {
 	var req struct {
 		IsOpen bool `json:"is_open"`
@@ -107,14 +107,14 @@ func (h *WcChampionHandler) AdminUpdateConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.svc.UpdateConfig(req.IsOpen); err != nil {
+	if err := h.svc.UpdateConfig(tournamentType(c), req.IsOpen); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"is_open": req.IsOpen})
 }
 
-// AdminCreateTeam handles POST /api/v1/wc/admin/champion/teams
+// AdminCreateTeam handles POST /api/v1/{wc|ac}/admin/champion/teams
 func (h *WcChampionHandler) AdminCreateTeam(c *gin.Context) {
 	var req struct {
 		Name      string  `json:"name" binding:"required"`
@@ -126,7 +126,7 @@ func (h *WcChampionHandler) AdminCreateTeam(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	team, err := h.svc.CreateTeam(req.Name, req.Code, req.FlagEmoji, req.Odds)
+	team, err := h.svc.CreateTeam(tournamentType(c), req.Name, req.Code, req.FlagEmoji, req.Odds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -134,7 +134,7 @@ func (h *WcChampionHandler) AdminCreateTeam(c *gin.Context) {
 	c.JSON(http.StatusCreated, team)
 }
 
-// AdminUpdateTeamOdds handles PUT /api/v1/wc/admin/champion/teams/:id
+// AdminUpdateTeamOdds handles PUT /api/v1/{wc|ac}/admin/champion/teams/:id
 func (h *WcChampionHandler) AdminUpdateTeamOdds(c *gin.Context) {
 	teamID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -155,7 +155,7 @@ func (h *WcChampionHandler) AdminUpdateTeamOdds(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// AdminSettle handles POST /api/v1/wc/admin/champion/settle
+// AdminSettle handles POST /api/v1/{wc|ac}/admin/champion/settle
 func (h *WcChampionHandler) AdminSettle(c *gin.Context) {
 	var req struct {
 		WinnerTeamID uuid.UUID `json:"winner_team_id" binding:"required"`
@@ -165,7 +165,7 @@ func (h *WcChampionHandler) AdminSettle(c *gin.Context) {
 		return
 	}
 	adminID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	result, err := h.svc.SettleChampion(adminID, req.WinnerTeamID)
+	result, err := h.svc.SettleChampion(tournamentType(c), adminID, req.WinnerTeamID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

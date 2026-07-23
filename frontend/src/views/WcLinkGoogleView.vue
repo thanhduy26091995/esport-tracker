@@ -48,9 +48,11 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
+import { useTournamentRoutes } from '@/composables/useTournamentRoutes'
 
 const router = useRouter()
 const authStore = useWcAuthStore()
+const { predictPath, loginPath } = useTournamentRoutes()
 const errorMsg = ref('')
 
 onMounted(() => {
@@ -72,7 +74,7 @@ async function handleGoogleCredential(response: { credential: string }) {
   errorMsg.value = ''
   const ok = await authStore.linkGoogle(response.credential)
   if (ok) {
-    router.push('/world-cup/predict')
+    router.push(predictPath.value)
   } else {
     errorMsg.value = 'Tài khoản Google này đã được liên kết với người chơi khác. Vui lòng dùng tài khoản Google khác.'
   }
@@ -80,7 +82,7 @@ async function handleGoogleCredential(response: { credential: string }) {
 
 function handleLogout() {
   authStore.logout()
-  router.push('/world-cup/login')
+  router.push(loginPath.value)
 }
 </script>
 

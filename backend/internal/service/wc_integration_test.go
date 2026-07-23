@@ -649,7 +649,7 @@ func TestWcTournamentSettlement_SnapshotAndReset(t *testing.T) {
 	require.NoError(t, svc.AdminTopUp(userA.ID, userA.ID, 500, "test"))
 	require.NoError(t, svc.AdminTopUp(userB.ID, userB.ID, -200, "test"))
 
-	settlement, err := svc.CreateSettlement(userA.ID, "Test Settlement", 1000, "unit test")
+	settlement, err := svc.CreateSettlement(model.WcTournamentWorldCup, userA.ID, "Test Settlement", 1000, "unit test")
 	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, settlement.ID)
 
@@ -678,7 +678,7 @@ func TestWcTournamentSettlement_HistoryPreserved(t *testing.T) {
 	user := seedWcUser(t, authSvc, "Hist_"+uuid.NewString()[:6], "pass")
 	require.NoError(t, svc.AdminTopUp(user.ID, user.ID, 300, ""))
 
-	s1, err := svc.CreateSettlement(user.ID, "Settlement 1", 1000, "")
+	s1, err := svc.CreateSettlement(model.WcTournamentWorldCup, user.ID, "Settlement 1", 1000, "")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		db.Where("settlement_id = ?", s1.ID).Delete(&model.WcSettlementDetail{})
@@ -688,14 +688,14 @@ func TestWcTournamentSettlement_HistoryPreserved(t *testing.T) {
 
 	// Topup again and create second settlement
 	require.NoError(t, svc.AdminTopUp(user.ID, user.ID, 150, ""))
-	s2, err := svc.CreateSettlement(user.ID, "Settlement 2", 1000, "")
+	s2, err := svc.CreateSettlement(model.WcTournamentWorldCup, user.ID, "Settlement 2", 1000, "")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		db.Where("settlement_id = ?", s2.ID).Delete(&model.WcSettlementDetail{})
 		db.Delete(s2)
 	})
 
-	list, err := svc.ListSettlements()
+	list, err := svc.ListSettlements(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	ids := make([]uuid.UUID, len(list))
@@ -798,6 +798,300 @@ func TestPoisson_BulkUpsert_UpdatesOddsOnConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.ScoreMultipliers, 1)
 	assert.InDelta(t, 6.50, result.ScoreMultipliers[0].Multiplier, 0.001, "multiplier must be updated on conflict")
+}
+
+// ─── ASEAN Cup 2026: tournament_type isolation ───────────────────────────────
+
+// ensureAcConfig inserts the wc_config row for asean_cup if it doesn't already exist.
+func ensureAcConfig(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	var cfg model.WcConfig
+	if db.Where("tournament_type = ?", model.WcTournamentAseanCup).First(&cfg).Error != nil {
+		require.NoError(t, db.Create(&model.WcConfig{
+			ID:             2,
+			TournamentType: model.WcTournamentAseanCup,
+			IsEnabled:      true,
+			MinPoints:      1,
+			MaxPoints:      100,
+		}).Error)
+	}
+}
+
+// seedAcMatch inserts a WcMatch with tournament_type = "asean_cup" and registers cleanup.
+func seedAcMatch(t *testing.T, db *gorm.DB, opts ...func(*model.WcMatch)) *model.WcMatch {
+	t.Helper()
+	future := time.Now().Add(2 * time.Hour)
+	hv := 0.5
+	oh, oa := 1.90, 1.95
+	m := &model.WcMatch{
+		TournamentType:   model.WcTournamentAseanCup,
+		ExternalID:       uuid.NewString(),
+		HomeTeam:         "Thailand",
+		AwayTeam:         "Vietnam",
+		MatchDate:        future,
+		Stage:            model.WcStageGroup,
+		Status:           model.WcStatusScheduled,
+		BetsLockedAt:     &future,
+		HandicapTeam:     model.WcTeamHome,
+		HandicapValue:    &hv,
+		OddsHandicapHome: &oh,
+		OddsHandicapAway: &oa,
+	}
+	for _, o := range opts {
+		o(m)
+	}
+	require.NoError(t, db.Create(m).Error)
+	t.Cleanup(func() {
+		db.Where("match_id = ?", m.ID).Delete(&model.WcBet{})
+		db.Where("match_id = ?", m.ID).Delete(&model.WcPrediction{})
+		db.Delete(m)
+	})
+	return m
+}
+
+// TestTournamentIsolation_ListBets verifies that bets placed on WC matches do not
+// appear in AC bet list, and vice versa.
+func TestTournamentIsolation_ListBets(t *testing.T) {
+	db := openWcTestDB(t)
+	ensureAcConfig(t, db)
+	require.NoError(t, db.AutoMigrate(&model.WcBet{}))
+
+	svc, authSvc := newWcServices(db)
+
+	user := seedWcUser(t, authSvc, "IsoLB_"+uuid.NewString()[:6], "pass")
+
+	wcMatch := seedWcMatch(t, db)
+	acMatch := seedAcMatch(t, db)
+
+	home := model.WcTeamHome
+	_, err := svc.PlaceBet(user.ID, PlaceBetRequest{
+		MatchID:   wcMatch.ID,
+		BetType:   model.WcBetTypeHandicap,
+		BetChoice: &home,
+		Stake:     10,
+	})
+	require.NoError(t, err, "WC bet placement must succeed")
+
+	_, err = svc.PlaceBet(user.ID, PlaceBetRequest{
+		MatchID:   acMatch.ID,
+		BetType:   model.WcBetTypeHandicap,
+		BetChoice: &home,
+		Stake:     10,
+	})
+	require.NoError(t, err, "AC bet placement must succeed")
+
+	// ListBets("world_cup") must return only the WC bet
+	wcBets, err := svc.ListBets(user.ID, model.WcTournamentWorldCup)
+	require.NoError(t, err)
+	for _, b := range wcBets {
+		assert.Equal(t, model.WcTournamentWorldCup, b.TournamentType,
+			"WC bet list must only contain world_cup bets")
+	}
+	wcMatchIDs := make([]uuid.UUID, len(wcBets))
+	for i, b := range wcBets {
+		wcMatchIDs[i] = b.MatchID
+	}
+	assert.Contains(t, wcMatchIDs, wcMatch.ID, "WC bet for wcMatch must appear in WC list")
+	for _, id := range wcMatchIDs {
+		assert.NotEqual(t, acMatch.ID, id, "AC bet must not appear in WC list")
+	}
+
+	// ListBets("asean_cup") must return only the AC bet
+	acBets, err := svc.ListBets(user.ID, model.WcTournamentAseanCup)
+	require.NoError(t, err)
+	for _, b := range acBets {
+		assert.Equal(t, model.WcTournamentAseanCup, b.TournamentType,
+			"AC bet list must only contain asean_cup bets")
+	}
+	acMatchIDs := make([]uuid.UUID, len(acBets))
+	for i, b := range acBets {
+		acMatchIDs[i] = b.MatchID
+	}
+	assert.Contains(t, acMatchIDs, acMatch.ID, "AC bet for acMatch must appear in AC list")
+	for _, id := range acMatchIDs {
+		assert.NotEqual(t, wcMatch.ID, id, "WC bet must not appear in AC list")
+	}
+}
+
+// TestTournamentIsolation_ListPredictions verifies prediction lists are scoped by tournament.
+func TestTournamentIsolation_ListPredictions(t *testing.T) {
+	db := openWcTestDB(t)
+	ensureAcConfig(t, db)
+	require.NoError(t, db.AutoMigrate(&model.WcPrediction{}, &model.WcScoreMultiplier{}, &model.WcScoreOdds{}))
+
+	svc, authSvc := newWcServices(db)
+	user := seedWcUser(t, authSvc, "IsoPred_"+uuid.NewString()[:6], "pass")
+
+	wcMatch := seedWcMatch(t, db)
+	acMatch := seedAcMatch(t, db)
+
+	choice := model.WcTeamHome
+	hv := 0.5
+	oh, oa := 1.90, 1.95
+	// Ensure match fields needed for prediction placement
+	db.Model(wcMatch).Updates(map[string]interface{}{
+		"handicap_team":      model.WcTeamHome,
+		"handicap_value":     hv,
+		"odds_handicap_home": oh,
+		"odds_handicap_away": oa,
+	})
+
+	_, err := svc.SubmitPrediction(user.ID, SubmitPredictionRequest{
+		MatchID:          wcMatch.ID,
+		PredictionType:   model.WcPredictionTypeHandicap,
+		PredictionChoice: &choice,
+		Points:           5,
+	})
+	require.NoError(t, err, "WC prediction placement must succeed")
+
+	_, err = svc.SubmitPrediction(user.ID, SubmitPredictionRequest{
+		MatchID:          acMatch.ID,
+		PredictionType:   model.WcPredictionTypeHandicap,
+		PredictionChoice: &choice,
+		Points:           5,
+	})
+	require.NoError(t, err, "AC prediction placement must succeed")
+
+	wcPreds, err := svc.ListPredictions(user.ID, model.WcTournamentWorldCup)
+	require.NoError(t, err)
+	for _, p := range wcPreds {
+		assert.Equal(t, wcMatch.ID, p.MatchID,
+			"WC prediction list must only reference WC matches")
+	}
+
+	acPreds, err := svc.ListPredictions(user.ID, model.WcTournamentAseanCup)
+	require.NoError(t, err)
+	for _, p := range acPreds {
+		assert.Equal(t, acMatch.ID, p.MatchID,
+			"AC prediction list must only reference AC matches")
+	}
+}
+
+// TestTournamentIsolation_GetBetHistory verifies bet history is scoped by tournament.
+func TestTournamentIsolation_GetBetHistory(t *testing.T) {
+	db := openWcTestDB(t)
+	ensureAcConfig(t, db)
+	require.NoError(t, db.AutoMigrate(&model.WcBet{}))
+
+	svc, authSvc := newWcServices(db)
+	user := seedWcUser(t, authSvc, "IsoHist_"+uuid.NewString()[:6], "pass")
+
+	// Build a settled WC bet
+	past := time.Now().Add(-1 * time.Hour)
+	hv := 0.5
+	oh, oa := 1.90, 1.95
+	wcMatch := &model.WcMatch{
+		TournamentType:   model.WcTournamentWorldCup,
+		ExternalID:       uuid.NewString(),
+		HomeTeam:         "A",
+		AwayTeam:         "B",
+		MatchDate:        past,
+		Stage:            model.WcStageGroup,
+		Status:           model.WcStatusCompleted,
+		BetsLockedAt:     &past,
+		HomeScore:        intPtr(2),
+		AwayScore:        intPtr(1),
+		HandicapTeam:     model.WcTeamHome,
+		HandicapValue:    &hv,
+		OddsHandicapHome: &oh,
+		OddsHandicapAway: &oa,
+	}
+	require.NoError(t, db.Create(wcMatch).Error)
+	t.Cleanup(func() {
+		db.Where("match_id = ?", wcMatch.ID).Delete(&model.WcBet{})
+		db.Delete(wcMatch)
+	})
+
+	// Insert a settled WC bet directly (match is already completed so PlaceBet is locked)
+	home := model.WcTeamHome
+	wcResult := "win"
+	wcBet := &model.WcBet{
+		TournamentType:       model.WcTournamentWorldCup,
+		WcUserID:             user.ID,
+		MatchID:              wcMatch.ID,
+		BetType:              model.WcBetTypeHandicap,
+		BetChoice:            &home,
+		Stake:                100,
+		OddsSnapshot:         1.90,
+		HandicapSnapshot:     &hv,
+		HandicapTeamSnapshot: &home,
+		Result:               &wcResult,
+	}
+	require.NoError(t, db.Create(wcBet).Error)
+
+	// Insert a settled AC bet directly
+	acResult := "lose"
+	acBet := &model.WcBet{
+		TournamentType:       model.WcTournamentAseanCup,
+		WcUserID:             user.ID,
+		MatchID:              wcMatch.ID, // same match ID is fine for this isolation test
+		BetType:              model.WcBetTypeHandicap,
+		BetChoice:            &home,
+		Stake:                50,
+		OddsSnapshot:         1.95,
+		HandicapSnapshot:     &hv,
+		HandicapTeamSnapshot: &home,
+		Result:               &acResult,
+	}
+	require.NoError(t, db.Create(acBet).Error)
+	t.Cleanup(func() { db.Delete(acBet) })
+
+	wcHistory, err := svc.GetBetHistory(user.ID, model.WcTournamentWorldCup)
+	require.NoError(t, err)
+	wcIDs := make([]string, len(wcHistory))
+	for i, h := range wcHistory {
+		wcIDs[i] = h.ID
+	}
+	assert.Contains(t, wcIDs, wcBet.ID.String(), "WC bet must appear in WC history")
+	assert.NotContains(t, wcIDs, acBet.ID.String(), "AC bet must not appear in WC history")
+
+	acHistory, err := svc.GetBetHistory(user.ID, model.WcTournamentAseanCup)
+	require.NoError(t, err)
+	acIDs := make([]string, len(acHistory))
+	for i, h := range acHistory {
+		acIDs[i] = h.ID
+	}
+	assert.Contains(t, acIDs, acBet.ID.String(), "AC bet must appear in AC history")
+	assert.NotContains(t, acIDs, wcBet.ID.String(), "WC bet must not appear in AC history")
+}
+
+// TestCreateSettlement_TournamentTypePersisted verifies the settlement record stores
+// the correct tournament_type so ListSettlements isolation works correctly.
+func TestCreateSettlement_TournamentTypePersisted(t *testing.T) {
+	db := openWcTestDB(t)
+	ensureAcConfig(t, db)
+	svc, authSvc := newWcServices(db)
+
+	admin := seedWcUser(t, authSvc, "SettleAdmin_"+uuid.NewString()[:6], "pass")
+
+	acSettlement, err := svc.CreateSettlement(model.WcTournamentAseanCup, admin.ID, "AC Settlement", 1000, "test")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		db.Where("settlement_id = ?", acSettlement.ID).Delete(&model.WcSettlementDetail{})
+		db.Delete(acSettlement)
+		db.Where("wc_user_id = ?", admin.ID).Delete(&model.WcWalletLog{})
+	})
+
+	assert.Equal(t, model.WcTournamentAseanCup, acSettlement.TournamentType,
+		"settlement must store the asean_cup tournament_type")
+
+	// ListSettlements for AC must include the new settlement
+	acList, err := svc.ListSettlements(model.WcTournamentAseanCup)
+	require.NoError(t, err)
+	ids := make([]uuid.UUID, len(acList))
+	for i, s := range acList {
+		ids[i] = s.ID
+	}
+	assert.Contains(t, ids, acSettlement.ID, "AC settlement must appear in AC list")
+
+	// ListSettlements for WC must NOT include the AC settlement
+	wcList, err := svc.ListSettlements(model.WcTournamentWorldCup)
+	require.NoError(t, err)
+	wcIDs := make([]uuid.UUID, len(wcList))
+	for i, s := range wcList {
+		wcIDs[i] = s.ID
+	}
+	assert.NotContains(t, wcIDs, acSettlement.ID, "AC settlement must not appear in WC list")
 }
 
 func TestPoisson_BulkUpsert_ExactScoreBetCanBePlaced(t *testing.T) {

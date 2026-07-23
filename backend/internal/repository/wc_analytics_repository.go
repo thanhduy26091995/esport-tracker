@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -91,35 +92,38 @@ type AvgGoalsRow struct {
 	Count      int
 }
 
-// settled_bets_cte is reused in match-result queries.
+// settledBetsCTEFor returns the settled_bets CTE filtered by tournamentType.
 // It UNIONs wc_bets + wc_predictions + wc_custom_bet_entries for a single user.
 // Parameters: userID, userID, userID (one per branch).
-const settledBetsCTE = `
+// tt must be an internal constant ('world_cup' or 'asean_cup').
+func settledBetsCTEFor(tt string) string {
+	return fmt.Sprintf(`
 	settled_bets AS (
 		SELECT b.match_id, b.stake::numeric AS stake, COALESCE(b.payout, 0) AS payout
 		FROM wc_bets b
-		WHERE b.wc_user_id = ? AND b.result IS NOT NULL
+		WHERE b.wc_user_id = ? AND b.result IS NOT NULL AND b.tournament_type = '%s'
 
 		UNION ALL
 
 		SELECT p.match_id, p.points::numeric AS stake, COALESCE(p.points_earned, 0) AS payout
 		FROM wc_predictions p
-		WHERE p.wc_user_id = ? AND p.result IS NOT NULL AND p.result != 'void' AND p.cancelled_at IS NULL
+		WHERE p.wc_user_id = ? AND p.result IS NOT NULL AND p.result != 'void' AND p.cancelled_at IS NULL AND p.tournament_type = '%s'
 
 		UNION ALL
 
 		SELECT cb.match_id, e.stake::numeric AS stake, COALESCE(e.payout, 0) AS payout
 		FROM wc_custom_bet_entries e
 		JOIN wc_custom_bets cb ON cb.id = e.custom_bet_id
-		WHERE e.wc_user_id = ? AND e.status IN ('won', 'lost')
+		WHERE e.wc_user_id = ? AND e.status IN ('won', 'lost') AND cb.tournament_type = '%s'
 	)
-`
+`, tt, tt, tt)
+}
 
 // GetMyMatchResults returns per-match net payout vs stake for a user within a period.
-func (r *WcAnalyticsRepository) GetMyMatchResults(userID uuid.UUID, p AnalyticsPeriod) ([]MatchResultRow, error) {
+func (r *WcAnalyticsRepository) GetMyMatchResults(userID uuid.UUID, p AnalyticsPeriod, tournamentType string) ([]MatchResultRow, error) {
 	var rows []MatchResultRow
 	err := r.db.Raw(`
-		WITH `+settledBetsCTE+`
+		WITH `+settledBetsCTEFor(tournamentType)+`
 		SELECT
 			s.match_id::text AS match_id,
 			m.match_date,
@@ -135,10 +139,10 @@ func (r *WcAnalyticsRepository) GetMyMatchResults(userID uuid.UUID, p AnalyticsP
 }
 
 // GetMyAccuracyTimeline returns wins/losses bucketed by day within the period.
-func (r *WcAnalyticsRepository) GetMyAccuracyTimeline(userID uuid.UUID, p AnalyticsPeriod) ([]TimelineRow, error) {
+func (r *WcAnalyticsRepository) GetMyAccuracyTimeline(userID uuid.UUID, p AnalyticsPeriod, tournamentType string) ([]TimelineRow, error) {
 	var rows []TimelineRow
 	err := r.db.Raw(`
-		WITH `+settledBetsCTE+`,
+		WITH `+settledBetsCTEFor(tournamentType)+`,
 		match_results AS (
 			SELECT
 				DATE(m.match_date) AS period,
@@ -161,7 +165,7 @@ func (r *WcAnalyticsRepository) GetMyAccuracyTimeline(userID uuid.UUID, p Analyt
 }
 
 // GetMyBetStats returns aggregate betting stats for a user across all bet sources (no period filter).
-func (r *WcAnalyticsRepository) GetMyBetStats(userID uuid.UUID) (*MyBetStatsRow, error) {
+func (r *WcAnalyticsRepository) GetMyBetStats(userID uuid.UUID, tournamentType string) (*MyBetStatsRow, error) {
 	var row MyBetStatsRow
 	err := r.db.Raw(`
 		WITH unified AS (
@@ -176,7 +180,7 @@ func (r *WcAnalyticsRepository) GetMyBetStats(userID uuid.UUID) (*MyBetStatsRow,
 				(b.bet_type = 'exact_score' AND b.result IS NOT NULL)                         AS is_exact_settled,
 				b.created_at
 			FROM wc_bets b
-			WHERE b.wc_user_id = ?
+			WHERE b.wc_user_id = ? AND b.tournament_type = ?
 
 			UNION ALL
 
@@ -194,6 +198,7 @@ func (r *WcAnalyticsRepository) GetMyBetStats(userID uuid.UUID) (*MyBetStatsRow,
 			WHERE p.wc_user_id = ?
 			  AND p.cancelled_at IS NULL
 			  AND (p.result IS NULL OR p.result != 'void')
+			  AND p.tournament_type = ?
 
 			UNION ALL
 
@@ -210,6 +215,7 @@ func (r *WcAnalyticsRepository) GetMyBetStats(userID uuid.UUID) (*MyBetStatsRow,
 			JOIN wc_custom_bets cb ON cb.id = e.custom_bet_id
 			WHERE e.wc_user_id = ?
 			  AND e.status != 'void'
+			  AND cb.tournament_type = ?
 		)
 		SELECT
 			COUNT(*)                                                                           AS total_bets,
@@ -232,12 +238,12 @@ func (r *WcAnalyticsRepository) GetMyBetStats(userID uuid.UUID) (*MyBetStatsRow,
 			COUNT(*) FILTER (WHERE u.is_exact_settled)                                         AS exact_score_settled
 		FROM unified u
 		JOIN wc_matches m ON m.id = u.match_id
-	`, userID, userID, userID).Scan(&row).Error
+	`, userID, tournamentType, userID, tournamentType, userID, tournamentType).Scan(&row).Error
 	return &row, err
 }
 
 // GetMyFavoriteTeams returns top-N teams from handicap bets/predictions for a user.
-func (r *WcAnalyticsRepository) GetMyFavoriteTeams(userID uuid.UUID, limit int) ([]TeamCountRow, error) {
+func (r *WcAnalyticsRepository) GetMyFavoriteTeams(userID uuid.UUID, limit int, tournamentType string) ([]TeamCountRow, error) {
 	var rows []TeamCountRow
 	err := r.db.Raw(`
 		SELECT
@@ -249,6 +255,7 @@ func (r *WcAnalyticsRepository) GetMyFavoriteTeams(userID uuid.UUID, limit int) 
 			WHERE b.wc_user_id = ?
 			  AND b.bet_type = 'handicap'
 			  AND b.bet_choice IN ('home', 'away')
+			  AND b.tournament_type = ?
 
 			UNION ALL
 
@@ -259,17 +266,18 @@ func (r *WcAnalyticsRepository) GetMyFavoriteTeams(userID uuid.UUID, limit int) 
 			  AND p.prediction_choice IN ('home', 'away')
 			  AND (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = ?
 		) src
 		JOIN wc_matches m ON m.id = src.match_id
 		GROUP BY team
 		ORDER BY bet_count DESC
 		LIMIT ?
-	`, userID, userID, limit).Scan(&rows).Error
+	`, userID, tournamentType, userID, tournamentType, limit).Scan(&rows).Error
 	return rows, err
 }
 
 // GetMyFavoriteScorelines returns top-N scorelines from exact_score bets/predictions.
-func (r *WcAnalyticsRepository) GetMyFavoriteScorelines(userID uuid.UUID, limit int) ([]ScorelineCountRow, error) {
+func (r *WcAnalyticsRepository) GetMyFavoriteScorelines(userID uuid.UUID, limit int, tournamentType string) ([]ScorelineCountRow, error) {
 	var rows []ScorelineCountRow
 	err := r.db.Raw(`
 		SELECT
@@ -281,6 +289,7 @@ func (r *WcAnalyticsRepository) GetMyFavoriteScorelines(userID uuid.UUID, limit 
 			WHERE b.wc_user_id = ?
 			  AND b.bet_type = 'exact_score'
 			  AND b.predicted_home_score IS NOT NULL
+			  AND b.tournament_type = ?
 
 			UNION ALL
 
@@ -291,16 +300,17 @@ func (r *WcAnalyticsRepository) GetMyFavoriteScorelines(userID uuid.UUID, limit 
 			  AND p.predicted_home_score IS NOT NULL
 			  AND (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = ?
 		) src
 		GROUP BY scoreline
 		ORDER BY count DESC
 		LIMIT ?
-	`, userID, userID, limit).Scan(&rows).Error
+	`, userID, tournamentType, userID, tournamentType, limit).Scan(&rows).Error
 	return rows, err
 }
 
 // GetMyAvgGoals returns total goals and count from exact_score bets/predictions for avg calculation.
-func (r *WcAnalyticsRepository) GetMyAvgGoals(userID uuid.UUID) (*AvgGoalsRow, error) {
+func (r *WcAnalyticsRepository) GetMyAvgGoals(userID uuid.UUID, tournamentType string) (*AvgGoalsRow, error) {
 	var row AvgGoalsRow
 	err := r.db.Raw(`
 		SELECT
@@ -313,6 +323,7 @@ func (r *WcAnalyticsRepository) GetMyAvgGoals(userID uuid.UUID) (*AvgGoalsRow, e
 			  AND b.bet_type = 'exact_score'
 			  AND b.predicted_home_score IS NOT NULL
 			  AND b.predicted_away_score IS NOT NULL
+			  AND b.tournament_type = ?
 
 			UNION ALL
 
@@ -324,13 +335,14 @@ func (r *WcAnalyticsRepository) GetMyAvgGoals(userID uuid.UUID) (*AvgGoalsRow, e
 			  AND p.predicted_away_score IS NOT NULL
 			  AND (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = ?
 		) src
-	`, userID, userID).Scan(&row).Error
+	`, userID, tournamentType, userID, tournamentType).Scan(&row).Error
 	return &row, err
 }
 
 // GetCommunityBetDistribution returns home/away/other prediction split across all bet sources.
-func (r *WcAnalyticsRepository) GetCommunityBetDistribution() (map[string]int, error) {
+func (r *WcAnalyticsRepository) GetCommunityBetDistribution(tournamentType string) (map[string]int, error) {
 	type bucketRow struct {
 		Bucket string
 		Cnt    int
@@ -347,6 +359,7 @@ func (r *WcAnalyticsRepository) GetCommunityBetDistribution() (map[string]int, e
 		FROM (
 			SELECT b.bet_type, b.bet_choice AS choice
 			FROM wc_bets b
+			WHERE b.tournament_type = ?
 
 			UNION ALL
 
@@ -354,15 +367,18 @@ func (r *WcAnalyticsRepository) GetCommunityBetDistribution() (map[string]int, e
 			FROM wc_predictions p
 			WHERE (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = ?
 
 			UNION ALL
 
 			SELECT 'custom' AS bet_type, NULL AS choice
 			FROM wc_custom_bet_entries e
+			JOIN wc_custom_bets cb ON cb.id = e.custom_bet_id
 			WHERE e.status != 'void'
+			  AND cb.tournament_type = ?
 		) src
 		GROUP BY bucket
-	`).Scan(&rows).Error
+	`, tournamentType, tournamentType, tournamentType).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +390,7 @@ func (r *WcAnalyticsRepository) GetCommunityBetDistribution() (map[string]int, e
 }
 
 // GetCommunityTrendingTeams returns top-N teams by handicap bet count in the last 7 days.
-func (r *WcAnalyticsRepository) GetCommunityTrendingTeams(limit int) ([]TeamCountRow, error) {
+func (r *WcAnalyticsRepository) GetCommunityTrendingTeams(limit int, tournamentType string) ([]TeamCountRow, error) {
 	var rows []TeamCountRow
 	err := r.db.Raw(`
 		SELECT
@@ -386,6 +402,7 @@ func (r *WcAnalyticsRepository) GetCommunityTrendingTeams(limit int) ([]TeamCoun
 			WHERE b.bet_type = 'handicap'
 			  AND b.bet_choice IN ('home', 'away')
 			  AND b.created_at > NOW() - INTERVAL '7 days'
+			  AND b.tournament_type = ?
 
 			UNION ALL
 
@@ -396,17 +413,18 @@ func (r *WcAnalyticsRepository) GetCommunityTrendingTeams(limit int) ([]TeamCoun
 			  AND (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
 			  AND p.created_at > NOW() - INTERVAL '7 days'
+			  AND p.tournament_type = ?
 		) src
 		JOIN wc_matches m ON m.id = src.match_id
 		GROUP BY team
 		ORDER BY bet_count DESC
 		LIMIT ?
-	`, limit).Scan(&rows).Error
+	`, tournamentType, tournamentType, limit).Scan(&rows).Error
 	return rows, err
 }
 
 // GetCommunityTrendingScorelines returns top-N scorelines by pick count across bets/predictions.
-func (r *WcAnalyticsRepository) GetCommunityTrendingScorelines(limit int) ([]ScorelineCountRow, error) {
+func (r *WcAnalyticsRepository) GetCommunityTrendingScorelines(limit int, tournamentType string) ([]ScorelineCountRow, error) {
 	var rows []ScorelineCountRow
 	err := r.db.Raw(`
 		SELECT
@@ -417,6 +435,7 @@ func (r *WcAnalyticsRepository) GetCommunityTrendingScorelines(limit int) ([]Sco
 			FROM wc_bets b
 			WHERE b.bet_type = 'exact_score'
 			  AND b.predicted_home_score IS NOT NULL
+			  AND b.tournament_type = ?
 
 			UNION ALL
 
@@ -426,16 +445,17 @@ func (r *WcAnalyticsRepository) GetCommunityTrendingScorelines(limit int) ([]Sco
 			  AND p.predicted_home_score IS NOT NULL
 			  AND (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = ?
 		) src
 		GROUP BY scoreline
 		ORDER BY count DESC
 		LIMIT ?
-	`, limit).Scan(&rows).Error
+	`, tournamentType, tournamentType, limit).Scan(&rows).Error
 	return rows, err
 }
 
 // GetCommunityTotals returns total bets placed and distinct active user count across all sources.
-func (r *WcAnalyticsRepository) GetCommunityTotals() (totalBets int, activeUsers int, err error) {
+func (r *WcAnalyticsRepository) GetCommunityTotals(tournamentType string) (totalBets int, activeUsers int, err error) {
 	type totalsRow struct {
 		TotalBets   int
 		ActiveUsers int
@@ -447,43 +467,47 @@ func (r *WcAnalyticsRepository) GetCommunityTotals() (totalBets int, activeUsers
 			COUNT(DISTINCT wc_user_id) AS active_users
 		FROM (
 			SELECT b.id, b.wc_user_id FROM wc_bets b
+			WHERE b.tournament_type = ?
 
 			UNION ALL
 
 			SELECT p.id, p.wc_user_id FROM wc_predictions p
 			WHERE (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = ?
 
 			UNION ALL
 
 			SELECT e.id, e.wc_user_id FROM wc_custom_bet_entries e
+			JOIN wc_custom_bets cb ON cb.id = e.custom_bet_id
 			WHERE e.status != 'void'
+			  AND cb.tournament_type = ?
 		) src
-	`).Scan(&row).Error
+	`, tournamentType, tournamentType, tournamentType).Scan(&row).Error
 	return row.TotalBets, row.ActiveUsers, err
 }
 
 // GetTopPredictors returns users ranked by accuracy (settled matches), min minMatches.
-func (r *WcAnalyticsRepository) GetTopPredictors(minMatches int) ([]PredictorRow, error) {
+func (r *WcAnalyticsRepository) GetTopPredictors(minMatches int, tournamentType string) ([]PredictorRow, error) {
 	var rows []PredictorRow
 	err := r.db.Raw(`
 		WITH all_settled AS (
 			SELECT b.wc_user_id, b.match_id, b.stake::numeric AS stake, COALESCE(b.payout, 0) AS payout
 			FROM wc_bets b
-			WHERE b.result IS NOT NULL
+			WHERE b.result IS NOT NULL AND b.tournament_type = ?
 
 			UNION ALL
 
 			SELECT p.wc_user_id, p.match_id, p.points::numeric AS stake, COALESCE(p.points_earned, 0) AS payout
 			FROM wc_predictions p
-			WHERE p.result IS NOT NULL AND p.result != 'void' AND p.cancelled_at IS NULL
+			WHERE p.result IS NOT NULL AND p.result != 'void' AND p.cancelled_at IS NULL AND p.tournament_type = ?
 
 			UNION ALL
 
 			SELECT e.wc_user_id, cb.match_id, e.stake::numeric AS stake, COALESCE(e.payout, 0) AS payout
 			FROM wc_custom_bet_entries e
 			JOIN wc_custom_bets cb ON cb.id = e.custom_bet_id
-			WHERE e.status IN ('won', 'lost')
+			WHERE e.status IN ('won', 'lost') AND cb.tournament_type = ?
 		),
 		match_results AS (
 			SELECT
@@ -515,12 +539,12 @@ func (r *WcAnalyticsRepository) GetTopPredictors(minMatches int) ([]PredictorRow
 		JOIN wc_users u ON u.id = s.wc_user_id
 		ORDER BY (s.wins::float / NULLIF(s.settled_matches, 0)) DESC, s.settled_matches DESC
 		LIMIT 20
-	`, minMatches).Scan(&rows).Error
+	`, tournamentType, tournamentType, tournamentType, minMatches).Scan(&rows).Error
 	return rows, err
 }
 
 // GetCommunityAvgStats returns community-wide averages for the compare table.
-func (r *WcAnalyticsRepository) GetCommunityAvgStats() (*CommunityAvgStats, error) {
+func (r *WcAnalyticsRepository) GetCommunityAvgStats(tournamentType string) (*CommunityAvgStats, error) {
 	var row CommunityAvgStats
 	err := r.db.Raw(`
 		WITH all_bets AS (
@@ -539,6 +563,7 @@ func (r *WcAnalyticsRepository) GetCommunityAvgStats() (*CommunityAvgStats, erro
 				b.predicted_away_score,
 				b.created_at
 			FROM wc_bets b
+			WHERE b.tournament_type = ?
 
 			UNION ALL
 
@@ -559,6 +584,7 @@ func (r *WcAnalyticsRepository) GetCommunityAvgStats() (*CommunityAvgStats, erro
 			FROM wc_predictions p
 			WHERE (p.result IS NULL OR p.result != 'void')
 			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = ?
 
 			UNION ALL
 
@@ -578,6 +604,7 @@ func (r *WcAnalyticsRepository) GetCommunityAvgStats() (*CommunityAvgStats, erro
 			FROM wc_custom_bet_entries e
 			JOIN wc_custom_bets cb ON cb.id = e.custom_bet_id
 			WHERE e.status != 'void'
+			  AND cb.tournament_type = ?
 		),
 		match_results AS (
 			SELECT
@@ -643,7 +670,7 @@ func (r *WcAnalyticsRepository) GetCommunityAvgStats() (*CommunityAvgStats, erro
 			CASE WHEN cm.n > 0 THEN s.total_bets::float / NULLIF(du.n, 0) / cm.n ELSE 0 END  AS bet_frequency,
 			CASE WHEN lm.total > 0 THEN lm.lm_bets::float / lm.total ELSE 0 END               AS last_minute_rate
 		FROM stats s, user_accuracy ua, last_minute lm, avg_goals ag, distinct_users du, completed_matches cm
-	`).Scan(&row).Error
+	`, tournamentType, tournamentType, tournamentType).Scan(&row).Error
 	return &row, err
 }
 

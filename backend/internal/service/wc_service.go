@@ -27,22 +27,22 @@ func NewWcService(repo *repository.WcRepository, userRepo *repository.WcUserRepo
 
 // --- Config ---
 
-func (s *WcService) GetConfig() (*model.WcConfig, error) {
-	return s.repo.GetConfig()
+func (s *WcService) GetConfig(tournamentType string) (*model.WcConfig, error) {
+	return s.repo.GetConfig(tournamentType)
 }
 
-func (s *WcService) SetConfig(isEnabled bool, updatedBy uuid.UUID) error {
-	return s.repo.UpdateConfig(isEnabled, &updatedBy)
+func (s *WcService) SetConfig(tournamentType string, isEnabled bool, updatedBy uuid.UUID) error {
+	return s.repo.UpdateConfig(tournamentType, isEnabled, &updatedBy)
 }
 
-func (s *WcService) SetBetLimits(min, max int, updatedBy uuid.UUID) error {
+func (s *WcService) SetBetLimits(tournamentType string, min, max int, updatedBy uuid.UUID) error {
 	if min < 1 {
 		return fmt.Errorf("min_points phải >= 1")
 	}
 	if max < min {
 		return fmt.Errorf("max_points phải >= min_points")
 	}
-	return s.repo.UpdateBetLimits(min, max, &updatedBy)
+	return s.repo.UpdateBetLimits(tournamentType, min, max, &updatedBy)
 }
 
 // --- Sync ---
@@ -63,8 +63,8 @@ func (s *WcService) SyncMatches() (int, error) {
 
 // --- Matches ---
 
-func (s *WcService) ListMatches(f repository.MatchFilter) ([]*model.WcMatch, error) {
-	matches, err := s.repo.ListMatches(f)
+func (s *WcService) ListMatches(tournamentType string, f repository.MatchFilter) ([]*model.WcMatch, error) {
+	matches, err := s.repo.ListMatches(tournamentType, f)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +102,38 @@ func (s *WcService) OpenMatch(id uuid.UUID) error {
 
 func (s *WcService) CloseMatch(id uuid.UUID) error {
 	return s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": false})
+}
+
+// WcCreateMatchRequest holds the fields needed to manually create a WC match.
+type WcCreateMatchRequest struct {
+	HomeTeam     string    `json:"home_team"      binding:"required"`
+	AwayTeam     string    `json:"away_team"      binding:"required"`
+	HomeTeamCode string    `json:"home_team_code"`
+	AwayTeamCode string    `json:"away_team_code"`
+	MatchDate    time.Time `json:"match_date"     binding:"required"`
+	GroupName    string    `json:"group_name"`
+	Stage        string    `json:"stage"`
+	Venue        string    `json:"venue"`
+}
+
+// CreateMatch creates a new match for the given tournament with a generated external ID.
+func (s *WcService) CreateMatch(tournamentType string, req WcCreateMatchRequest) (*model.WcMatch, error) {
+	externalID := fmt.Sprintf("%s-%d", tournamentType, time.Now().UnixNano())
+	m := &model.WcMatch{
+		TournamentType:  tournamentType,
+		ExternalID:      externalID,
+		HomeTeam:        req.HomeTeam,
+		AwayTeam:        req.AwayTeam,
+		HomeTeamCode:    req.HomeTeamCode,
+		AwayTeamCode:    req.AwayTeamCode,
+		MatchDate:       req.MatchDate,
+		GroupName:       req.GroupName,
+		Stage:           req.Stage,
+		Venue:           req.Venue,
+		Status:          model.WcStatusScheduled,
+		PredictionsOpen: false,
+	}
+	return m, s.repo.CreateMatch(m)
 }
 
 // MatchScheduleSummary is returned by GetMatchScheduleSummary for cron scheduling decisions.
@@ -192,7 +224,7 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 		return nil, fmt.Errorf("user is blocked from placing predictions")
 	}
 
-	betCfg, err := s.repo.GetConfig()
+	betCfg, err := s.repo.GetConfig(m.TournamentType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config")
 	}
@@ -250,6 +282,7 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 	}
 
 	bet := &model.WcPrediction{
+		TournamentType:       m.TournamentType,
 		WcUserID:             wcUserID,
 		MatchID:              req.MatchID,
 		PredictionType:       req.PredictionType,
@@ -275,8 +308,8 @@ func (s *WcService) SubmitPrediction(wcUserID uuid.UUID, req SubmitPredictionReq
 	return bet, nil
 }
 
-func (s *WcService) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictionWithMatch, error) {
-	predictions, err := s.repo.ListPredictions(wcUserID)
+func (s *WcService) ListPredictions(wcUserID uuid.UUID, tournamentType string) ([]*model.WcPredictionWithMatch, error) {
+	predictions, err := s.repo.ListPredictions(wcUserID, tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +344,7 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) (penaltyApplied 
 		return 0, fmt.Errorf("cannot modify prediction: match is locked")
 	}
 
-	cfg, err := s.repo.GetConfig()
+	cfg, err := s.repo.GetConfig(m.TournamentType)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load config")
 	}
@@ -359,13 +392,6 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) (penaltyApplied 
 }
 
 func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int) (penaltyApplied float64, err error) {
-	cfg, err := s.repo.GetConfig()
-	if err != nil {
-		return 0, fmt.Errorf("failed to load config")
-	}
-	if points < cfg.MinPoints || points > cfg.MaxPoints {
-		return 0, fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
-	}
 	bet, err := s.repo.GetPredictionByID(betID)
 	if err != nil {
 		return 0, fmt.Errorf("prediction not found")
@@ -382,6 +408,13 @@ func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int
 	m, err := s.repo.GetMatch(bet.MatchID)
 	if err != nil {
 		return 0, fmt.Errorf("match not found")
+	}
+	cfg, err := s.repo.GetConfig(m.TournamentType)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load config")
+	}
+	if points < cfg.MinPoints || points > cfg.MaxPoints {
+		return 0, fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
 	}
 	if isLocked(m) {
 		return 0, fmt.Errorf("cannot modify prediction: match is locked")
@@ -420,6 +453,7 @@ func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int
 			}
 			// Create new prediction with reduced points
 			newBet := &model.WcPrediction{
+				TournamentType:       m.TournamentType,
 				WcUserID:             bet.WcUserID,
 				MatchID:              bet.MatchID,
 				PredictionType:       bet.PredictionType,
@@ -461,7 +495,11 @@ func (s *WcService) PreviewReducePredictionPoints(wcUserID, betID uuid.UUID, new
 		return &ReduceStakePreview{}, nil
 	}
 
-	cfg, err := s.repo.GetConfig()
+	m, err := s.repo.GetMatch(bet.MatchID)
+	if err != nil {
+		return nil, fmt.Errorf("match not found")
+	}
+	cfg, err := s.repo.GetConfig(m.TournamentType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config")
 	}
@@ -502,8 +540,8 @@ func (s *WcService) GetWallet(wcUserID uuid.UUID) (*model.WcWallet, error) {
 	return w, nil
 }
 
-func (s *WcService) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
-	return s.repo.GetLeaderboard()
+func (s *WcService) GetLeaderboard(tournamentType string) ([]*model.WcLeaderboardEntry, error) {
+	return s.repo.GetLeaderboard(tournamentType)
 }
 
 // --- Match settlement ---
@@ -614,8 +652,8 @@ type FinalizeAllResult struct {
 
 // FinalizeAllMatches finalizes every scored-but-not-yet-settled match in one call.
 // Matches already finalized are counted as skipped (not an error).
-func (s *WcService) FinalizeAllMatches() (*FinalizeAllResult, error) {
-	matches, err := s.repo.ListUnfinalizedScoredMatches()
+func (s *WcService) FinalizeAllMatches(tournamentType string) (*FinalizeAllResult, error) {
+	matches, err := s.repo.ListUnfinalizedScoredMatches(tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -639,8 +677,8 @@ func (s *WcService) FinalizeAllMatches() (*FinalizeAllResult, error) {
 // RefinalizeAllMatches re-calculates points_earned for every scored match (including already settled).
 // For already-settled predictions, it reverses the old wallet change before applying the correct value.
 // Use this to fix data from before fractional points_earned was supported.
-func (s *WcService) RefinalizeAllMatches() (*FinalizeAllResult, error) {
-	matches, err := s.repo.ListAllScoredMatches()
+func (s *WcService) RefinalizeAllMatches(tournamentType string) (*FinalizeAllResult, error) {
+	matches, err := s.repo.ListAllScoredMatches(tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -838,8 +876,8 @@ func (s *WcService) PreviewFinalizeMatch(matchID uuid.UUID) (*model.FinalizePrev
 }
 
 // PreviewFinalizeAll computes what FinalizeAllMatches would do (read-only).
-func (s *WcService) PreviewFinalizeAll() (*model.FinalizePreviewResult, error) {
-	matches, err := s.repo.ListUnfinalizedScoredMatches()
+func (s *WcService) PreviewFinalizeAll(tournamentType string) (*model.FinalizePreviewResult, error) {
+	matches, err := s.repo.ListUnfinalizedScoredMatches(tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -859,8 +897,8 @@ func (s *WcService) PreviewFinalizeAll() (*model.FinalizePreviewResult, error) {
 }
 
 // PreviewRefinalizeAll computes what RefinalizeAllMatches would do (read-only).
-func (s *WcService) PreviewRefinalizeAll() (*model.FinalizePreviewResult, error) {
-	matches, err := s.repo.ListAllScoredMatches()
+func (s *WcService) PreviewRefinalizeAll(tournamentType string) (*model.FinalizePreviewResult, error) {
+	matches, err := s.repo.ListAllScoredMatches(tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -885,17 +923,18 @@ func (s *WcService) PreviewSettlement(pointRate float64) ([]*model.WcSettlementP
 	return s.repo.PreviewSettlement(pointRate)
 }
 
-func (s *WcService) CreateSettlement(adminID uuid.UUID, name string, pointRate float64, note string) (*model.WcSettlement, error) {
+func (s *WcService) CreateSettlement(tournamentType string, adminID uuid.UUID, name string, pointRate float64, note string) (*model.WcSettlement, error) {
 	wallets, err := s.repo.GetAllWallets()
 	if err != nil {
 		return nil, err
 	}
 
 	settlement := &model.WcSettlement{
-		Name:      name,
-		PointRate: pointRate,
-		SettledBy: adminID,
-		Note:      note,
+		TournamentType: tournamentType,
+		Name:           name,
+		PointRate:      pointRate,
+		SettledBy:      adminID,
+		Note:           note,
 	}
 
 	details := make([]*model.WcSettlementDetail, 0, len(wallets))
@@ -928,12 +967,12 @@ func (s *WcService) CreateSettlement(adminID uuid.UUID, name string, pointRate f
 	return settlement, nil
 }
 
-func (s *WcService) GetHousePnL() (*model.HousePnLResponse, error) {
-	return s.repo.GetHousePnL()
+func (s *WcService) GetHousePnL(tournamentType string) (*model.HousePnLResponse, error) {
+	return s.repo.GetHousePnL(tournamentType)
 }
 
-func (s *WcService) ListSettlements() ([]*model.WcSettlement, error) {
-	return s.repo.ListSettlements()
+func (s *WcService) ListSettlements(tournamentType string) ([]*model.WcSettlement, error) {
+	return s.repo.ListSettlements(tournamentType)
 }
 
 func (s *WcService) GetSettlement(id uuid.UUID) (*model.WcSettlementWithDetails, error) {
@@ -1055,7 +1094,7 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 	if user.IsBlocked {
 		return nil, fmt.Errorf("user is blocked from placing bets")
 	}
-	betCfg, err := s.repo.GetConfig()
+	betCfg, err := s.repo.GetConfig(m.TournamentType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config")
 	}
@@ -1110,6 +1149,7 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 
 	originalStake := req.Stake
 	bet := &model.WcBet{
+		TournamentType:       m.TournamentType,
 		WcUserID:             wcUserID,
 		MatchID:              req.MatchID,
 		BetType:              req.BetType,
@@ -1134,8 +1174,8 @@ func (s *WcService) PlaceBet(wcUserID uuid.UUID, req PlaceBetRequest) (*model.Wc
 	return bet, nil
 }
 
-func (s *WcService) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
-	return s.repo.ListBets(wcUserID)
+func (s *WcService) ListBets(wcUserID uuid.UUID, tournamentType string) ([]*model.WcBetWithMatch, error) {
+	return s.repo.ListBets(wcUserID, tournamentType)
 }
 
 func (s *WcService) ListBetsForMatch(matchID uuid.UUID) ([]*model.WcBetPublic, error) {
@@ -1150,13 +1190,6 @@ type ReduceStakePreview struct {
 }
 
 func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
-	cfg, err := s.repo.GetConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load config")
-	}
-	if stake < cfg.MinPoints || stake > cfg.MaxPoints {
-		return fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
-	}
 	bet, err := s.repo.GetBet(betID)
 	if err != nil {
 		return fmt.Errorf("bet not found")
@@ -1176,6 +1209,13 @@ func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
 	}
 	if isBetLocked(m) {
 		return fmt.Errorf("betting is closed for this match")
+	}
+	cfg, err := s.repo.GetConfig(m.TournamentType)
+	if err != nil {
+		return fmt.Errorf("failed to load config")
+	}
+	if stake < cfg.MinPoints || stake > cfg.MaxPoints {
+		return fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
 	}
 
 	var penalty float64
@@ -1230,7 +1270,11 @@ func (s *WcService) PreviewReduceStake(wcUserID, betID uuid.UUID, newStake int) 
 		return &ReduceStakePreview{}, nil
 	}
 
-	cfg, err := s.repo.GetConfig()
+	m, err := s.repo.GetMatch(bet.MatchID)
+	if err != nil {
+		return nil, fmt.Errorf("match not found")
+	}
+	cfg, err := s.repo.GetConfig(m.TournamentType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config")
 	}
@@ -1265,7 +1309,7 @@ func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
 		return fmt.Errorf("betting is closed for this match")
 	}
 
-	cfg, err := s.repo.GetConfig()
+	cfg, err := s.repo.GetConfig(m.TournamentType)
 	if err != nil {
 		return fmt.Errorf("failed to load config")
 	}
@@ -1314,8 +1358,8 @@ func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
 
 // GetBetHistory returns the combined settled + cancelled history for a user
 // (regular bets + custom bet entries), sorted chronologically newest-first.
-func (s *WcService) GetBetHistory(wcUserID uuid.UUID) ([]model.BetHistoryItem, error) {
-	regularBets, err := s.repo.ListBetHistoryForUser(wcUserID)
+func (s *WcService) GetBetHistory(wcUserID uuid.UUID, tournamentType string) ([]model.BetHistoryItem, error) {
+	regularBets, err := s.repo.ListBetHistoryForUser(wcUserID, tournamentType)
 	if err != nil {
 		return nil, err
 	}
@@ -1406,11 +1450,11 @@ func sortBetHistoryNewestFirst(items []model.BetHistoryItem) {
 }
 
 // SetPenaltyConfig updates the cancel + reduce-stake penalty settings.
-func (s *WcService) SetPenaltyConfig(cancelEnabled bool, cancelPercent, reduceMaxPercent, reducePenaltyPercent int, updatedBy uuid.UUID) error {
+func (s *WcService) SetPenaltyConfig(tournamentType string, cancelEnabled bool, cancelPercent, reduceMaxPercent, reducePenaltyPercent int, updatedBy uuid.UUID) error {
 	if err := validatePenaltyConfig(cancelPercent, reduceMaxPercent, reducePenaltyPercent); err != nil {
 		return err
 	}
-	return s.repo.UpdatePenaltyConfig(cancelEnabled, cancelPercent, reduceMaxPercent, reducePenaltyPercent, &updatedBy)
+	return s.repo.UpdatePenaltyConfig(tournamentType, cancelEnabled, cancelPercent, reduceMaxPercent, reducePenaltyPercent, &updatedBy)
 }
 
 // BackfillOriginalPoints sets original_points = points for predictions where original_points IS NULL.
@@ -1548,6 +1592,9 @@ func isBetLocked(m *model.WcMatch) bool {
 	if m.Status == model.WcStatusLive || m.Status == model.WcStatusCompleted || m.Status == model.WcStatusCancelled {
 		return true
 	}
+	if time.Now().After(m.MatchDate) {
+		return true
+	}
 	if m.BetsLockedAt != nil && time.Now().After(*m.BetsLockedAt) {
 		return true
 	}
@@ -1559,6 +1606,9 @@ func isLocked(m *model.WcMatch) bool {
 		return true
 	}
 	if !m.PredictionsOpen {
+		return true
+	}
+	if time.Now().After(m.MatchDate) {
 		return true
 	}
 	if m.PredictionsLockedAt != nil && time.Now().After(*m.PredictionsLockedAt) {
@@ -1824,8 +1874,8 @@ func evaluateOverUnderBet(bet *model.WcBet, homeScore, awayScore int) (string, f
 
 // GetGroupStandings computes sorted group-stage standings from match data.
 // Teams are sorted: points DESC → goal_difference DESC → goals_for DESC → team_name ASC.
-func (s *WcService) GetGroupStandings() (*model.WcStandingsResponse, error) {
-	groups, err := s.repo.GetGroupStandings()
+func (s *WcService) GetGroupStandings(tournamentType string) (*model.WcStandingsResponse, error) {
+	groups, err := s.repo.GetGroupStandings(tournamentType)
 	if err != nil {
 		return nil, err
 	}

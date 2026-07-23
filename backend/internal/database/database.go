@@ -151,6 +151,31 @@ func runSchemaMigrations(db *gorm.DB) error {
 		// Replace standard unique index with partial one so cancelled custom bet entries don't block re-placement
 		`DROP INDEX IF EXISTS idx_custom_bet_entry_dedup`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_bet_entry_dedup ON wc_custom_bet_entries(custom_bet_id, wc_user_id) WHERE cancelled_at IS NULL`,
+		// Multi-tournament support: add tournament_type discriminator to all WC tables
+		`ALTER TABLE wc_config ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_config_tournament_type ON wc_config(tournament_type)`,
+		`ALTER TABLE wc_matches ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE INDEX IF NOT EXISTS idx_wc_matches_tournament_type ON wc_matches(tournament_type)`,
+		`ALTER TABLE wc_bets ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE INDEX IF NOT EXISTS idx_wc_bets_tournament_type ON wc_bets(tournament_type)`,
+		`ALTER TABLE wc_predictions ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE INDEX IF NOT EXISTS idx_wc_predictions_tournament_type ON wc_predictions(tournament_type)`,
+		`ALTER TABLE wc_custom_bets ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE INDEX IF NOT EXISTS idx_wc_custom_bets_tournament_type ON wc_custom_bets(tournament_type)`,
+		`ALTER TABLE wc_settlements ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE INDEX IF NOT EXISTS idx_wc_settlements_tournament_type ON wc_settlements(tournament_type)`,
+		`ALTER TABLE wc_sync_logs ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`ALTER TABLE wc_champion_config ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_champion_config_tournament_type ON wc_champion_config(tournament_type)`,
+		// Champion teams: replace single-column unique on name with composite (name, tournament_type)
+		`DROP INDEX IF EXISTS idx_wc_champion_teams_name`,
+		`ALTER TABLE wc_champion_teams ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_champion_team_name_tournament ON wc_champion_teams(name, tournament_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_wc_champion_teams_tournament_type ON wc_champion_teams(tournament_type)`,
+		// Champion predictions: add tournament_type to unique index (user+team per tournament)
+		`DROP INDEX IF EXISTS idx_wc_champion_pred_user_team`,
+		`ALTER TABLE wc_champion_predictions ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_champion_pred_user_team ON wc_champion_predictions(wc_user_id, team_id, tournament_type)`,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {
@@ -161,11 +186,17 @@ func runSchemaMigrations(db *gorm.DB) error {
 }
 
 func seedWcConfig(db *gorm.DB) {
-	// Ensure single wc_config row exists (is_enabled = false by default)
+	// Ensure world_cup config row exists
 	var cfg model.WcConfig
-	if err := db.First(&cfg, 1).Error; err != nil {
-		db.Create(&model.WcConfig{ID: 1, IsEnabled: false})
-		log.Println("Seeded wc_config: is_enabled = false")
+	if err := db.Where("tournament_type = ?", model.WcTournamentWorldCup).First(&cfg).Error; err != nil {
+		db.Create(&model.WcConfig{ID: 1, TournamentType: model.WcTournamentWorldCup, IsEnabled: false})
+		log.Println("Seeded wc_config: world_cup row")
+	}
+	// Ensure asean_cup config row exists
+	var acCfg model.WcConfig
+	if err := db.Where("tournament_type = ?", model.WcTournamentAseanCup).First(&acCfg).Error; err != nil {
+		db.Create(&model.WcConfig{ID: 2, TournamentType: model.WcTournamentAseanCup, IsEnabled: false})
+		log.Println("Seeded wc_config: asean_cup row")
 	}
 
 	// Seed first WC admin from env vars (optional — skip if not set)
@@ -191,19 +222,23 @@ func seedWcConfig(db *gorm.DB) {
 }
 
 func seedWcChampion(db *gorm.DB) {
-	// Singleton champion config
+	// Ensure world_cup champion config row exists
 	var cfg model.WcChampionConfig
-	if err := db.First(&cfg, 1).Error; err != nil {
-		db.Create(&model.WcChampionConfig{ID: 1, IsOpen: false})
-		log.Println("Seeded wc_champion_config: is_open = false")
+	if err := db.Where("tournament_type = ?", model.WcTournamentWorldCup).First(&cfg).Error; err != nil {
+		db.Create(&model.WcChampionConfig{ID: 1, TournamentType: model.WcTournamentWorldCup, IsOpen: false})
+		log.Println("Seeded wc_champion_config: world_cup row")
+	}
+	// Ensure asean_cup champion config row exists
+	var acCfg model.WcChampionConfig
+	if err := db.Where("tournament_type = ?", model.WcTournamentAseanCup).First(&acCfg).Error; err != nil {
+		db.Create(&model.WcChampionConfig{ID: 2, TournamentType: model.WcTournamentAseanCup, IsOpen: false})
+		log.Println("Seeded wc_champion_config: asean_cup row")
 	}
 
-	// Seed teams only if table is empty
+	// Seed WC teams only if none exist for world_cup
 	var count int64
-	db.Model(&model.WcChampionTeam{}).Count(&count)
-	if count > 0 {
-		return
-	}
+	db.Model(&model.WcChampionTeam{}).Where("tournament_type = ?", model.WcTournamentWorldCup).Count(&count)
+	if count == 0 {
 	// WC 2026 — 48 teams, odds tiered by strength.
 	// sum(1/odds) ≈ 1.05 (slight house edge). Admin can update any odds via API.
 	teams := []model.WcChampionTeam{
@@ -262,10 +297,37 @@ func seedWcChampion(db *gorm.DB) {
 		{Name: "Venezuela", Code: "VEN", FlagEmoji: "🇻🇪", Odds: 110.00},
 		{Name: "Tunisia", Code: "TUN", FlagEmoji: "🇹🇳", Odds: 120.00},
 	}
+	for i := range teams {
+		teams[i].TournamentType = model.WcTournamentWorldCup
+	}
 	if err := db.Create(&teams).Error; err != nil {
 		log.Printf("⚠️  Failed to seed champion teams: %v", err)
 	} else {
 		log.Printf("Seeded %d WC champion teams", len(teams))
+	}
+	} // end if count == 0
+
+	// Seed ASEAN Cup teams only if none exist for asean_cup
+	var acTeamCount int64
+	db.Model(&model.WcChampionTeam{}).Where("tournament_type = ?", model.WcTournamentAseanCup).Count(&acTeamCount)
+	if acTeamCount == 0 {
+		acTeams := []model.WcChampionTeam{
+			{TournamentType: model.WcTournamentAseanCup, Name: "Thailand", Code: "THA", FlagEmoji: "🇹🇭", Odds: 2.50},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Vietnam", Code: "VIE", FlagEmoji: "🇻🇳", Odds: 3.50},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Indonesia", Code: "IDN", FlagEmoji: "🇮🇩", Odds: 4.00},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Malaysia", Code: "MAS", FlagEmoji: "🇲🇾", Odds: 5.00},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Philippines", Code: "PHI", FlagEmoji: "🇵🇭", Odds: 8.00},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Singapore", Code: "SGP", FlagEmoji: "🇸🇬", Odds: 10.00},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Myanmar", Code: "MYA", FlagEmoji: "🇲🇲", Odds: 15.00},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Cambodia", Code: "CAM", FlagEmoji: "🇰🇭", Odds: 20.00},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Laos", Code: "LAO", FlagEmoji: "🇱🇦", Odds: 25.00},
+			{TournamentType: model.WcTournamentAseanCup, Name: "Timor-Leste", Code: "TLS", FlagEmoji: "🇹🇱", Odds: 30.00},
+		}
+		if err := db.Create(&acTeams).Error; err != nil {
+			log.Printf("⚠️  Failed to seed ASEAN Cup champion teams: %v", err)
+		} else {
+			log.Printf("Seeded %d ASEAN Cup champion teams", len(acTeams))
+		}
 	}
 }
 

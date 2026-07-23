@@ -21,15 +21,16 @@ const (
 )
 
 type WcCustomBet struct {
-	ID        uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	MatchID   uuid.UUID  `gorm:"type:uuid;not null;index" json:"match_id"`
-	Title     string     `gorm:"type:varchar(300);not null" json:"title"`
-	Line      *float64   `gorm:"type:numeric(6,2)" json:"line,omitempty"`
-	Status    string     `gorm:"type:varchar(20);not null;default:'open'" json:"status"`
-	CreatedBy *uuid.UUID `gorm:"type:uuid" json:"created_by,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	SettledAt *time.Time `json:"settled_at,omitempty"`
-	SettledBy *uuid.UUID `gorm:"type:uuid" json:"settled_by,omitempty"`
+	ID             uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	TournamentType string     `gorm:"type:varchar(20);not null;default:'world_cup';index:idx_wc_custom_bets_tournament_type" json:"tournament_type"`
+	MatchID        uuid.UUID  `gorm:"type:uuid;not null;index" json:"match_id"`
+	Title          string     `gorm:"type:varchar(300);not null" json:"title"`
+	Line           *float64   `gorm:"type:numeric(6,2)" json:"line,omitempty"`
+	Status         string     `gorm:"type:varchar(20);not null;default:'open'" json:"status"`
+	CreatedBy      *uuid.UUID `gorm:"type:uuid" json:"created_by,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	SettledAt      *time.Time `json:"settled_at,omitempty"`
+	SettledBy      *uuid.UUID `gorm:"type:uuid" json:"settled_by,omitempty"`
 }
 
 func (WcCustomBet) TableName() string { return "wc_custom_bets" }

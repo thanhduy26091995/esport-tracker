@@ -294,7 +294,7 @@ func TestPrediction_List_IncludesCancelled(t *testing.T) {
 	_, err = svc.DeletePrediction(user.ID, pred.ID)
 	require.NoError(t, err)
 
-	preds, err := svc.ListPredictions(user.ID)
+	preds, err := svc.ListPredictions(user.ID, "world_cup")
 	require.NoError(t, err)
 
 	found := false

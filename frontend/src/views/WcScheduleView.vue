@@ -4,14 +4,14 @@
       <div class="page-header">
         <div class="page-header-left">
           <h1 class="page-title wc-page-title">
-            🏆 World Cup 2026
+            {{ tournamentTitle }}
           </h1>
           <p class="page-subtitle">{{ t('wc.schedule') }}</p>
         </div>
         <div class="wc-schedule-header-right">
           <template v-if="featureEnabled">
             <router-link
-              :to="wcAuthStore.isLoggedIn ? { name: 'wc-predict' } : { name: 'wc-login' }"
+              :to="wcAuthStore.isLoggedIn ? predictRoute : loginRoute"
               class="wc-cta-btn"
             >
               🏆 Vào trang dự đoán
@@ -20,21 +20,21 @@
           <template v-else>
             <router-link
               v-if="wcAuthStore.isLoggedIn && wcAuthStore.isAdmin"
-              :to="{ name: 'wc-admin' }"
+              :to="adminRoute"
               class="wc-admin-link"
             >
               {{ t('wc.adminPanel') }}
             </router-link>
             <router-link
               v-else-if="wcAuthStore.isLoggedIn"
-              :to="{ name: 'wc-predict' }"
+              :to="predictRoute"
               class="wc-predict-link"
             >
               {{ t('wc.predicting') }}
             </router-link>
             <router-link
               v-else
-              :to="{ name: 'wc-login' }"
+              :to="loginRoute"
               class="wc-login-link"
             >
               {{ t('wc.login') }}
@@ -91,7 +91,8 @@ import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useWcStore } from '@/stores/wcStore'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
-import { getStandings } from '@/services/wcPublicApi'
+import { getStandings, getTournamentConfig } from '@/services/wcPublicApi'
+import { useTournamentRoutes } from '@/composables/useTournamentRoutes'
 import WcGroupFilter from '@/components/wc/WcGroupFilter.vue'
 import WcMatchCard from '@/components/wc/WcMatchCard.vue'
 import WcGroupStandings from '@/components/wc/WcGroupStandings.vue'
@@ -102,6 +103,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useWcStore()
 const wcAuthStore = useWcAuthStore()
+const { isAc, tournamentTitle, predictRoute, loginRoute, adminRoute } = useTournamentRoutes()
 
 const selectedFilter = ref('')
 const featureEnabled = ref(false)
@@ -214,7 +216,7 @@ async function scrollToTargetDateGroup() {
 onMounted(async () => {
   await store.fetchMatches()
   try {
-    standingsData.value = await getStandings()
+    standingsData.value = await getStandings(isAc.value ? 'ac' : 'wc')
   } catch { /* standings are supplementary — fail silently */ }
   const defaultFilter = computeDefaultFilter(store.matches)
   if (defaultFilter) {
@@ -233,12 +235,11 @@ onMounted(async () => {
   selectedFilter.value = defaultFilter
   scrollToTargetDateGroup()
   try {
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1') + '/wc'
-    const res = await fetch(`${apiBase}/config`)
-    const data = await res.json()
+    const prefix = isAc.value ? 'ac' : 'wc'
+    const data = await getTournamentConfig(prefix)
     featureEnabled.value = !!data.is_enabled
     if (featureEnabled.value && !route.query.direct) {
-      router.replace(wcAuthStore.isLoggedIn ? { name: 'wc-predict' } : { name: 'wc-login' })
+      router.replace(wcAuthStore.isLoggedIn ? predictRoute.value : loginRoute.value)
     }
   } catch { /* ignore */ }
 })

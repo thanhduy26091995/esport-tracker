@@ -6,6 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// Tournament type constants
+const (
+	WcTournamentWorldCup = "world_cup"
+	WcTournamentAseanCup = "asean_cup"
+)
+
 // Match status constants
 const (
 	WcStatusScheduled = "scheduled"
@@ -82,6 +88,7 @@ const (
 
 type WcMatch struct {
 	ID                  uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	TournamentType      string     `gorm:"type:varchar(20);not null;default:'world_cup';index:idx_wc_matches_tournament_type" json:"tournament_type"`
 	ExternalID          string     `gorm:"type:varchar(64);uniqueIndex" json:"external_id"`
 	HomeTeam            string     `gorm:"type:varchar(100);not null" json:"home_team"`
 	AwayTeam            string     `gorm:"type:varchar(100);not null" json:"away_team"`
@@ -165,6 +172,7 @@ func (WcWalletLog) TableName() string {
 type WcPrediction struct {
 	ID uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 
+	TournamentType string    `gorm:"type:varchar(20);not null;default:'world_cup';index:idx_wc_predictions_tournament_type" json:"tournament_type"`
 	WcUserID       uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_prediction_hc_dedup;uniqueIndex:idx_prediction_es_dedup" json:"wc_user_id"`
 	MatchID        uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_prediction_hc_dedup;uniqueIndex:idx_prediction_es_dedup" json:"match_id"`
 	PredictionType string    `gorm:"type:varchar(15);not null;uniqueIndex:idx_prediction_hc_dedup" json:"prediction_type"`
@@ -195,12 +203,13 @@ func (WcPrediction) TableName() string {
 }
 
 type WcSettlement struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	Name      string    `gorm:"type:varchar(100);not null" json:"name"`
-	PointRate float64   `gorm:"type:numeric(10,2);not null" json:"point_rate"`
-	SettledBy uuid.UUID `gorm:"type:uuid;not null" json:"settled_by"`
-	Note      string    `gorm:"type:varchar(255)" json:"note"`
-	CreatedAt time.Time `json:"created_at"`
+	ID             uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	TournamentType string    `gorm:"type:varchar(20);not null;default:'world_cup';index:idx_wc_settlements_tournament_type" json:"tournament_type"`
+	Name           string    `gorm:"type:varchar(100);not null" json:"name"`
+	PointRate      float64   `gorm:"type:numeric(10,2);not null" json:"point_rate"`
+	SettledBy      uuid.UUID `gorm:"type:uuid;not null" json:"settled_by"`
+	Note           string    `gorm:"type:varchar(255)" json:"note"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 func (WcSettlement) TableName() string {
@@ -240,6 +249,7 @@ func (WcScoreOdds) TableName() string { return "wc_score_odds" }
 // WcBet stores a real-money bet placed by a user on a match.
 type WcBet struct {
 	ID                   uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	TournamentType       string     `gorm:"type:varchar(20);not null;default:'world_cup';index:idx_wc_bets_tournament_type" json:"tournament_type"`
 	WcUserID             uuid.UUID  `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"wc_user_id"`
 	MatchID              uuid.UUID  `gorm:"type:uuid;not null;index;uniqueIndex:idx_bet_hc_dedup;uniqueIndex:idx_bet_es_dedup" json:"match_id"`
 	BetType              string     `gorm:"type:varchar(15);not null;uniqueIndex:idx_bet_hc_dedup" json:"bet_type"`
@@ -386,6 +396,7 @@ type WcSettlementDetailWithUser struct {
 // WcSyncLog records each sync operation (manual or cron).
 type WcSyncLog struct {
 	ID             uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	TournamentType string     `gorm:"type:varchar(20);not null;default:'world_cup'" json:"tournament_type"`
 	Trigger        string     `gorm:"type:varchar(20);not null" json:"trigger"`
 	SyncType       string     `gorm:"type:varchar(20);not null" json:"sync_type"`
 	TriggeredBy    *uuid.UUID `gorm:"type:uuid" json:"triggered_by"`

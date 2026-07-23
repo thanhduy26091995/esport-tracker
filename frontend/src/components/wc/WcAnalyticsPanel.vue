@@ -1,7 +1,7 @@
 <template>
   <div class="wc-analytics-panel">
     <el-tabs v-model="analyticsTab" class="analytics-sub-tabs">
-      <el-tab-pane :label="t('wc.analytics.wc2026Tab')" name="wc2026">
+      <el-tab-pane v-if="!isAc" :label="t('wc.analytics.wc2026Tab')" name="tournament">
         <WcTournamentPanel
           :data="store.wc2026Data"
           :loading="store.wc2026Loading"
@@ -31,7 +31,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWcAnalyticsStore } from '@/stores/wcAnalyticsStore'
 import WcTournamentPanel from './analytics/WcTournamentPanel.vue'
@@ -40,8 +41,10 @@ import CommunityPanel from './analytics/CommunityPanel.vue'
 import ComparePanel from './analytics/ComparePanel.vue'
 
 const { t } = useI18n()
+const route = useRoute()
+const isAc = computed(() => route.meta?.tournamentType === 'asean_cup')
 const store = useWcAnalyticsStore()
-const analyticsTab = ref('wc2026')
+const analyticsTab = ref(isAc.value ? 'my' : 'tournament')
 
 interface PeriodPayload {
   period: string
@@ -60,7 +63,8 @@ watch(analyticsTab, async (tab) => {
 })
 
 onMounted(async () => {
-  if (!store.wc2026Data) await store.loadWC2026Analytics()
+  if (!isAc.value && !store.wc2026Data) await store.loadWC2026Analytics()
+  if (!store.myData) await store.loadMyAnalytics()
 })
 </script>
 

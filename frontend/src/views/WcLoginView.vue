@@ -57,7 +57,7 @@
       </div>
 
       <div class="wc-auth-back">
-        <router-link to="/world-cup" class="wc-back-link">
+        <router-link :to="scheduleRoute" class="wc-back-link">
           <el-icon><ArrowLeft /></el-icon>
           {{ t('wc.schedule') }}
         </router-link>
@@ -73,10 +73,12 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Trophy, User, Lock, ArrowLeft } from '@element-plus/icons-vue'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
+import { useTournamentRoutes } from '@/composables/useTournamentRoutes'
 
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useWcAuthStore()
+const { scheduleRoute, predictPath } = useTournamentRoutes()
 
 const form = ref({ name: '', password: '' })
 
@@ -84,9 +86,7 @@ async function handleLogin() {
   if (!form.value.name || !form.value.password) return
   try {
     await authStore.login(form.value.name, form.value.password)
-    // Router guard will redirect to /world-cup/link-google if not yet linked,
-    // or to /world-cup/predict if already linked.
-    router.push('/world-cup/predict')
+    router.push(predictPath.value)
   } catch { /* error shown by store/api interceptor */ }
 }
 
@@ -116,7 +116,7 @@ onMounted(() => {
 async function handleGoogleCredential(response: { credential: string }) {
   try {
     await authStore.loginWithGoogle(response.credential)
-    router.push('/world-cup/predict')
+    router.push(predictPath.value)
   } catch {
     ElMessage.error('Đăng nhập Google thất bại. Vui lòng thử lại.')
   }

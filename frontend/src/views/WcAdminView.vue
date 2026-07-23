@@ -3,7 +3,7 @@
     <div class="page-container">
       <div class="page-header">
         <div class="page-header-left">
-          <h1 class="page-title">🏆 World Cup 2026</h1>
+          <h1 class="page-title">{{ tournamentTitle }}</h1>
           <p class="page-subtitle">{{ t('wc.adminPanel') }}</p>
         </div>
         <div class="wc-user-header">
@@ -21,18 +21,23 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import WcAdminPanel from '@/components/wc/WcAdminPanel.vue'
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
 const authStore = useWcAuthStore()
+
+const isAc = computed(() => route.meta?.tournamentType === 'asean_cup')
+const tournamentTitle = computed(() => isAc.value ? '🏆 ASEAN Cup 2026' : '🏆 World Cup 2026')
 
 function handleLogout() {
   authStore.logout()
-  router.push('/world-cup/login')
+  router.push(isAc.value ? '/asean-cup/login' : '/world-cup/login')
 }
 </script>
 

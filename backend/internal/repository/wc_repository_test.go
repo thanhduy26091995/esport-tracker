@@ -23,13 +23,14 @@ func openWcRepoTestDB(t *testing.T) (*WcRepository, *gorm.DB) {
 func seedMatchAt(t *testing.T, db *gorm.DB, matchDate time.Time, status string) *model.WcMatch {
 	t.Helper()
 	m := &model.WcMatch{
-		ID:         uuid.New(),
-		ExternalID: uuid.NewString(),
-		HomeTeam:   "Team A",
-		AwayTeam:   "Team B",
-		MatchDate:  matchDate,
-		Stage:      model.WcStageGroup,
-		Status:     status,
+		ID:             uuid.New(),
+		TournamentType: model.WcTournamentWorldCup,
+		ExternalID:     uuid.NewString(),
+		HomeTeam:       "Team A",
+		AwayTeam:       "Team B",
+		MatchDate:      matchDate,
+		Stage:          model.WcStageGroup,
+		Status:         status,
 	}
 	require.NoError(t, db.Create(m).Error)
 	t.Cleanup(func() { db.Unscoped().Delete(m) })
@@ -48,7 +49,7 @@ func TestListMatches_DateRange_InWindowReturned(t *testing.T) {
 	inside := seedMatchAt(t, db, now.Add(24*time.Hour), model.WcStatusScheduled)
 	after := seedMatchAt(t, db, to.Add(1*time.Second), model.WcStatusScheduled)
 
-	matches, err := repo.ListMatches(MatchFilter{
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		DateFrom: from.Format(time.RFC3339),
 		DateTo:   to.Format(time.RFC3339),
 	})
@@ -68,7 +69,7 @@ func TestListMatches_DateRange_BoundariesInclusive(t *testing.T) {
 	atFrom := seedMatchAt(t, db, from, model.WcStatusScheduled)
 	atTo := seedMatchAt(t, db, to, model.WcStatusScheduled)
 
-	matches, err := repo.ListMatches(MatchFilter{
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		DateFrom: from.Format(time.RFC3339),
 		DateTo:   to.Format(time.RFC3339),
 	})
@@ -85,7 +86,7 @@ func TestListMatches_DateRange_EmptyFilter_ReturnsAll(t *testing.T) {
 	m1 := seedMatchAt(t, db, time.Now().Add(-10*time.Hour), model.WcStatusCompleted)
 	m2 := seedMatchAt(t, db, time.Now().Add(10*time.Hour), model.WcStatusScheduled)
 
-	matches, err := repo.ListMatches(MatchFilter{}) // no date filter
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{}) // no date filter
 
 	require.NoError(t, err)
 	ids := matchIDs(matches)
@@ -100,7 +101,7 @@ func TestListMatches_DateRange_OnlyDateFrom_LowerBoundOnly(t *testing.T) {
 	before := seedMatchAt(t, db, pivot.Add(-1*time.Second), model.WcStatusScheduled)
 	after := seedMatchAt(t, db, pivot.Add(1*time.Second), model.WcStatusScheduled)
 
-	matches, err := repo.ListMatches(MatchFilter{
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		DateFrom: pivot.Format(time.RFC3339),
 		// DateTo intentionally omitted
 	})
@@ -118,7 +119,7 @@ func TestListMatches_DateRange_OnlyDateTo_UpperBoundOnly(t *testing.T) {
 	before := seedMatchAt(t, db, pivot.Add(-1*time.Second), model.WcStatusScheduled)
 	after := seedMatchAt(t, db, pivot.Add(1*time.Second), model.WcStatusScheduled)
 
-	matches, err := repo.ListMatches(MatchFilter{
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		// DateFrom intentionally omitted
 		DateTo: pivot.Format(time.RFC3339),
 	})
@@ -140,7 +141,7 @@ func TestListMatches_DateRange_CombinedWithStatusFilter(t *testing.T) {
 	completed := seedMatchAt(t, db, now.Add(-2*time.Hour), model.WcStatusCompleted)
 
 	// Status=scheduled + date range: only scheduled matches
-	scheduledOnly, err := repo.ListMatches(MatchFilter{
+	scheduledOnly, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		Status:   model.WcStatusScheduled,
 		DateFrom: from.Format(time.RFC3339),
 		DateTo:   to.Format(time.RFC3339),
@@ -152,7 +153,7 @@ func TestListMatches_DateRange_CombinedWithStatusFilter(t *testing.T) {
 	assert.NotContains(t, ids, completed.ID, "completed match should be excluded by status filter")
 
 	// No status filter + date range: scheduled + live (completed also in window but status is separate concern)
-	all, err := repo.ListMatches(MatchFilter{
+	all, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		DateFrom: from.Format(time.RFC3339),
 		DateTo:   to.Format(time.RFC3339),
 	})
@@ -176,7 +177,7 @@ func TestListMatches_DateRange_LiveMatchLookback(t *testing.T) {
 
 	// Simulate dashboard: date_from = now - 4h, date_to = now + 72h (3 days)
 	lookbackFrom := now.Add(-4 * time.Hour)
-	matches, err := repo.ListMatches(MatchFilter{
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		DateFrom: lookbackFrom.Format(time.RFC3339),
 		DateTo:   now.Add(72 * time.Hour).Format(time.RFC3339),
 	})
@@ -197,7 +198,7 @@ func TestListMatches_DateRange_SortedByMatchDateASC(t *testing.T) {
 	m1 := seedMatchAt(t, db, now.Add(10*time.Hour), model.WcStatusScheduled)
 	m2 := seedMatchAt(t, db, now.Add(20*time.Hour), model.WcStatusScheduled)
 
-	matches, err := repo.ListMatches(MatchFilter{
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{
 		DateFrom: from.Format(time.RFC3339),
 		DateTo:   to.Format(time.RFC3339),
 	})
@@ -291,7 +292,7 @@ func TestGetGroupStandings_FullScenario(t *testing.T) {
 	// Scheduled match — must not affect standings
 	seedGroupMatch(t, db, "Group Z", "ARG", "ARG", "ESP", "ESP", nil, nil, model.WcStatusScheduled, d19)
 
-	groups, err := repo.GetGroupStandings()
+	groups, err := repo.GetGroupStandings(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	g := findGroupInStandings(groups, "Group Z")
@@ -359,7 +360,7 @@ func TestGetGroupStandings_ScheduledAndLiveMatchesExcludedFromStats(t *testing.T
 	// One live match in Group W (registers NZL and IRN in roster, no stats even with scores)
 	seedGroupMatch(t, db, "Group W", "NZL", "NZL", "IRN", "IRN", intPtr(1), intPtr(0), model.WcStatusLive, d1.Add(48*time.Hour))
 
-	groups, err := repo.GetGroupStandings()
+	groups, err := repo.GetGroupStandings(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	g := findGroupInStandings(groups, "Group W")
@@ -389,7 +390,7 @@ func TestGetGroupStandings_PreTournament_AllTeamsZeroStats(t *testing.T) {
 	seedGroupMatch(t, db, "Group V", "POR", "POR", "CMR", "CMR", nil, nil, model.WcStatusScheduled, d.Add(14*24*time.Hour))
 	seedGroupMatch(t, db, "Group V", "CRO", "CRO", "MAR", "MAR", nil, nil, model.WcStatusScheduled, d.Add(14*24*time.Hour+3*time.Hour))
 
-	groups, err := repo.GetGroupStandings()
+	groups, err := repo.GetGroupStandings(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	g := findGroupInStandings(groups, "Group V")
@@ -415,7 +416,7 @@ func TestGetGroupStandings_FormLimitedToLast5(t *testing.T) {
 		seedGroupMatch(t, db, "Group U", "URU", "URU", opp, opp, intPtr(1), intPtr(0), model.WcStatusCompleted, base.Add(time.Duration(i)*24*time.Hour))
 	}
 
-	groups, err := repo.GetGroupStandings()
+	groups, err := repo.GetGroupStandings(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	g := findGroupInStandings(groups, "Group U")
@@ -452,7 +453,7 @@ func TestGetGroupStandings_OnlyGroupStageReturned(t *testing.T) {
 	require.NoError(t, db.Create(m).Error)
 	t.Cleanup(func() { db.Unscoped().Delete(m) })
 
-	groups, err := repo.GetGroupStandings()
+	groups, err := repo.GetGroupStandings(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	// No group with empty name should appear
@@ -555,7 +556,7 @@ func TestGetLeaderboard_NetPointsFromWallet(t *testing.T) {
 	u := seedLbUser(t, db, pfx+"-Alice")
 	seedLbWallet(t, db, u.ID, 42.5)
 
-	entries, err := repo.GetLeaderboard()
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	entry := findLbEntry(entries, u.ID)
@@ -577,7 +578,7 @@ func TestGetLeaderboard_AdminTopupReflectedInNetPoints(t *testing.T) {
 		Where("id = ?", w.ID).
 		UpdateColumn("balance", gorm.Expr("balance + ?", 1.0)).Error)
 
-	entries, err := repo.GetLeaderboard()
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	entry := findLbEntry(entries, u.ID)
@@ -599,7 +600,7 @@ func TestGetLeaderboard_PredictionStatsAggregatedCorrectly(t *testing.T) {
 		seedLbPrediction(t, db, u.ID, m.ID, r)
 	}
 
-	entries, err := repo.GetLeaderboard()
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	entry := findLbEntry(entries, u.ID)
@@ -644,7 +645,7 @@ func TestGetLeaderboard_Ordering(t *testing.T) {
 		seedLbPrediction(t, db, grace.ID, m.ID, "correct")
 	}
 
-	entries, err := repo.GetLeaderboard()
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	pos := func(id uuid.UUID) int {
@@ -676,7 +677,7 @@ func TestGetLeaderboard_UserWithoutWalletExcluded(t *testing.T) {
 	u := seedLbUser(t, db, pfx+"-Heidi")
 	// intentionally no wallet seeded
 
-	entries, err := repo.GetLeaderboard()
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	for _, e := range entries {
@@ -700,7 +701,7 @@ func TestGetLeaderboard_UserWithNoBetsExcluded(t *testing.T) {
 	m := seedLbMatch(t, db)
 	seedLbPrediction(t, db, hasBets.ID, m.ID, "correct")
 
-	entries, err := repo.GetLeaderboard()
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	for _, e := range entries {
@@ -729,12 +730,104 @@ func TestGetLeaderboard_WalletBalanceShownForBettorWithNoPredictions(t *testing.
 		Where("id = ?", w.ID).
 		UpdateColumn("balance", -5.0).Error)
 
-	entries, err := repo.GetLeaderboard()
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	entry := findLbEntry(entries, u.ID)
 	require.NotNil(t, entry, "user with bets and wallet must appear in leaderboard")
 	assert.Equal(t, -5.0, entry.NetPoints)
+}
+
+// ─── Tournament isolation: ListMatches ───────────────────────────────────────
+
+func seedMatchWithTournament(t *testing.T, db *gorm.DB, tournamentType string) *model.WcMatch {
+	t.Helper()
+	m := &model.WcMatch{
+		ID:             uuid.New(),
+		TournamentType: tournamentType,
+		ExternalID:     uuid.NewString(),
+		HomeTeam:       "Alpha",
+		AwayTeam:       "Beta",
+		MatchDate:      time.Now().Add(24 * time.Hour),
+		Stage:          model.WcStageGroup,
+		Status:         model.WcStatusScheduled,
+	}
+	require.NoError(t, db.Create(m).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(m) })
+	return m
+}
+
+func TestListMatches_TournamentIsolation_WcDoesNotReturnAc(t *testing.T) {
+	repo, db := openWcRepoTestDB(t)
+
+	wcMatch := seedMatchWithTournament(t, db, model.WcTournamentWorldCup)
+	acMatch := seedMatchWithTournament(t, db, model.WcTournamentAseanCup)
+
+	matches, err := repo.ListMatches(model.WcTournamentWorldCup, MatchFilter{})
+	require.NoError(t, err)
+
+	ids := matchIDs(matches)
+	assert.Contains(t, ids, wcMatch.ID, "WC match must appear in WC list")
+	assert.NotContains(t, ids, acMatch.ID, "AC match must not appear in WC list")
+}
+
+func TestListMatches_TournamentIsolation_AcDoesNotReturnWc(t *testing.T) {
+	repo, db := openWcRepoTestDB(t)
+
+	wcMatch := seedMatchWithTournament(t, db, model.WcTournamentWorldCup)
+	acMatch := seedMatchWithTournament(t, db, model.WcTournamentAseanCup)
+
+	matches, err := repo.ListMatches(model.WcTournamentAseanCup, MatchFilter{})
+	require.NoError(t, err)
+
+	ids := matchIDs(matches)
+	assert.Contains(t, ids, acMatch.ID, "AC match must appear in AC list")
+	assert.NotContains(t, ids, wcMatch.ID, "WC match must not appear in AC list")
+}
+
+// ─── Tournament isolation: GetLeaderboard ────────────────────────────────────
+
+// TestGetLeaderboard_TournamentIsolation verifies that placing a prediction under
+// one tournament does not inflate or alter the leaderboard of the other tournament.
+// The leaderboard is wallet-based (net_points = wallet balance), so this specifically
+// checks that the prediction count columns (which are tournament-scoped) show zero
+// for the opposing tournament, while the user appears in neither if they have no wallet.
+func TestGetLeaderboard_TournamentIsolation(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	// User with a wallet and a WC prediction
+	u := seedLbUser(t, db, pfx+"-IsoUser")
+	seedLbWallet(t, db, u.ID, 10.0)
+
+	// Seed a WC match and a WC prediction for the user
+	wcMatch := &model.WcMatch{
+		ID:             uuid.New(),
+		TournamentType: model.WcTournamentWorldCup,
+		ExternalID:     uuid.NewString(),
+		HomeTeam:       "X",
+		AwayTeam:       "Y",
+		MatchDate:      time.Now().UTC(),
+		Stage:          model.WcStageGroup,
+		Status:         model.WcStatusCompleted,
+	}
+	require.NoError(t, db.Create(wcMatch).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(wcMatch) })
+
+	seedLbPrediction(t, db, u.ID, wcMatch.ID, "correct")
+
+	// WC leaderboard: user must appear with correct prediction counted
+	wcEntries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
+	require.NoError(t, err)
+	wcEntry := findLbEntry(wcEntries, u.ID)
+	require.NotNil(t, wcEntry, "user must appear in WC leaderboard")
+	assert.Equal(t, 1, wcEntry.TotalPredictions, "WC leaderboard must count the WC prediction")
+
+	// AC leaderboard: user does NOT appear (no AC activity)
+	acEntries, err := repo.GetLeaderboard(model.WcTournamentAseanCup)
+	require.NoError(t, err)
+	acEntry := findLbEntry(acEntries, u.ID)
+	assert.Nil(t, acEntry, "user with only WC predictions must not appear in AC leaderboard")
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

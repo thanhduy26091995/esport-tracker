@@ -25,11 +25,11 @@
             :to="item.href"
             @click="mobileMenuOpen = false"
             class="nav-item"
-            :class="{ 'nav-item--active': isActiveRoute(item), 'nav-item--wc': item.highlight === 'wc' }"
+            :class="{ 'nav-item--active': isActiveRoute(item), 'nav-item--wc': item.highlight === 'wc', 'nav-item--ac': item.highlight === 'ac' }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
             <span>{{ t(item.navKey) }}</span>
-            <span v-if="item.highlight === 'wc'" class="nav-item-badge">2026</span>
+            <span v-if="item.highlight === 'wc' || item.highlight === 'ac'" class="nav-item-badge" :class="{ 'nav-item-badge--ac': item.highlight === 'ac' }">2026</span>
           </router-link>
         </nav>
         <div class="sidebar-lang">
@@ -57,11 +57,11 @@
             :key="item.navKey"
             :to="item.href"
             class="nav-item"
-            :class="{ 'nav-item--active': isActiveRoute(item), 'nav-item--wc': item.highlight === 'wc' }"
+            :class="{ 'nav-item--active': isActiveRoute(item), 'nav-item--wc': item.highlight === 'wc', 'nav-item--ac': item.highlight === 'ac' }"
           >
             <el-icon :size="18" class="nav-icon"><component :is="item.icon" /></el-icon>
             <span>{{ t(item.navKey) }}</span>
-            <span v-if="item.highlight === 'wc'" class="nav-item-badge">2026</span>
+            <span v-if="item.highlight === 'wc' || item.highlight === 'ac'" class="nav-item-badge" :class="{ 'nav-item-badge--ac': item.highlight === 'ac' }">2026</span>
           </router-link>
         </nav>
         <div class="sidebar-lang">
@@ -143,7 +143,7 @@ const { t } = useI18n()
 const route = useRoute()
 
 const isSocSite = import.meta.env.VITE_SITE === 'soc'
-const isWcRoute = computed(() => route.path.startsWith('/world-cup'))
+const isWcRoute = computed(() => route.path.startsWith('/world-cup') || route.path.startsWith('/asean-cup'))
 const appTitle = isSocSite ? t('common.appNameSoc') : t('common.appName')
 const appSubtitle = isSocSite ? t('layout.sidebarSubtitleSoc') : t('layout.sidebarSubtitle')
 const mobileMenuOpen = ref(false)
@@ -159,6 +159,7 @@ const reigningPlayerName = computed(() => userStore.users[0]?.name ?? '')
 
 const navigation = isSocSite
   ? [
+      { navKey: 'nav.aseanCup', href: '/asean-cup/predict', activePrefix: '/asean-cup', icon: Promotion, highlight: 'ac' },
       { navKey: 'nav.worldCup', href: '/world-cup/predict', activePrefix: '/world-cup', icon: Promotion, highlight: 'wc' }
     ]
   : [
@@ -168,6 +169,7 @@ const navigation = isSocSite
       { navKey: 'nav.tournaments', href: '/tournaments', icon: Grid },
       { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
       { navKey: 'nav.fund', href: '/fund', icon: Wallet },
+      { navKey: 'nav.aseanCup', href: '/asean-cup/predict', activePrefix: '/asean-cup', icon: Promotion, highlight: 'ac' },
       { navKey: 'nav.worldCup', href: '/world-cup/predict', activePrefix: '/world-cup', icon: Promotion, highlight: 'wc' },
       { navKey: 'nav.settings', href: '/settings', icon: Setting },
     ]
@@ -311,6 +313,17 @@ const todayLabel = computed(() => {
   color: #16a34a;
 }
 
+.nav-item--ac {
+  background: linear-gradient(90deg, rgba(234, 88, 12, 0.15) 0%, transparent 100%);
+  border: 1px solid rgba(234, 88, 12, 0.2);
+  color: #ea580c;
+}
+
+.nav-item--ac .nav-icon {
+  opacity: 1;
+  color: #ea580c;
+}
+
 .nav-item-badge {
   margin-left: auto;
   font-size: 10px;
@@ -321,6 +334,11 @@ const todayLabel = computed(() => {
   border-radius: 10px;
   letter-spacing: 0.02em;
   flex-shrink: 0;
+}
+
+.nav-item-badge--ac {
+  background: rgba(234, 88, 12, 0.18);
+  color: #ea580c;
 }
 
 .sidebar-footer {

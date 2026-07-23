@@ -118,13 +118,6 @@ func (s *WcCustomBetService) PlaceEntry(betID, userID, optionID uuid.UUID, stake
 	if user.IsBlocked {
 		return fmt.Errorf("user is blocked from placing bets")
 	}
-	cfg, err := s.wcRepo.GetConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load config")
-	}
-	if stake < cfg.MinPoints || stake > cfg.MaxPoints {
-		return fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
-	}
 	bet, err := s.repo.GetByID(betID)
 	if err != nil {
 		return fmt.Errorf("kèo không tồn tại")
@@ -135,6 +128,13 @@ func (s *WcCustomBetService) PlaceEntry(betID, userID, optionID uuid.UUID, stake
 	betMatch, err := s.wcRepo.GetMatch(bet.MatchID)
 	if err != nil {
 		return fmt.Errorf("match not found")
+	}
+	cfg, err := s.wcRepo.GetConfig(betMatch.TournamentType)
+	if err != nil {
+		return fmt.Errorf("failed to load config")
+	}
+	if stake < cfg.MinPoints || stake > cfg.MaxPoints {
+		return fmt.Errorf("điểm cược phải từ %d đến %d", cfg.MinPoints, cfg.MaxPoints)
 	}
 	if betMatch.Status == model.WcStatusLive || betMatch.Status == model.WcStatusCompleted || betMatch.Status == model.WcStatusCancelled {
 		return fmt.Errorf("không thể đặt cược khi trận đang diễn ra hoặc đã kết thúc")
@@ -208,7 +208,7 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 		return fmt.Errorf("không thể huỷ cược khi trận đang diễn ra hoặc đã kết thúc")
 	}
 
-	cfg, err := s.wcRepo.GetConfig()
+	cfg, err := s.wcRepo.GetConfig(cancelMatch.TournamentType)
 	if err != nil {
 		return fmt.Errorf("failed to load config")
 	}

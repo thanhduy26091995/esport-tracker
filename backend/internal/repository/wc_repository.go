@@ -35,18 +35,18 @@ type MatchFilter struct {
 
 // --- Config ---
 
-func (r *WcRepository) GetConfig() (*model.WcConfig, error) {
+func (r *WcRepository) GetConfig(tournamentType string) (*model.WcConfig, error) {
 	var cfg model.WcConfig
-	err := r.db.First(&cfg, 1).Error
+	err := r.db.Where("tournament_type = ?", tournamentType).First(&cfg).Error
 	if err != nil {
 		return nil, err
 	}
 	return &cfg, nil
 }
 
-func (r *WcRepository) UpdateConfig(isEnabled bool, updatedBy *uuid.UUID) error {
+func (r *WcRepository) UpdateConfig(tournamentType string, isEnabled bool, updatedBy *uuid.UUID) error {
 	return r.db.Model(&model.WcConfig{}).
-		Where("id = ?", 1).
+		Where("tournament_type = ?", tournamentType).
 		Updates(map[string]interface{}{
 			"is_enabled": isEnabled,
 			"updated_by": updatedBy,
@@ -54,9 +54,9 @@ func (r *WcRepository) UpdateConfig(isEnabled bool, updatedBy *uuid.UUID) error 
 		}).Error
 }
 
-func (r *WcRepository) UpdateBetLimits(min, max int, updatedBy *uuid.UUID) error {
+func (r *WcRepository) UpdateBetLimits(tournamentType string, min, max int, updatedBy *uuid.UUID) error {
 	return r.db.Model(&model.WcConfig{}).
-		Where("id = ?", 1).
+		Where("tournament_type = ?", tournamentType).
 		Updates(map[string]interface{}{
 			"min_points": min,
 			"max_points": max,
@@ -66,6 +66,10 @@ func (r *WcRepository) UpdateBetLimits(min, max int, updatedBy *uuid.UUID) error
 }
 
 // --- Matches ---
+
+func (r *WcRepository) CreateMatch(m *model.WcMatch) error {
+	return r.db.Create(m).Error
+}
 
 func (r *WcRepository) UpsertMatches(matches []model.WcMatch) error {
 	return r.db.Clauses(clause.OnConflict{
@@ -93,8 +97,8 @@ func (r *WcRepository) UpsertMatches(matches []model.WcMatch) error {
 	}).Create(&matches).Error
 }
 
-func (r *WcRepository) ListMatches(f MatchFilter) ([]*model.WcMatch, error) {
-	q := r.db.Order("match_date ASC")
+func (r *WcRepository) ListMatches(tournamentType string, f MatchFilter) ([]*model.WcMatch, error) {
+	q := r.db.Where("tournament_type = ?", tournamentType).Order("match_date ASC")
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)
 	}
@@ -117,18 +121,18 @@ func (r *WcRepository) ListMatches(f MatchFilter) ([]*model.WcMatch, error) {
 	return matches, q.Find(&matches).Error
 }
 
-func (r *WcRepository) ListUnfinalizedScoredMatches() ([]*model.WcMatch, error) {
+func (r *WcRepository) ListUnfinalizedScoredMatches(tournamentType string) ([]*model.WcMatch, error) {
 	var matches []*model.WcMatch
 	return matches, r.db.
-		Where("home_score IS NOT NULL AND away_score IS NOT NULL AND settled_at IS NULL AND status != ?", model.WcStatusLive).
+		Where("tournament_type = ? AND home_score IS NOT NULL AND away_score IS NOT NULL AND settled_at IS NULL AND status != ?", tournamentType, model.WcStatusLive).
 		Order("match_date ASC").
 		Find(&matches).Error
 }
 
-func (r *WcRepository) ListAllScoredMatches() ([]*model.WcMatch, error) {
+func (r *WcRepository) ListAllScoredMatches(tournamentType string) ([]*model.WcMatch, error) {
 	var matches []*model.WcMatch
 	return matches, r.db.
-		Where("home_score IS NOT NULL AND away_score IS NOT NULL AND status != ?", model.WcStatusLive).
+		Where("tournament_type = ? AND home_score IS NOT NULL AND away_score IS NOT NULL AND status != ?", tournamentType, model.WcStatusLive).
 		Order("match_date ASC").
 		Find(&matches).Error
 }
@@ -305,12 +309,12 @@ func (r *WcRepository) CreatePrediction(tx *gorm.DB, bet *model.WcPrediction) er
 	return db.Create(bet).Error
 }
 
-func (r *WcRepository) ListPredictions(wcUserID uuid.UUID) ([]*model.WcPredictionWithMatch, error) {
+func (r *WcRepository) ListPredictions(wcUserID uuid.UUID, tournamentType string) ([]*model.WcPredictionWithMatch, error) {
 	var bets []*model.WcPredictionWithMatch
 	err := r.db.Table("wc_predictions b").
 		Select("b.*, m.home_team, m.away_team, m.match_date, m.status AS match_status, m.predictions_open, m.predictions_locked_at").
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
-		Where("b.wc_user_id = ?", wcUserID).
+		Where("b.wc_user_id = ? AND b.tournament_type = ?", wcUserID, tournamentType).
 		Order("b.created_at DESC").
 		Scan(&bets).Error
 	return bets, err
@@ -403,7 +407,7 @@ func (r *WcRepository) UpdatePredictionResult(tx *gorm.DB, betID uuid.UUID, resu
 		Updates(map[string]interface{}{"result": result, "points_earned": pointsEarned}).Error
 }
 
-func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
+func (r *WcRepository) GetLeaderboard(tournamentType string) ([]*model.WcLeaderboardEntry, error) {
 	rows := make([]*model.WcLeaderboardEntry, 0)
 	err := r.db.Raw(`
 		SELECT
@@ -411,35 +415,36 @@ func (r *WcRepository) GetLeaderboard() ([]*model.WcLeaderboardEntry, error) {
 			u.name,
 			u.avatar_url,
 			u.is_bot,
-			COALESCE(w.balance, 0)              AS net_points,
-			COALESCE(pred.total_predictions, 0) AS total_predictions,
-			COALESCE(pred.correct, 0)           AS correct,
-			COALESCE(pred.win_half, 0)          AS win_half,
-			COALESCE(pred.lose_half, 0)         AS lose_half,
-			COALESCE(pred.incorrect, 0)         AS incorrect
+			COALESCE(pred_net.net_points, 0)    AS net_points,
+			COALESCE(pred_net.total_predictions, 0) AS total_predictions,
+			COALESCE(pred_net.correct, 0)       AS correct,
+			COALESCE(pred_net.win_half, 0)      AS win_half,
+			COALESCE(pred_net.lose_half, 0)     AS lose_half,
+			COALESCE(pred_net.incorrect, 0)     AS incorrect
 		FROM wc_users u
-		LEFT JOIN wc_wallets w ON w.wc_user_id = u.id
+		JOIN wc_wallets w ON w.wc_user_id = u.id
 		LEFT JOIN (
 			SELECT
-				b.wc_user_id,
-				COUNT(b.id)                                            AS total_predictions,
-				COUNT(b.id) FILTER (WHERE b.result = 'correct')       AS correct,
-				COUNT(b.id) FILTER (WHERE b.result = 'win_half')      AS win_half,
-				COUNT(b.id) FILTER (WHERE b.result = 'lose_half')     AS lose_half,
-				COUNT(b.id) FILTER (WHERE b.result = 'incorrect')     AS incorrect
-			FROM wc_predictions b
-			WHERE b.result IS NOT NULL
-			  AND b.cancelled_at IS NULL
-			GROUP BY b.wc_user_id
-		) pred ON pred.wc_user_id = u.id
-		WHERE w.wc_user_id IS NOT NULL
-		  AND (
-		      EXISTS (SELECT 1 FROM wc_predictions       p  WHERE p.wc_user_id  = u.id)
-		   OR EXISTS (SELECT 1 FROM wc_custom_bet_entries c  WHERE c.wc_user_id  = u.id)
-		   OR EXISTS (SELECT 1 FROM wc_champion_predictions cp WHERE cp.wc_user_id = u.id)
+				p.wc_user_id,
+				SUM(COALESCE(p.points_earned, 0) - p.points) AS net_points,
+				COUNT(p.id)                                            AS total_predictions,
+				COUNT(p.id) FILTER (WHERE p.result = 'correct')       AS correct,
+				COUNT(p.id) FILTER (WHERE p.result = 'win_half')      AS win_half,
+				COUNT(p.id) FILTER (WHERE p.result = 'lose_half')     AS lose_half,
+				COUNT(p.id) FILTER (WHERE p.result = 'incorrect')     AS incorrect
+			FROM wc_predictions p
+			WHERE p.result IS NOT NULL
+			  AND p.cancelled_at IS NULL
+			  AND p.tournament_type = @tt
+			GROUP BY p.wc_user_id
+		) pred_net ON pred_net.wc_user_id = u.id
+		WHERE (
+		      EXISTS (SELECT 1 FROM wc_predictions       p  WHERE p.wc_user_id  = u.id AND p.tournament_type = @tt)
+		   OR EXISTS (SELECT 1 FROM wc_custom_bet_entries ce JOIN wc_custom_bets cb ON cb.id = ce.custom_bet_id WHERE ce.wc_user_id = u.id AND cb.tournament_type = @tt)
+		   OR EXISTS (SELECT 1 FROM wc_champion_predictions cp WHERE cp.wc_user_id = u.id AND cp.tournament_type = @tt)
 		  )
-		ORDER BY net_points DESC, correct DESC, u.name ASC
-	`).Scan(&rows).Error
+		ORDER BY COALESCE(pred_net.net_points, 0) DESC, COALESCE(pred_net.correct, 0) DESC, u.name ASC
+	`, map[string]interface{}{"tt": tournamentType}).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -461,9 +466,9 @@ func (r *WcRepository) CreateSettlement(tx *gorm.DB, s *model.WcSettlement, deta
 	return tx.Create(&details).Error
 }
 
-func (r *WcRepository) ListSettlements() ([]*model.WcSettlement, error) {
+func (r *WcRepository) ListSettlements(tournamentType string) ([]*model.WcSettlement, error) {
 	var list []*model.WcSettlement
-	err := r.db.Order("created_at DESC").Find(&list).Error
+	err := r.db.Where("tournament_type = ?", tournamentType).Order("created_at DESC").Find(&list).Error
 	return list, err
 }
 
@@ -556,14 +561,14 @@ func (r *WcRepository) GetBet(id uuid.UUID) (*model.WcBet, error) {
 	return &bet, nil
 }
 
-func (r *WcRepository) ListBets(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
+func (r *WcRepository) ListBets(wcUserID uuid.UUID, tournamentType string) ([]*model.WcBetWithMatch, error) {
 	var bets []*model.WcBetWithMatch
 	err := r.db.Table("wc_bets b").
 		Select(`b.*,
 			m.home_team, m.away_team, m.match_date, m.status AS match_status, m.bets_locked_at,
 			(m.bets_locked_at IS NULL OR m.bets_locked_at > NOW()) AND m.status NOT IN ('completed','cancelled') AS betting_open`).
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
-		Where("b.wc_user_id = ? AND b.cancelled_at IS NULL", wcUserID).
+		Where("b.wc_user_id = ? AND b.cancelled_at IS NULL AND b.tournament_type = ?", wcUserID, tournamentType).
 		Order("b.created_at DESC").
 		Scan(&bets).Error
 	if err != nil {
@@ -680,14 +685,14 @@ func (r *WcRepository) SoftCancelBet(tx *gorm.DB, id, wcUserID uuid.UUID, penalt
 }
 
 // ListBetHistoryForUser returns settled + cancelled bets for a user, joined with match info.
-func (r *WcRepository) ListBetHistoryForUser(wcUserID uuid.UUID) ([]*model.WcBetWithMatch, error) {
+func (r *WcRepository) ListBetHistoryForUser(wcUserID uuid.UUID, tournamentType string) ([]*model.WcBetWithMatch, error) {
 	var bets []*model.WcBetWithMatch
 	err := r.db.Table("wc_bets b").
 		Select(`b.*,
 			m.home_team, m.away_team, m.match_date, m.status AS match_status, m.bets_locked_at,
 			false AS betting_open`).
 		Joins("JOIN wc_matches m ON m.id = b.match_id").
-		Where("b.wc_user_id = ? AND (b.result IS NOT NULL OR b.cancelled_at IS NOT NULL)", wcUserID).
+		Where("b.wc_user_id = ? AND (b.result IS NOT NULL OR b.cancelled_at IS NOT NULL) AND b.tournament_type = ?", wcUserID, tournamentType).
 		Order("b.created_at DESC").
 		Scan(&bets).Error
 	if err != nil {
@@ -700,23 +705,23 @@ func (r *WcRepository) ListBetHistoryForUser(wcUserID uuid.UUID) ([]*model.WcBet
 }
 
 // UpdatePenaltyConfig updates cancel penalty and reduce stake penalty settings.
-func (r *WcRepository) UpdatePenaltyConfig(cancelEnabled bool, cancelPercent, reduceMaxPercent, reducePenaltyPercent int, updatedBy *uuid.UUID) error {
+func (r *WcRepository) UpdatePenaltyConfig(tournamentType string, cancelEnabled bool, cancelPercent, reduceMaxPercent, reducePenaltyPercent int, updatedBy *uuid.UUID) error {
 	return r.db.Model(&model.WcConfig{}).
-		Where("id = ?", 1).
+		Where("tournament_type = ?", tournamentType).
 		Updates(map[string]interface{}{
-			"cancel_penalty_enabled":    cancelEnabled,
-			"cancel_penalty_percent":    cancelPercent,
-			"bet_reduce_max_percent":    reduceMaxPercent,
+			"cancel_penalty_enabled":     cancelEnabled,
+			"cancel_penalty_percent":     cancelPercent,
+			"bet_reduce_max_percent":     reduceMaxPercent,
 			"bet_reduce_penalty_percent": reducePenaltyPercent,
-			"updated_by":                updatedBy,
-			"updated_at":                time.Now(),
+			"updated_by":                 updatedBy,
+			"updated_at":                 time.Now(),
 		}).Error
 }
 
-// ListAllMatches returns all wc_matches (used by setup-mapping).
-func (r *WcRepository) ListAllMatches() ([]*model.WcMatch, error) {
+// ListAllMatches returns all wc_matches for a tournament (used by setup-mapping and settlement).
+func (r *WcRepository) ListAllMatches(tournamentType string) ([]*model.WcMatch, error) {
 	var matches []*model.WcMatch
-	err := r.db.Order("match_date ASC").Find(&matches).Error
+	err := r.db.Where("tournament_type = ?", tournamentType).Order("match_date ASC").Find(&matches).Error
 	return matches, err
 }
 
@@ -743,8 +748,8 @@ func (r *WcRepository) GetSyncLogs() ([]*model.WcSyncLog, error) {
 	return logs, err
 }
 
-// GetHousePnL aggregates bet data to compute house profit/loss.
-func (r *WcRepository) GetHousePnL() (*model.HousePnLResponse, error) {
+// GetHousePnL aggregates bet data to compute house profit/loss for a specific tournament.
+func (r *WcRepository) GetHousePnL(tournamentType string) (*model.HousePnLResponse, error) {
 	type aggregate struct {
 		TotalStakeSettled  float64
 		TotalPayoutSettled float64
@@ -763,7 +768,8 @@ func (r *WcRepository) GetHousePnL() (*model.HousePnLResponse, error) {
 			COALESCE(SUM(stake) FILTER (WHERE result IS NULL), 0) AS total_stake_pending,
 			COALESCE(COUNT(*) FILTER (WHERE result IS NULL), 0) AS pending_bet_count
 		FROM wc_bets
-	`).Scan(&agg).Error
+		WHERE tournament_type = ?
+	`, tournamentType).Scan(&agg).Error
 	if err != nil {
 		return nil, err
 	}
@@ -792,9 +798,10 @@ func (r *WcRepository) GetHousePnL() (*model.HousePnLResponse, error) {
 		FROM wc_bets b
 		JOIN wc_matches m ON m.id = b.match_id
 		WHERE b.result IS NOT NULL AND b.result != 'void'
+		  AND b.tournament_type = ?
 		GROUP BY b.match_id, m.home_team, m.away_team, m.match_date, m.stage
 		ORDER BY (SUM(b.stake) - SUM(b.payout)) ASC
-	`).Scan(&rows).Error
+	`, tournamentType).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -860,12 +867,12 @@ func (r *WcRepository) PreviewSettlement(pointRate float64) ([]*model.WcSettleme
 	return rows, nil
 }
 
-// GetGroupStandings computes group-stage standings from wc_matches.
+// GetGroupStandings computes group-stage standings from wc_matches for a specific tournament.
 // All group-stage matches (any status) are fetched to build the team roster.
 // Stats (W/D/L, goals, form) are accumulated only from completed matches.
-func (r *WcRepository) GetGroupStandings() ([]model.WcGroupStanding, error) {
+func (r *WcRepository) GetGroupStandings(tournamentType string) ([]model.WcGroupStanding, error) {
 	var matches []model.WcMatch
-	if err := r.db.Where("stage = ?", model.WcStageGroup).
+	if err := r.db.Where("stage = ? AND tournament_type = ?", model.WcStageGroup, tournamentType).
 		Order("match_date ASC").
 		Find(&matches).Error; err != nil {
 		return nil, err

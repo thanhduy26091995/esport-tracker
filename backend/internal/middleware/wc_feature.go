@@ -9,10 +9,12 @@ import (
 
 func WcFeatureMiddleware(wcRepo *repository.WcRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cfg, err := wcRepo.GetConfig()
+		tournamentType, _ := c.Get(TournamentTypeKey)
+		tt, _ := tournamentType.(string)
+		cfg, err := wcRepo.GetConfig(tt)
 		if err != nil || !cfg.IsEnabled {
 			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-				"error": "WC2026 feature is currently disabled",
+				"error": "Feature is currently disabled",
 			})
 			return
 		}

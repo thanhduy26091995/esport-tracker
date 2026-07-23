@@ -19,9 +19,25 @@ description: Test plan ensuring migration correctness, API isolation, and fronte
 
 ### TournamentMiddleware
 
-- [ ] Sets `tournament_type = "world_cup"` in Gin context correctly
-- [ ] Sets `tournament_type = "asean_cup"` in Gin context correctly
-- [ ] Calls `c.Next()` after setting
+- [x] Sets `tournament_type = "world_cup"` in Gin context correctly — `TestTournamentMiddleware_SetsWorldCup`
+- [x] Sets `tournament_type = "asean_cup"` in Gin context correctly — `TestTournamentMiddleware_SetsAseanCup`
+- [x] Calls `c.Next()` after setting — `TestTournamentMiddleware_CallsNext`
+- [x] `TournamentTypeKey` constant is `"tournament_type"` — `TestTournamentMiddleware_KeyConstant`
+
+> File: `backend/internal/middleware/tournament_test.go`
+
+### WcMatchRepository
+
+- [x] `ListMatches("world_cup")` returns only WC matches — `TestListMatches_TournamentIsolation_WcDoesNotReturnAc`
+- [x] `ListMatches("asean_cup")` returns only ASEAN Cup matches — `TestListMatches_TournamentIsolation_AcDoesNotReturnWc`
+
+> File: `backend/internal/repository/wc_repository_test.go`
+
+### WcLeaderboard isolation
+
+- [x] WC leaderboard shows user with WC prediction; AC leaderboard excludes WC-only user — `TestGetLeaderboard_TournamentIsolation`
+
+> File: `backend/internal/repository/wc_repository_test.go`
 
 ### WcConfigRepository
 
@@ -29,34 +45,29 @@ description: Test plan ensuring migration correctness, API isolation, and fronte
 - [ ] `GetConfig("asean_cup")` returns ASEAN Cup config row (not WC row)
 - [ ] `GetConfig("unknown")` returns not-found error
 
-### WcMatchRepository
+> *(low priority — implicitly covered by integration tests that call `PlaceBet` via AC config)*
 
-- [ ] `List(tournamentType="world_cup")` returns only WC matches
-- [ ] `List(tournamentType="asean_cup")` returns only ASEAN Cup matches
-- [ ] Creating a match with `tournament_type="asean_cup"` persists correctly
-- [ ] Cross-tournament contamination: inserting AC match does not appear in WC list query
+### isBetLocked / isLocked
 
-### WcBetRepository
+- [x] match_date in past → locked, even if status=scheduled — `TestIsBetLocked/scheduled,_match_date_passed_—_locked`
+- [x] match_date in future, no lock_time → not locked — `TestIsBetLocked/scheduled,_no_lock_time_—_not_locked`
+- [x] live/completed/cancelled → always locked — `TestIsBetLocked`
 
-- [ ] Placed bet inherits `tournament_type` from match's tournament
-- [ ] Leaderboard query filters by tournament_type correctly
-
-### WcCustomBetRepository
-
-- [ ] Custom bets created under ASEAN Cup match carry `tournament_type = "asean_cup"`
-- [ ] `ListCustomBetsForMatch` returns only bets for the correct tournament match
+> File: `backend/internal/service/wc_service_test.go`
 
 ---
 
 ## Integration Tests
 
-- [ ] **Migration regression**: after adding `tournament_type` column, all existing WC rows have `tournament_type = 'world_cup'`
-- [ ] **WC API unchanged**: `GET /api/v1/wc/matches` returns same results before and after migration
-- [ ] **AC isolation**: `GET /api/v1/ac/matches` returns empty set initially (no ASEAN Cup matches seeded yet)
-- [ ] **Config isolation**: `GET /api/v1/ac/config` returns `is_enabled: false`; `GET /api/v1/wc/config` returns WC flag value
-- [ ] **Bet isolation**: placing a bet via `/api/v1/ac/matches/:id/bet` stores `tournament_type = "asean_cup"` and does not appear in `/api/v1/wc/` bet queries
-- [ ] **Leaderboard isolation**: leaderboard for ASEAN Cup shows only AC bet P&L; WC leaderboard unchanged
-- [ ] **House P&L isolation**: admin house P&L dashboard scoped by tournament returns correct totals
+- [x] **Bet isolation**: `ListBets(userID, "world_cup")` returns only WC bets; `ListBets(userID, "asean_cup")` returns only AC bets — `TestTournamentIsolation_ListBets`
+- [x] **Prediction isolation**: `ListPredictions(userID, "world_cup")` / `"asean_cup"` returns only bets from the correct tournament — `TestTournamentIsolation_ListPredictions`
+- [x] **Bet history isolation**: `GetBetHistory(userID, "world_cup")` / `"asean_cup"` does not cross-contaminate — `TestTournamentIsolation_GetBetHistory`
+- [x] **Settlement tournament_type persisted**: `CreateSettlement("asean_cup")` stores `tournament_type = "asean_cup"`; appears in AC list, absent from WC list — `TestCreateSettlement_TournamentTypePersisted`
+
+> File: `backend/internal/service/wc_integration_test.go`
+
+- [ ] **Migration regression**: after adding `tournament_type` column, all existing WC rows have `tournament_type = 'world_cup'` *(manual verification via psql)*
+- [ ] **House P&L isolation**: admin house P&L dashboard scoped by tournament returns correct totals *(not yet automated)*
 
 ---
 
@@ -86,8 +97,8 @@ description: Test plan ensuring migration correctness, API isolation, and fronte
 ## Test Reporting & Coverage
 
 ```bash
-cd backend && go test ./internal/repository/... ./internal/service/... -v
-cd frontend && npm run type-check
+cd backend && go test ./internal/middleware/... ./internal/repository/... ./internal/service/... -v
+cd frontend && npx vue-tsc -b --noEmit
 ```
 
 Manual sign-off checklist:

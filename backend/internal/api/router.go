@@ -222,143 +222,154 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		}
 	}
 
-	// WC2026 routes — /api/v1/wc
-	wc := router.Group("/api/v1/wc")
-	{
-		// Config endpoints — always accessible (exempt from feature flag)
-		wc.GET("/config", wcHandler.GetPublicConfig)
-		wc.GET("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.GetConfig)
-		wc.PUT("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.UpdateConfig)
-
-		// Matches & standings — always accessible (exempt from feature flag)
-		wc.GET("/matches", wcHandler.ListMatches)
-		wc.GET("/matches/:id", wcHandler.GetMatch)
-		wc.GET("/standings", wcHandler.GetGroupStandings)
-
-		// Live chat history — public, no auth required
-		wc.GET("/chat/messages", wcChatHandler.ListMessages)
-
-		// Auth — public (no feature flag, no JWT required)
-		auth := wc.Group("/auth")
+	// setupTournamentRoutes registers all WC/AC routes for a given tournament prefix and type.
+	// Both /wc and /ac share the same handlers — tournament context is set by TournamentMiddleware.
+	setupTournamentRoutes := func(prefix, tournamentTypeVal string) {
+		t := router.Group("/api/v1/"+prefix, middleware.TournamentMiddleware(tournamentTypeVal))
 		{
-			auth.POST("/login", wcAuthHandler.Login)
-			auth.POST("/google", wcAuthHandler.GoogleLoginOrCreate)
-			// Google link: requires JWT only (this IS the endpoint that satisfies the link requirement)
-			auth.POST("/google/link", middleware.WcJWTMiddleware(wcAuthService), wcAuthHandler.GoogleLink)
-		}
+			// Config endpoints — always accessible (exempt from feature flag)
+			t.GET("/config", wcHandler.GetPublicConfig)
+			t.GET("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.GetConfig)
+			t.PUT("/admin/config", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware(), wcHandler.UpdateConfig)
 
-		// Admin — always accessible regardless of feature flag
-		wcAdminAlways := wc.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
-		{
-			wcAdminAlways.POST("/sync", wcHandler.SyncMatches)
-		}
+			// Matches & standings — always accessible (exempt from feature flag)
+			t.GET("/matches", wcHandler.ListMatches)
+			t.GET("/matches/:id", wcHandler.GetMatch)
+			t.GET("/standings", wcHandler.GetGroupStandings)
 
-		// All remaining WC routes require the feature to be enabled
-		wcFeature := wc.Group("", middleware.WcFeatureMiddleware(wcRepo))
-		{
-			// Public (feature enabled, no auth)
-			wcFeature.GET("/matches/:id/score-multipliers", wcHandler.GetScoreMultipliers)
-			wcFeature.GET("/matches/:id/predictions", wcHandler.GetMatchPredictions)
-			wcFeature.GET("/matches/:id/bets", wcHandler.GetMatchBets)
-			wcFeature.GET("/leaderboard", wcHandler.GetLeaderboard)
-			wcFeature.GET("/champion/config", wcChampionHandler.GetConfig)
-			wcFeature.GET("/champion/teams", wcChampionHandler.GetTeams)
-			wcFeature.GET("/champion/predictions", wcChampionHandler.GetAllPredictions)
+			// Live chat history — public, no auth required
+			t.GET("/chat/messages", wcChatHandler.ListMessages)
 
-			// JWT + Google-linked required (player profile)
-			wcPlayerAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService), middleware.WcGoogleLinkedMiddleware(db))
+			// Auth — public (no feature flag, no JWT required)
+			auth := t.Group("/auth")
 			{
-				wcPlayerAuth.GET("/profile", wcProfileHandler.GetProfile)
-				wcPlayerAuth.PUT("/profile", wcProfileHandler.UpdateProfile)
+				auth.POST("/login", wcAuthHandler.Login)
+				auth.POST("/google", wcAuthHandler.GoogleLoginOrCreate)
+				auth.POST("/google/link", middleware.WcJWTMiddleware(wcAuthService), wcAuthHandler.GoogleLink)
 			}
 
-			// JWT + Google-linked required
-			wcAuth := wcFeature.Group("", middleware.WcJWTMiddleware(wcAuthService), middleware.WcGoogleLinkedMiddleware(db))
+			// Admin — always accessible regardless of feature flag
+			tAdminAlways := t.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
 			{
-				wcAuth.GET("/wallet", wcHandler.GetWallet)
-				wcAuth.POST("/predictions", wcHandler.SubmitPrediction)
-				wcAuth.GET("/predictions", wcHandler.ListPredictions)
-				wcAuth.DELETE("/predictions/:id", wcHandler.DeletePrediction)
-				wcAuth.PUT("/predictions/:id", wcHandler.UpdatePrediction)
-				wcAuth.GET("/predictions/:id/reduce-preview", wcHandler.PreviewReducePredictionPoints)
-				wcAuth.GET("/bets", wcHandler.ListBets)
-				wcAuth.GET("/bets/history", wcHandler.GetBetHistory)
-				wcAuth.POST("/bets", wcHandler.PlaceBet)
-				wcAuth.PUT("/bets/:id", wcHandler.UpdateBet)
-				wcAuth.DELETE("/bets/:id", wcHandler.DeleteBet)
-				wcAuth.GET("/bets/:id/reduce-preview", wcHandler.PreviewReduceStake)
-				wcAuth.GET("/champion/my-prediction", wcChampionHandler.GetMyPrediction)
-				wcAuth.POST("/champion/predict", wcChampionHandler.PlacePredict)
-				wcAuth.DELETE("/champion/predict/:id", wcChampionHandler.DeletePredict)
-				// Custom bets (player)
-				wcAuth.GET("/matches/:id/custom-bets", wcCustomBetHandler.ListCustomBets)
-				wcAuth.GET("/custom-bet-entries", wcCustomBetHandler.GetMyCustomBetEntries)
-				wcAuth.POST("/custom-bets/:id/entry", wcCustomBetHandler.PlaceEntry)
-				wcAuth.DELETE("/custom-bet-entries/:id", wcCustomBetHandler.CancelEntry)
-				// Analytics
-				wcAuth.GET("/analytics/my", wcAnalyticsHandler.GetMyAnalytics)
-				wcAuth.GET("/analytics/community", wcAnalyticsHandler.GetCommunityAnalytics)
-				wcAuth.GET("/analytics/compare", wcAnalyticsHandler.GetCompareAnalytics)
-				wcAuth.GET("/analytics/world-cup-2026", wcAnalyticsHandler.GetWorldCup2026Analytics)
-				// Chat mention
-				wcAuth.GET("/users", wcHandler.ListUsersForMention)
-				wcAuth.GET("/chat/mentions/unread-count", wcChatHandler.GetUnreadMentionCount)
-				wcAuth.POST("/chat/mentions/read", wcChatHandler.MarkMentionsRead)
+				if tournamentTypeVal == "world_cup" {
+					tAdminAlways.POST("/sync", wcHandler.SyncMatches)
+				}
+				// Manual match creation — for tournaments without API sync
+				tAdminAlways.POST("/matches", wcHandler.CreateMatch)
 			}
 
-			// Admin required
-			wcAdmin := wcFeature.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
+			// All remaining routes require the feature to be enabled
+			tFeature := t.Group("", middleware.WcFeatureMiddleware(wcRepo))
 			{
-				wcAdmin.PUT("/matches/:id", wcHandler.UpdateMatch)
-				wcAdmin.POST("/matches/:id/open", wcHandler.OpenMatch)
-				wcAdmin.POST("/matches/:id/close", wcHandler.CloseMatch)
-				wcAdmin.POST("/matches/:id/score-multipliers", wcHandler.AddScoreMultiplier)
-				wcAdmin.PUT("/score-multipliers/:id", wcHandler.UpdateScoreMultiplier)
-				wcAdmin.DELETE("/score-multipliers/:id", wcHandler.DeleteScoreMultiplier)
-				wcAdmin.GET("/matches/finalize-all-preview", wcHandler.PreviewFinalizeAll)
-				wcAdmin.GET("/matches/refinalize-all-preview", wcHandler.PreviewRefinalizeAll)
-				wcAdmin.GET("/matches/:id/finalize-preview", wcHandler.PreviewFinalizeMatch)
-				wcAdmin.POST("/matches/finalize-all", wcHandler.FinalizeAll)
-				wcAdmin.POST("/matches/refinalize-all", wcHandler.RefinalizeAll)
-				wcAdmin.POST("/matches/:id/finalize", wcHandler.FinalizeMatch)
-				wcAdmin.POST("/matches/:id/settle", wcHandler.SettleMatch)
-				wcAdmin.POST("/matches/:id/score-odds", wcHandler.AddScoreOdds)
-				wcAdmin.PUT("/score-odds/:id", wcHandler.UpdateScoreOdds)
-				wcAdmin.DELETE("/score-odds/:id", wcHandler.DeleteScoreOdds)
-				wcAdmin.GET("/users", wcHandler.ListUsers)
-				wcAdmin.PUT("/users/:wc_user_id/bot", wcHandler.SetUserBot)
-				wcAdmin.PUT("/users/:wc_user_id/role", wcHandler.SetUserRole)
-				wcAdmin.PUT("/users/:wc_user_id/block", wcHandler.BlockUser)
-				wcAdmin.PUT("/users/:wc_user_id/unblock", wcHandler.UnblockUser)
-				wcAdmin.GET("/wallets", wcHandler.ListAllWallets)
-				wcAdmin.PUT("/wallets/:wc_user_id", wcHandler.AdminTopUp)
-				wcAdmin.GET("/wallets/:wc_user_id/logs", wcHandler.GetWalletLogs)
-				wcAdmin.GET("/house-pnl", wcHandler.GetHousePnL)
-				wcAdmin.POST("/setup-statsapi-mapping", wcSyncHandler.SetupMapping)
-				wcAdmin.POST("/matches/:id/import-handicap", wcSyncHandler.ImportHandicap)
-				wcAdmin.POST("/matches/:id/import-ou", wcSyncHandler.ImportOU)
-				wcAdmin.POST("/matches/:id/generate-poisson", wcSyncHandler.GeneratePoisson)
-				wcAdmin.GET("/sync-logs", wcSyncHandler.GetSyncLogs)
-				wcAdmin.GET("/settlements/preview", wcHandler.PreviewSettlement)
-				wcAdmin.POST("/settlements", wcHandler.CreateSettlement)
-				wcAdmin.GET("/settlements", wcHandler.ListSettlements)
-				wcAdmin.GET("/settlements/:id", wcHandler.GetSettlement)
-				wcAdmin.PUT("/settlements/:id/details/:wc_user_id", wcHandler.MarkSettlementDone)
-				wcAdmin.POST("/backfill-original-points", wcHandler.BackfillOriginalPoints)
-				// Champion prediction admin
-				wcAdmin.PUT("/champion/config", wcChampionHandler.AdminUpdateConfig)
-				wcAdmin.POST("/champion/teams", wcChampionHandler.AdminCreateTeam)
-				wcAdmin.PUT("/champion/teams/:id", wcChampionHandler.AdminUpdateTeamOdds)
-				wcAdmin.POST("/champion/settle", wcChampionHandler.AdminSettle)
-				// Custom bets admin
-				wcAdmin.GET("/matches/:id/custom-bets", wcCustomBetHandler.AdminListCustomBets)
-				wcAdmin.POST("/matches/:id/custom-bets", wcCustomBetHandler.AdminCreateCustomBet)
-				wcAdmin.PUT("/custom-bets/:id", wcCustomBetHandler.AdminUpdateCustomBet)
-				wcAdmin.POST("/custom-bets/:id/settle", wcCustomBetHandler.AdminSettleCustomBet)
-				wcAdmin.PUT("/custom-bets/:id/void", wcCustomBetHandler.AdminVoidCustomBet)
+				// Public (feature enabled, no auth)
+				tFeature.GET("/matches/:id/score-multipliers", wcHandler.GetScoreMultipliers)
+				tFeature.GET("/matches/:id/predictions", wcHandler.GetMatchPredictions)
+				tFeature.GET("/matches/:id/bets", wcHandler.GetMatchBets)
+				tFeature.GET("/leaderboard", wcHandler.GetLeaderboard)
+				tFeature.GET("/champion/config", wcChampionHandler.GetConfig)
+				tFeature.GET("/champion/teams", wcChampionHandler.GetTeams)
+				tFeature.GET("/champion/predictions", wcChampionHandler.GetAllPredictions)
+
+				// JWT + Google-linked required (player profile)
+				tPlayerAuth := tFeature.Group("", middleware.WcJWTMiddleware(wcAuthService), middleware.WcGoogleLinkedMiddleware(db))
+				{
+					tPlayerAuth.GET("/profile", wcProfileHandler.GetProfile)
+					tPlayerAuth.PUT("/profile", wcProfileHandler.UpdateProfile)
+				}
+
+				// JWT + Google-linked required (player actions)
+				tAuth := tFeature.Group("", middleware.WcJWTMiddleware(wcAuthService), middleware.WcGoogleLinkedMiddleware(db))
+				{
+					tAuth.GET("/wallet", wcHandler.GetWallet)
+					tAuth.POST("/predictions", wcHandler.SubmitPrediction)
+					tAuth.GET("/predictions", wcHandler.ListPredictions)
+					tAuth.DELETE("/predictions/:id", wcHandler.DeletePrediction)
+					tAuth.PUT("/predictions/:id", wcHandler.UpdatePrediction)
+					tAuth.GET("/predictions/:id/reduce-preview", wcHandler.PreviewReducePredictionPoints)
+					tAuth.GET("/bets", wcHandler.ListBets)
+					tAuth.GET("/bets/history", wcHandler.GetBetHistory)
+					tAuth.POST("/bets", wcHandler.PlaceBet)
+					tAuth.PUT("/bets/:id", wcHandler.UpdateBet)
+					tAuth.DELETE("/bets/:id", wcHandler.DeleteBet)
+					tAuth.GET("/bets/:id/reduce-preview", wcHandler.PreviewReduceStake)
+					tAuth.GET("/champion/my-prediction", wcChampionHandler.GetMyPrediction)
+					tAuth.POST("/champion/predict", wcChampionHandler.PlacePredict)
+					tAuth.DELETE("/champion/predict/:id", wcChampionHandler.DeletePredict)
+					// Custom bets (player)
+					tAuth.GET("/matches/:id/custom-bets", wcCustomBetHandler.ListCustomBets)
+					tAuth.GET("/custom-bet-entries", wcCustomBetHandler.GetMyCustomBetEntries)
+					tAuth.POST("/custom-bets/:id/entry", wcCustomBetHandler.PlaceEntry)
+					tAuth.DELETE("/custom-bet-entries/:id", wcCustomBetHandler.CancelEntry)
+					// Analytics
+					tAuth.GET("/analytics/my", wcAnalyticsHandler.GetMyAnalytics)
+					tAuth.GET("/analytics/community", wcAnalyticsHandler.GetCommunityAnalytics)
+					tAuth.GET("/analytics/compare", wcAnalyticsHandler.GetCompareAnalytics)
+					tAuth.GET("/analytics/world-cup-2026", wcAnalyticsHandler.GetWorldCup2026Analytics)
+					// Chat mention
+					tAuth.GET("/users", wcHandler.ListUsersForMention)
+					tAuth.GET("/chat/mentions/unread-count", wcChatHandler.GetUnreadMentionCount)
+					tAuth.POST("/chat/mentions/read", wcChatHandler.MarkMentionsRead)
+				}
+
+				// Admin required
+				tAdmin := tFeature.Group("/admin", middleware.WcJWTMiddleware(wcAuthService), middleware.WcAdminMiddleware())
+				{
+					tAdmin.PUT("/matches/:id", wcHandler.UpdateMatch)
+					tAdmin.POST("/matches/:id/open", wcHandler.OpenMatch)
+					tAdmin.POST("/matches/:id/close", wcHandler.CloseMatch)
+					tAdmin.POST("/matches/:id/score-multipliers", wcHandler.AddScoreMultiplier)
+					tAdmin.PUT("/score-multipliers/:id", wcHandler.UpdateScoreMultiplier)
+					tAdmin.DELETE("/score-multipliers/:id", wcHandler.DeleteScoreMultiplier)
+					tAdmin.GET("/matches/finalize-all-preview", wcHandler.PreviewFinalizeAll)
+					tAdmin.GET("/matches/refinalize-all-preview", wcHandler.PreviewRefinalizeAll)
+					tAdmin.GET("/matches/:id/finalize-preview", wcHandler.PreviewFinalizeMatch)
+					tAdmin.POST("/matches/finalize-all", wcHandler.FinalizeAll)
+					tAdmin.POST("/matches/refinalize-all", wcHandler.RefinalizeAll)
+					tAdmin.POST("/matches/:id/finalize", wcHandler.FinalizeMatch)
+					tAdmin.POST("/matches/:id/settle", wcHandler.SettleMatch)
+					tAdmin.POST("/matches/:id/score-odds", wcHandler.AddScoreOdds)
+					tAdmin.PUT("/score-odds/:id", wcHandler.UpdateScoreOdds)
+					tAdmin.DELETE("/score-odds/:id", wcHandler.DeleteScoreOdds)
+					tAdmin.GET("/users", wcHandler.ListUsers)
+					tAdmin.PUT("/users/:wc_user_id/bot", wcHandler.SetUserBot)
+					tAdmin.PUT("/users/:wc_user_id/role", wcHandler.SetUserRole)
+					tAdmin.PUT("/users/:wc_user_id/block", wcHandler.BlockUser)
+					tAdmin.PUT("/users/:wc_user_id/unblock", wcHandler.UnblockUser)
+					tAdmin.GET("/wallets", wcHandler.ListAllWallets)
+					tAdmin.PUT("/wallets/:wc_user_id", wcHandler.AdminTopUp)
+					tAdmin.GET("/wallets/:wc_user_id/logs", wcHandler.GetWalletLogs)
+					tAdmin.GET("/house-pnl", wcHandler.GetHousePnL)
+					if tournamentTypeVal == "world_cup" {
+						tAdmin.POST("/setup-statsapi-mapping", wcSyncHandler.SetupMapping)
+						tAdmin.POST("/matches/:id/import-handicap", wcSyncHandler.ImportHandicap)
+						tAdmin.POST("/matches/:id/import-ou", wcSyncHandler.ImportOU)
+						tAdmin.POST("/matches/:id/generate-poisson", wcSyncHandler.GeneratePoisson)
+						tAdmin.GET("/sync-logs", wcSyncHandler.GetSyncLogs)
+					}
+					tAdmin.GET("/settlements/preview", wcHandler.PreviewSettlement)
+					tAdmin.POST("/settlements", wcHandler.CreateSettlement)
+					tAdmin.GET("/settlements", wcHandler.ListSettlements)
+					tAdmin.GET("/settlements/:id", wcHandler.GetSettlement)
+					tAdmin.PUT("/settlements/:id/details/:wc_user_id", wcHandler.MarkSettlementDone)
+					tAdmin.POST("/backfill-original-points", wcHandler.BackfillOriginalPoints)
+					// Champion prediction admin
+					tAdmin.PUT("/champion/config", wcChampionHandler.AdminUpdateConfig)
+					tAdmin.POST("/champion/teams", wcChampionHandler.AdminCreateTeam)
+					tAdmin.PUT("/champion/teams/:id", wcChampionHandler.AdminUpdateTeamOdds)
+					tAdmin.POST("/champion/settle", wcChampionHandler.AdminSettle)
+					// Custom bets admin
+					tAdmin.GET("/matches/:id/custom-bets", wcCustomBetHandler.AdminListCustomBets)
+					tAdmin.POST("/matches/:id/custom-bets", wcCustomBetHandler.AdminCreateCustomBet)
+					tAdmin.PUT("/custom-bets/:id", wcCustomBetHandler.AdminUpdateCustomBet)
+					tAdmin.POST("/custom-bets/:id/settle", wcCustomBetHandler.AdminSettleCustomBet)
+					tAdmin.PUT("/custom-bets/:id/void", wcCustomBetHandler.AdminVoidCustomBet)
+				}
 			}
 		}
 	}
+
+	setupTournamentRoutes("wc", "world_cup")
+	setupTournamentRoutes("ac", "asean_cup")
 
 	return router
 }

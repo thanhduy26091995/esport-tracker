@@ -20,22 +20,22 @@ func (r *WcChampionRepository) DB() *gorm.DB { return r.db }
 
 // --- Config ---
 
-func (r *WcChampionRepository) GetConfig() (*model.WcChampionConfig, error) {
+func (r *WcChampionRepository) GetConfig(tournamentType string) (*model.WcChampionConfig, error) {
 	var cfg model.WcChampionConfig
-	err := r.db.First(&cfg, 1).Error
+	err := r.db.Where("tournament_type = ?", tournamentType).First(&cfg).Error
 	return &cfg, err
 }
 
-func (r *WcChampionRepository) UpdateConfig(isOpen bool) error {
+func (r *WcChampionRepository) UpdateConfig(tournamentType string, isOpen bool) error {
 	return r.db.Model(&model.WcChampionConfig{}).
-		Where("id = 1").
+		Where("tournament_type = ?", tournamentType).
 		Updates(map[string]any{"is_open": isOpen, "updated_at": time.Now()}).Error
 }
 
-func (r *WcChampionRepository) MarkSettled(winnerID uuid.UUID) error {
+func (r *WcChampionRepository) MarkSettled(tournamentType string, winnerID uuid.UUID) error {
 	now := time.Now()
 	return r.db.Model(&model.WcChampionConfig{}).
-		Where("id = 1").
+		Where("tournament_type = ?", tournamentType).
 		Updates(map[string]any{
 			"winner_id":  winnerID,
 			"settled_at": now,
@@ -45,9 +45,9 @@ func (r *WcChampionRepository) MarkSettled(winnerID uuid.UUID) error {
 
 // --- Teams ---
 
-func (r *WcChampionRepository) ListTeams() ([]*model.WcChampionTeam, error) {
+func (r *WcChampionRepository) ListTeams(tournamentType string) ([]*model.WcChampionTeam, error) {
 	var teams []*model.WcChampionTeam
-	err := r.db.Order("odds ASC, name ASC").Find(&teams).Error
+	err := r.db.Where("tournament_type = ?", tournamentType).Order("odds ASC, name ASC").Find(&teams).Error
 	return teams, err
 }
 
@@ -69,12 +69,12 @@ func (r *WcChampionRepository) UpdateTeamOdds(id uuid.UUID, odds float64) error 
 
 // --- Predictions ---
 
-func (r *WcChampionRepository) GetMyPrediction(wcUserID uuid.UUID) (*model.WcChampionPredictionMine, error) {
+func (r *WcChampionRepository) GetMyPrediction(tournamentType string, wcUserID uuid.UUID) (*model.WcChampionPredictionMine, error) {
 	var row model.WcChampionPredictionMine
 	err := r.db.Table("wc_champion_predictions p").
 		Select("p.id, p.team_id, t.name AS team_name, t.code AS team_code, t.flag_emoji, p.points, p.odds_snapshot, p.result, p.points_earned, p.created_at, p.updated_at").
 		Joins("JOIN wc_champion_teams t ON t.id = p.team_id").
-		Where("p.wc_user_id = ?", wcUserID).
+		Where("p.wc_user_id = ? AND p.tournament_type = ?", wcUserID, tournamentType).
 		Scan(&row).Error
 	if err != nil {
 		return nil, err
@@ -86,12 +86,12 @@ func (r *WcChampionRepository) GetMyPrediction(wcUserID uuid.UUID) (*model.WcCha
 	return &row, nil
 }
 
-func (r *WcChampionRepository) GetMyPredictions(wcUserID uuid.UUID) ([]*model.WcChampionPredictionMine, error) {
+func (r *WcChampionRepository) GetMyPredictions(tournamentType string, wcUserID uuid.UUID) ([]*model.WcChampionPredictionMine, error) {
 	var rows []*model.WcChampionPredictionMine
 	err := r.db.Table("wc_champion_predictions p").
 		Select("p.id, p.team_id, t.name AS team_name, t.code AS team_code, t.flag_emoji, p.points, p.odds_snapshot, p.result, p.points_earned, p.created_at, p.updated_at").
 		Joins("JOIN wc_champion_teams t ON t.id = p.team_id").
-		Where("p.wc_user_id = ?", wcUserID).
+		Where("p.wc_user_id = ? AND p.tournament_type = ?", wcUserID, tournamentType).
 		Order("p.created_at ASC").
 		Scan(&rows).Error
 	if err != nil {
@@ -118,12 +118,13 @@ func (r *WcChampionRepository) DeletePredictionByID(id, wcUserID uuid.UUID) erro
 	return nil
 }
 
-func (r *WcChampionRepository) GetAllPredictions() ([]*model.WcChampionPredictionPublic, error) {
+func (r *WcChampionRepository) GetAllPredictions(tournamentType string) ([]*model.WcChampionPredictionPublic, error) {
 	rows := make([]*model.WcChampionPredictionPublic, 0)
 	err := r.db.Table("wc_champion_predictions p").
 		Select("u.name AS user_name, p.wc_user_id, t.name AS team_name, t.code AS team_code, t.flag_emoji, p.points, p.odds_snapshot, p.result").
 		Joins("JOIN wc_champion_teams t ON t.id = p.team_id").
 		Joins("JOIN wc_users u ON u.id = p.wc_user_id").
+		Where("p.tournament_type = ?", tournamentType).
 		Order("p.created_at ASC").
 		Scan(&rows).Error
 	for _, r := range rows {
@@ -133,9 +134,8 @@ func (r *WcChampionRepository) GetAllPredictions() ([]*model.WcChampionPredictio
 }
 
 func (r *WcChampionRepository) UpsertPrediction(p *model.WcChampionPrediction) error {
-	// Update if exists, insert if not
 	var existing model.WcChampionPrediction
-	err := r.db.Where("wc_user_id = ?", p.WcUserID).First(&existing).Error
+	err := r.db.Where("wc_user_id = ? AND tournament_type = ?", p.WcUserID, p.TournamentType).First(&existing).Error
 	if err == gorm.ErrRecordNotFound {
 		return r.db.Create(p).Error
 	}
@@ -152,14 +152,14 @@ func (r *WcChampionRepository) UpsertPrediction(p *model.WcChampionPrediction) e
 	}).Error
 }
 
-func (r *WcChampionRepository) DeletePrediction(wcUserID uuid.UUID) error {
-	return r.db.Where("wc_user_id = ?", wcUserID).Delete(&model.WcChampionPrediction{}).Error
+func (r *WcChampionRepository) DeletePrediction(tournamentType string, wcUserID uuid.UUID) error {
+	return r.db.Where("wc_user_id = ? AND tournament_type = ?", wcUserID, tournamentType).Delete(&model.WcChampionPrediction{}).Error
 }
 
 // ListPredictionsForSettle returns all predictions for settlement processing.
-func (r *WcChampionRepository) ListPredictionsForSettle() ([]*model.WcChampionPrediction, error) {
+func (r *WcChampionRepository) ListPredictionsForSettle(tournamentType string) ([]*model.WcChampionPrediction, error) {
 	var preds []*model.WcChampionPrediction
-	err := r.db.Find(&preds).Error
+	err := r.db.Where("tournament_type = ?", tournamentType).Find(&preds).Error
 	return preds, err
 }
 
