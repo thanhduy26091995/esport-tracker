@@ -270,14 +270,14 @@ router.beforeEach(async (to) => {
   // Sync active service so wcService proxy and stores resolve correctly
   setActiveTournamentService(tt as 'world_cup' | 'asean_cup')
 
-  if (to.meta.requiresTournamentFeature) {
-    const enabled = await isTournamentEnabled(prefix)
-    if (!enabled) return { name: 'not-found' }
-  }
-
   if (to.meta.requiresWcAuth) {
     const token = localStorage.getItem('wc_token')
     if (!token) return { name: loginRouteName }
+  }
+
+  if (to.meta.requiresTournamentFeature) {
+    const enabled = await isTournamentEnabled(prefix)
+    if (!enabled) return { name: 'not-found' }
   }
 
   if (to.meta.requiresWcAdmin) {
