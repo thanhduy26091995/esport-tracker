@@ -91,6 +91,11 @@ async function handleLogin() {
 }
 
 onMounted(() => {
+  if (localStorage.getItem('wc_token')) {
+    router.replace(predictPath.value)
+    return
+  }
+
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
   if (!clientId) return
 

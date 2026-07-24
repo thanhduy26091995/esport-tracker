@@ -19,7 +19,7 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: isSocSite
     ? [
-        { path: '/', redirect: '/world-cup/login' },
+        { path: '/', redirect: '/asean-cup/login' },
         {
           path: '/world-cup',
           name: 'wc-schedule',
