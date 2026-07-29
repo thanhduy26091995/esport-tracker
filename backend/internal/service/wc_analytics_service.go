@@ -1,20 +1,22 @@
 package service
 
 import (
+	"encoding/json"
 	"log"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
-
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 )
 
 type WcAnalyticsService struct {
 	repo      *repository.WcAnalyticsRepository
 	wcRepo    *repository.WcRepository
-	cache     *gocache.Cache
+	cache     cache.CacheStore
+	group     singleflight.Group
 	fdClient  *WcFootballDataClient
 	ofClient  *WcOpenFootballClient
 }
@@ -22,14 +24,14 @@ type WcAnalyticsService struct {
 func NewWcAnalyticsService(
 	repo *repository.WcAnalyticsRepository,
 	wcRepo *repository.WcRepository,
-	cache *gocache.Cache,
+	c cache.CacheStore,
 	fdClient *WcFootballDataClient,
 	ofClient *WcOpenFootballClient,
 ) *WcAnalyticsService {
 	return &WcAnalyticsService{
 		repo:     repo,
 		wcRepo:   wcRepo,
-		cache:    cache,
+		cache:    c,
 		fdClient: fdClient,
 		ofClient: ofClient,
 	}
@@ -46,57 +48,60 @@ const (
 	cacheTTLOpenFootball = 15 * time.Minute
 )
 
+// scorersCacheEntry is an exported-field wrapper for JSON serialization via CacheStore.
 type scorersCacheEntry struct {
-	scorers   []model.WcTournamentScorer
-	fetchedAt time.Time
+	Scorers   []model.WcTournamentScorer `json:"scorers"`
+	FetchedAt time.Time                  `json:"fetched_at"`
 }
 
 func (s *WcAnalyticsService) GetWorldCup2026Analytics() (*model.WcAnalyticsResponse, error) {
-	// Tier 1: full response cache — absorbs burst traffic
-	if cached, found := s.cache.Get(cacheKeyWC2026); found {
-		r := cached.(model.WcAnalyticsResponse)
-		return &r, nil
-	}
-
-	matchStats, err := s.wcRepo.GetCompletedMatchStats()
-	if err != nil {
-		return nil, err
-	}
-	resp := &model.WcAnalyticsResponse{MatchStats: *matchStats}
-
-	// Tier 2: football-data.org scorers (goals + assists + team crest)
-	if cached, found := s.cache.Get(cacheKeyScorers); found {
-		entry := cached.(scorersCacheEntry)
-		resp.TopScorers = entry.scorers
-		t := entry.fetchedAt
-		resp.ScorersUpdatedAt = &t
-	} else {
-		scorers, fetchedAt, err := s.fdClient.GetWCScorers(20)
+	return cache.GetOrFetch(s.cache, &s.group, cacheKeyWC2026, cacheTTLWC2026, func() (*model.WcAnalyticsResponse, error) {
+		matchStats, err := s.wcRepo.GetCompletedMatchStats()
 		if err != nil {
-			log.Printf("[wc-analytics] football-data.org unavailable: %v", err)
-		} else {
-			s.cache.Set(cacheKeyScorers, scorersCacheEntry{scorers, fetchedAt}, cacheTTLScorers)
-			resp.TopScorers = scorers
-			resp.ScorersUpdatedAt = &fetchedAt
+			return nil, err
 		}
-	}
+		resp := &model.WcAnalyticsResponse{MatchStats: *matchStats}
 
-	// Tier 3: openfootball goal events
-	if cached, found := s.cache.Get(cacheKeyOpenFootball); found {
-		ofData := cached.(*WcOpenFootballData)
-		applyOpenFootballData(resp, ofData)
-	} else {
-		ofData, err := s.ofClient.GetWCData()
-		if err != nil {
-			log.Printf("[wc-analytics] openfootball unavailable: %v", err)
+		// Tier 2: football-data.org scorers — long-TTL sub-cache
+		if raw, ok := s.cache.Get(cacheKeyScorers); ok {
+			var entry scorersCacheEntry
+			if err := json.Unmarshal([]byte(raw), &entry); err == nil {
+				resp.TopScorers = entry.Scorers
+				resp.ScorersUpdatedAt = &entry.FetchedAt
+			}
 		} else {
-			s.cache.Set(cacheKeyOpenFootball, ofData, cacheTTLOpenFootball)
-			applyOpenFootballData(resp, ofData)
+			scorers, fetchedAt, err := s.fdClient.GetWCScorers(20)
+			if err != nil {
+				log.Printf("[wc-analytics] football-data.org unavailable: %v", err)
+			} else {
+				if b, err := json.Marshal(scorersCacheEntry{Scorers: scorers, FetchedAt: fetchedAt}); err == nil {
+					_ = s.cache.Set(cacheKeyScorers, string(b), cacheTTLScorers)
+				}
+				resp.TopScorers = scorers
+				resp.ScorersUpdatedAt = &fetchedAt
+			}
 		}
-	}
 
-	s.cache.Set(cacheKeyWC2026, *resp, cacheTTLWC2026)
-	return resp, nil
+		// Tier 3: openfootball goal events — medium-TTL sub-cache
+		if raw, ok := s.cache.Get(cacheKeyOpenFootball); ok {
+			var ofData WcOpenFootballData
+			if err := json.Unmarshal([]byte(raw), &ofData); err == nil {
+				applyOpenFootballData(resp, &ofData)
+			}
+		} else {
+			ofData, err := s.ofClient.GetWCData()
+			if err != nil {
+				log.Printf("[wc-analytics] openfootball unavailable: %v", err)
+			} else {
+				if b, err := json.Marshal(ofData); err == nil {
+					_ = s.cache.Set(cacheKeyOpenFootball, string(b), cacheTTLOpenFootball)
+				}
+				applyOpenFootballData(resp, ofData)
+			}
+		}
+
+		return resp, nil
+	})
 }
 
 func applyOpenFootballData(resp *model.WcAnalyticsResponse, d *WcOpenFootballData) {

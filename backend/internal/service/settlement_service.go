@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ type SettlementService struct {
 	fundService    *FundService
 	configService  *ConfigService
 	db             *gorm.DB
+	cache          cache.CacheStore
 }
 
 func NewSettlementService(
@@ -32,6 +34,7 @@ func NewSettlementService(
 	fundService *FundService,
 	configService *ConfigService,
 	db *gorm.DB,
+	c cache.CacheStore,
 ) *SettlementService {
 	return &SettlementService{
 		settlementRepo: settlementRepo,
@@ -40,6 +43,7 @@ func NewSettlementService(
 		fundService:    fundService,
 		configService:  configService,
 		db:             db,
+		cache:          c,
 	}
 }
 
@@ -322,7 +326,12 @@ func (s *SettlementService) TriggerSettlement(debtorID uuid.UUID, winners []Winn
 		return nil, err
 	}
 
-	// Fetch and return the complete settlement with relations
+	// Invalidate score and fund caches — settlement modifies user scores and fund balance
+	_ = s.cache.Delete("esport:users:leaderboard")
+	_ = s.cache.Delete("esport:users:all")
+	_ = s.cache.Delete("esport:users:payment-ranking")
+	_ = s.cache.Delete("esport:fund:totals")
+
 	return s.settlementRepo.GetByID(settlement.ID)
 }
 

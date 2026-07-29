@@ -87,6 +87,71 @@ amount := decimal.NewFromFloat(22000).Mul(decimal.NewFromInt(absScore))
 
 Never use `float64` for financial calculations.
 
+## Caching
+
+All services receive a `cache.CacheStore` injected via their constructor. Two implementations exist:
+
+- **`RedisCache`** — production backend (`redis/go-redis/v9`)
+- **`GoCacheStore`** — dev/test fallback (`patrickmn/go-cache`), activated when `REDIS_URL` is unset
+
+Soft startup in `router.go`: if `REDIS_URL` is set but Redis is unreachable, the server logs a warning and falls back to `GoCacheStore` rather than crashing.
+
+### Cache-Aside pattern
+
+Use `cache.GetOrFetch[T]` for read-through caching with stampede prevention:
+
+```go
+func (s *UserService) GetLeaderboard() ([]*model.User, error) {
+    return cache.GetOrFetch(s.cache, &s.group, "esport:users:leaderboard", 5*time.Minute, func() ([]*model.User, error) {
+        return s.repo.GetLeaderboard()
+    })
+}
+```
+
+`GetOrFetch` uses `singleflight.Group` so concurrent cache misses on the same key result in exactly one DB query — all callers share the result.
+
+### Write-invalidate
+
+Every mutating service method calls `s.cache.Delete(key)` after a successful DB commit. Never delete before the commit (breaks atomicity).
+
+```go
+func (s *UserService) CreateUser(req *CreateUserRequest) (*model.User, error) {
+    user, err := s.repo.Create(...)
+    if err != nil { return nil, err }
+    s.invalidateUserCaches()   // delete after successful write
+    return user, nil
+}
+```
+
+### Key naming conventions
+
+| Prefix | Scope | Example |
+|--------|-------|---------|
+| `esport:users:*` | Core user scores | `esport:users:leaderboard` |
+| `esport:matches:*` | Core matches (versioned) | `esport:matches:v3:20:0:` |
+| `esport:config` | App config | — |
+| `esport:fund:totals` | Fund balance | — |
+| `wc:leaderboard:{tt}` | WC leaderboard per tournament | `wc:leaderboard:world_cup` |
+| `wc:matches:all:{tt}` | WC match list per tournament | `wc:matches:all:asean_cup` |
+| `wc:config:{tt}` | WC betting config per tournament | — |
+
+WC keys are scoped by `tournament_type` so ASEAN Cup and World Cup caches are independent.
+
+### Versioned match keys
+
+Match list pages use a version counter instead of pattern-delete:
+
+```go
+version, _ := s.cache.GetInt("esport:matches:version")
+key := fmt.Sprintf("esport:matches:v%d:%d:%d:%s", version, limit, offset, pid)
+```
+
+On any match write, `s.cache.Incr("esport:matches:version")` makes all old page keys unreachable orphans that expire via TTL — no `SCAN` needed.
+
+### NoopCache
+
+Tests that don't exercise caching logic should pass `&cache.NoopCache{}` to service constructors to avoid importing miniredis.
+
 ## Test Patterns
 
 - Unit tests use injectable dependencies (e.g., `googleVerifier` function field in `WcAuthService`)

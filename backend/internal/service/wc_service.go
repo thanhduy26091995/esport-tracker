@@ -6,10 +6,12 @@ import (
 	"math"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/duyb/esport-score-tracker/internal/ws"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
@@ -19,20 +21,40 @@ type WcService struct {
 	customBetRepo *repository.WcCustomBetRepository
 	football      *footballClient
 	hub           ws.HubBroadcaster // nil-safe: no broadcast when nil
+	cache         cache.CacheStore
+	group         singleflight.Group
 }
 
-func NewWcService(repo *repository.WcRepository, userRepo *repository.WcUserRepository, customBetRepo *repository.WcCustomBetRepository, hub ws.HubBroadcaster) *WcService {
-	return &WcService{repo: repo, userRepo: userRepo, customBetRepo: customBetRepo, football: newFootballClient(), hub: hub}
+func NewWcService(repo *repository.WcRepository, userRepo *repository.WcUserRepository, customBetRepo *repository.WcCustomBetRepository, hub ws.HubBroadcaster, c cache.CacheStore) *WcService {
+	return &WcService{repo: repo, userRepo: userRepo, customBetRepo: customBetRepo, football: newFootballClient(), hub: hub, cache: c}
+}
+
+func wcLeaderboardKey(tournamentType string) string {
+	return "wc:leaderboard:" + tournamentType
+}
+
+func wcMatchesKey(tournamentType string) string {
+	return "wc:matches:all:" + tournamentType
+}
+
+func wcConfigKey(tournamentType string) string {
+	return "wc:config:" + tournamentType
 }
 
 // --- Config ---
 
 func (s *WcService) GetConfig(tournamentType string) (*model.WcConfig, error) {
-	return s.repo.GetConfig(tournamentType)
+	return cache.GetOrFetch(s.cache, &s.group, wcConfigKey(tournamentType), 15*time.Minute, func() (*model.WcConfig, error) {
+		return s.repo.GetConfig(tournamentType)
+	})
 }
 
 func (s *WcService) SetConfig(tournamentType string, isEnabled bool, updatedBy uuid.UUID) error {
-	return s.repo.UpdateConfig(tournamentType, isEnabled, &updatedBy)
+	if err := s.repo.UpdateConfig(tournamentType, isEnabled, &updatedBy); err != nil {
+		return err
+	}
+	_ = s.cache.Delete(wcConfigKey(tournamentType))
+	return nil
 }
 
 func (s *WcService) SetBetLimits(tournamentType string, min, max int, updatedBy uuid.UUID) error {
@@ -42,7 +64,11 @@ func (s *WcService) SetBetLimits(tournamentType string, min, max int, updatedBy 
 	if max < min {
 		return fmt.Errorf("max_points phải >= min_points")
 	}
-	return s.repo.UpdateBetLimits(tournamentType, min, max, &updatedBy)
+	if err := s.repo.UpdateBetLimits(tournamentType, min, max, &updatedBy); err != nil {
+		return err
+	}
+	_ = s.cache.Delete(wcConfigKey(tournamentType))
+	return nil
 }
 
 // --- Sync ---
@@ -58,12 +84,24 @@ func (s *WcService) SyncMatches() (int, error) {
 	if err := s.repo.UpsertMatches(matches); err != nil {
 		return 0, fmt.Errorf("failed to upsert matches: %w", err)
 	}
+	_ = s.cache.Delete(wcMatchesKey("world_cup"))
 	return len(matches), nil
 }
 
 // --- Matches ---
 
 func (s *WcService) ListMatches(tournamentType string, f repository.MatchFilter) ([]*model.WcMatch, error) {
+	// Cache only unfiltered requests (the common schedule-page load).
+	// Filtered queries (by group, status, etc.) bypass cache and hit DB directly.
+	if f == (repository.MatchFilter{}) {
+		return cache.GetOrFetch(s.cache, &s.group, wcMatchesKey(tournamentType), 5*time.Minute, func() ([]*model.WcMatch, error) {
+			return s.listMatchesFromDB(tournamentType, f)
+		})
+	}
+	return s.listMatchesFromDB(tournamentType, f)
+}
+
+func (s *WcService) listMatchesFromDB(tournamentType string, f repository.MatchFilter) ([]*model.WcMatch, error) {
 	matches, err := s.repo.ListMatches(tournamentType, f)
 	if err != nil {
 		return nil, err
@@ -93,15 +131,39 @@ func (s *WcService) GetMatchWithOdds(id uuid.UUID) (*model.WcMatchWithOdds, erro
 }
 
 func (s *WcService) UpdateMatch(id uuid.UUID, fields map[string]interface{}) error {
-	return s.repo.UpdateMatch(id, fields)
+	m, err := s.repo.GetMatch(id)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpdateMatch(id, fields); err != nil {
+		return err
+	}
+	_ = s.cache.Delete(wcMatchesKey(m.TournamentType))
+	return nil
 }
 
 func (s *WcService) OpenMatch(id uuid.UUID) error {
-	return s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": true})
+	m, err := s.repo.GetMatch(id)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": true}); err != nil {
+		return err
+	}
+	_ = s.cache.Delete(wcMatchesKey(m.TournamentType))
+	return nil
 }
 
 func (s *WcService) CloseMatch(id uuid.UUID) error {
-	return s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": false})
+	m, err := s.repo.GetMatch(id)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpdateMatch(id, map[string]interface{}{"predictions_open": false}); err != nil {
+		return err
+	}
+	_ = s.cache.Delete(wcMatchesKey(m.TournamentType))
+	return nil
 }
 
 // WcCreateMatchRequest holds the fields needed to manually create a WC match.
@@ -133,7 +195,11 @@ func (s *WcService) CreateMatch(tournamentType string, req WcCreateMatchRequest)
 		Status:          model.WcStatusScheduled,
 		PredictionsOpen: false,
 	}
-	return m, s.repo.CreateMatch(m)
+	if err := s.repo.CreateMatch(m); err != nil {
+		return nil, err
+	}
+	_ = s.cache.Delete(wcMatchesKey(tournamentType))
+	return m, nil
 }
 
 // MatchScheduleSummary is returned by GetMatchScheduleSummary for cron scheduling decisions.
@@ -541,7 +607,9 @@ func (s *WcService) GetWallet(wcUserID uuid.UUID) (*model.WcWallet, error) {
 }
 
 func (s *WcService) GetLeaderboard(tournamentType string) ([]*model.WcLeaderboardEntry, error) {
-	return s.repo.GetLeaderboard(tournamentType)
+	return cache.GetOrFetch(s.cache, &s.group, wcLeaderboardKey(tournamentType), 5*time.Minute, func() ([]*model.WcLeaderboardEntry, error) {
+		return s.repo.GetLeaderboard(tournamentType)
+	})
 }
 
 // --- Match settlement ---
@@ -639,6 +707,8 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (*FinalizeMatchResult, erro
 		res.UnsettledCustomBetsCount, _ = s.customBetRepo.CountUnsettledForMatch(matchID)
 	}
 
+	_ = s.cache.Delete(wcLeaderboardKey(m.TournamentType))
+
 	return res, nil
 }
 
@@ -671,6 +741,9 @@ func (s *WcService) FinalizeAllMatches(tournamentType string) (*FinalizeAllResul
 	if s.customBetRepo != nil {
 		result.MatchesWithUnsettledCustomBets, _ = s.customBetRepo.CountMatchesWithUnsettled()
 	}
+
+	_ = s.cache.Delete(wcLeaderboardKey(tournamentType))
+
 	return result, nil
 }
 
@@ -779,6 +852,9 @@ func (s *WcService) RefinalizeAllMatches(tournamentType string) (*FinalizeAllRes
 		result.Processed++
 		result.TotalPointsAwarded += totalPointsEarned
 	}
+
+	_ = s.cache.Delete(wcLeaderboardKey(tournamentType))
+
 	return result, nil
 }
 

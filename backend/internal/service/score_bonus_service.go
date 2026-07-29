@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ type ScoreBonusService struct {
 	userRepo    *repository.UserRepository
 	tierService *TierService
 	db          *gorm.DB
+	cache       cache.CacheStore
 }
 
 func NewScoreBonusService(
@@ -23,8 +25,14 @@ func NewScoreBonusService(
 	userRepo *repository.UserRepository,
 	tierService *TierService,
 	db *gorm.DB,
+	c cache.CacheStore,
 ) *ScoreBonusService {
-	return &ScoreBonusService{repo: repo, userRepo: userRepo, tierService: tierService, db: db}
+	return &ScoreBonusService{repo: repo, userRepo: userRepo, tierService: tierService, db: db, cache: c}
+}
+
+func (s *ScoreBonusService) invalidateScoreCaches() {
+	_ = s.cache.Delete("esport:users:leaderboard")
+	_ = s.cache.Delete("esport:users:all")
 }
 
 type CreateScoreBonusRequest struct {
@@ -82,7 +90,7 @@ func (s *ScoreBonusService) CreateBonus(req *CreateScoreBonusRequest) (*model.Sc
 	}
 
 	_ = s.tierService.RecalculateForUsers([]uuid.UUID{req.UserID})
-
+	s.invalidateScoreCaches()
 	return s.repo.GetByID(bonus.ID)
 }
 
@@ -120,6 +128,7 @@ func (s *ScoreBonusService) DeleteBonus(id uuid.UUID) error {
 	}
 
 	_ = s.tierService.RecalculateForUsers([]uuid.UUID{bonus.UserID})
+	s.invalidateScoreCaches()
 	return nil
 }
 

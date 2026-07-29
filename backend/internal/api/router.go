@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/cron"
 	"github.com/duyb/esport-score-tracker/internal/middleware"
 	"github.com/duyb/esport-score-tracker/internal/repository"
@@ -14,7 +15,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	gocache "github.com/patrickmn/go-cache"
 	"gorm.io/gorm"
 )
 
@@ -41,6 +41,22 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		c.JSON(200, gin.H{"status": "ok", "message": "FC25 Esport Score Tracker API"})
 	})
 
+	// Initialize cache — soft startup: Redis failure falls back to go-cache (no crash)
+	var cacheStore cache.CacheStore
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		rc, err := cache.NewRedisCache(redisURL)
+		if err != nil {
+			log.Printf("⚠️  Redis unavailable (%v) — falling back to go-cache", err)
+			cacheStore = cache.NewGoCacheStore(10*time.Minute, 5*time.Minute)
+		} else {
+			cacheStore = rc
+			log.Println("Cache backend: Redis")
+		}
+	} else {
+		cacheStore = cache.NewGoCacheStore(10*time.Minute, 5*time.Minute)
+		log.Println("Cache backend: go-cache (dev mode)")
+	}
+
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	matchRepo := repository.NewMatchRepository(db)
@@ -56,12 +72,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcAnalyticsRepo := repository.NewWcAnalyticsRepository(db)
 
 	// Initialize services
-	configService := service.NewConfigService(configRepo)
-	userService := service.NewUserService(userRepo, configService)
-	fundService := service.NewFundService(fundRepo)
-	settlementService := service.NewSettlementService(settlementRepo, userRepo, matchRepo, fundService, configService, db)
+	configService := service.NewConfigService(configRepo, cacheStore)
+	userService := service.NewUserService(userRepo, configService, cacheStore)
+	fundService := service.NewFundService(fundRepo, cacheStore)
+	settlementService := service.NewSettlementService(settlementRepo, userRepo, matchRepo, fundService, configService, db, cacheStore)
 	tierService := service.NewTierService(userRepo, configService)
-	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, tierService, db)
+	matchService := service.NewMatchService(matchRepo, userRepo, settlementService, configService, tierService, db, cacheStore)
 	tournamentService := service.NewTournamentService(tournamentRepo, userRepo, matchService, db)
 	wcAuthService := service.NewWcAuthService(wcUserRepo, wcRepo)
 	wcProfileService := service.NewWcProfileService(wcUserRepo)
@@ -74,14 +90,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	wcChatService := service.NewWcChatService(wcChatRepo, chatHub)
 
-	wcService := service.NewWcService(wcRepo, wcUserRepo, wcCustomBetRepo, wsHub)
+	wcService := service.NewWcService(wcRepo, wcUserRepo, wcCustomBetRepo, wsHub, cacheStore)
 	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo, wcUserRepo, wsHub)
 	wcCustomBetService := service.NewWcCustomBetService(wcCustomBetRepo, wcRepo, wcUserRepo, wsHub)
 	statsApiKey := os.Getenv("ODDSAPI_KEY")
 	statsApiSyncService := service.NewStatsApiSyncService(wcRepo, statsApiKey, "")
 	poissonService := service.NewPoissonService()
 	bonusRepo := repository.NewScoreBonusRepository(db)
-	bonusService := service.NewScoreBonusService(bonusRepo, userRepo, tierService, db)
+	bonusService := service.NewScoreBonusService(bonusRepo, userRepo, tierService, db, cacheStore)
 
 	// Backfill tiers from existing match history on startup.
 	if err := tierService.RecalculateAllTiers(); err != nil {
@@ -109,10 +125,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcChampionHandler := NewWcChampionHandler(wcChampionService)
 	wcCustomBetHandler := NewWcCustomBetHandler(wcCustomBetService)
 	wcChatHandler := NewWcChatHandler(wcChatService)
-	analyticsCache := gocache.New(30*time.Minute, 10*time.Minute)
 	wcFdClient := service.NewWcFootballDataClient(os.Getenv("FOOTBALL_DATA_API_KEY"))
 	wcOfClient := service.NewWcOpenFootballClient()
-	wcAnalyticsService := service.NewWcAnalyticsService(wcAnalyticsRepo, wcRepo, analyticsCache, wcFdClient, wcOfClient)
+	wcAnalyticsService := service.NewWcAnalyticsService(wcAnalyticsRepo, wcRepo, cacheStore, wcFdClient, wcOfClient)
 	wcAnalyticsHandler := NewWcAnalyticsHandler(wcAnalyticsService)
 	wsHandler := ws.NewHandler(wsHub)
 

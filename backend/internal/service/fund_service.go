@@ -4,16 +4,20 @@ import (
 	"errors"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
+	"golang.org/x/sync/singleflight"
 )
 
 type FundService struct {
 	fundRepo *repository.FundRepository
+	cache    cache.CacheStore
+	group    singleflight.Group
 }
 
-func NewFundService(fundRepo *repository.FundRepository) *FundService {
-	return &FundService{fundRepo: fundRepo}
+func NewFundService(fundRepo *repository.FundRepository, c cache.CacheStore) *FundService {
+	return &FundService{fundRepo: fundRepo, cache: c}
 }
 
 // CreateDepositRequest represents deposit request
@@ -51,7 +55,7 @@ func (s *FundService) CreateDeposit(req *CreateDepositRequest) (*model.FundTrans
 	if err := s.fundRepo.Create(transaction); err != nil {
 		return nil, err
 	}
-
+	_ = s.cache.Delete("esport:fund:totals")
 	return transaction, nil
 }
 
@@ -86,7 +90,7 @@ func (s *FundService) CreateWithdrawal(req *CreateWithdrawalRequest) (*model.Fun
 	if err := s.fundRepo.Create(transaction); err != nil {
 		return nil, err
 	}
-
+	_ = s.cache.Delete("esport:fund:totals")
 	return transaction, nil
 }
 
@@ -124,32 +128,30 @@ func (s *FundService) GetTransactionsByType(transactionType string, limit int) (
 	return s.fundRepo.GetByType(transactionType, limit)
 }
 
-// GetFundStats returns fund statistics
+// GetFundStats returns fund statistics, served from cache when possible.
 func (s *FundService) GetFundStats() (map[string]interface{}, error) {
-	balance, err := s.fundRepo.GetBalance()
-	if err != nil {
-		return nil, err
-	}
-
-	totalDeposits, err := s.fundRepo.GetTotalByType("deposit")
-	if err != nil {
-		return nil, err
-	}
-
-	totalWithdrawals, err := s.fundRepo.GetTotalByType("withdrawal")
-	if err != nil {
-		return nil, err
-	}
-
-	settlementDeposits, err := s.fundRepo.CountSettlementDeposits()
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]interface{}{
-		"balance":             balance,
-		"total_deposits":      totalDeposits,
-		"total_withdrawals":   totalWithdrawals,
-		"settlement_deposits": settlementDeposits,
-	}, nil
+	return cache.GetOrFetch(s.cache, &s.group, "esport:fund:totals", 15*time.Minute, func() (map[string]interface{}, error) {
+		balance, err := s.fundRepo.GetBalance()
+		if err != nil {
+			return nil, err
+		}
+		totalDeposits, err := s.fundRepo.GetTotalByType("deposit")
+		if err != nil {
+			return nil, err
+		}
+		totalWithdrawals, err := s.fundRepo.GetTotalByType("withdrawal")
+		if err != nil {
+			return nil, err
+		}
+		settlementDeposits, err := s.fundRepo.CountSettlementDeposits()
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{
+			"balance":             balance,
+			"total_deposits":      totalDeposits,
+			"total_withdrawals":   totalWithdrawals,
+			"settlement_deposits": settlementDeposits,
+		}, nil
+	})
 }

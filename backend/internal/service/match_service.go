@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
@@ -18,9 +20,11 @@ type MatchService struct {
 	configService     *ConfigService
 	tierService       *TierService
 	db                *gorm.DB
+	cache             cache.CacheStore
+	group             singleflight.Group
 }
 
-func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository.UserRepository, settlementService *SettlementService, configService *ConfigService, tierService *TierService, db *gorm.DB) *MatchService {
+func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository.UserRepository, settlementService *SettlementService, configService *ConfigService, tierService *TierService, db *gorm.DB, c cache.CacheStore) *MatchService {
 	return &MatchService{
 		matchRepo:         matchRepo,
 		userRepo:          userRepo,
@@ -28,7 +32,26 @@ func NewMatchService(matchRepo *repository.MatchRepository, userRepo *repository
 		configService:     configService,
 		tierService:       tierService,
 		db:                db,
+		cache:             c,
 	}
+}
+
+// matchVersionedKey builds the versioned cache key for paginated match queries.
+// A version counter (esport:matches:version) is incremented on each write,
+// making old page keys unreachable orphans that expire via their 2-min TTL.
+func (s *MatchService) matchVersionedKey(limit, offset int, playerID *uuid.UUID) string {
+	version, _ := s.cache.GetInt("esport:matches:version")
+	pid := "all"
+	if playerID != nil {
+		pid = playerID.String()
+	}
+	return fmt.Sprintf("esport:matches:v%d:%d:%d:%s", version, limit, offset, pid)
+}
+
+func (s *MatchService) invalidateMatchCaches() {
+	_, _ = s.cache.Incr("esport:matches:version")
+	_ = s.cache.Delete("esport:users:leaderboard")
+	_ = s.cache.Delete("esport:users:all")
 }
 
 // CreateMatchRequest represents the request to create a match
@@ -232,7 +255,7 @@ func (s *MatchService) CreateMatch(req *CreateMatchRequest) (*model.Match, error
 
 	// Recalculate tier for all participants post-commit (non-fatal).
 	_ = s.tierService.RecalculateForUsers(allPlayers)
-
+	s.invalidateMatchCaches()
 	return createdMatch, nil
 }
 
@@ -241,9 +264,12 @@ func (s *MatchService) GetMatchByID(id uuid.UUID) (*model.Match, error) {
 	return s.matchRepo.GetByID(id)
 }
 
-// GetAllMatches returns all matches with pagination, optionally filtered by participant
+// GetAllMatches returns matches with pagination, served from versioned cache when possible.
 func (s *MatchService) GetAllMatches(limit, offset int, playerID *uuid.UUID) ([]*model.Match, error) {
-	return s.matchRepo.GetAllFiltered(limit, offset, playerID)
+	key := s.matchVersionedKey(limit, offset, playerID)
+	return cache.GetOrFetch(s.cache, &s.group, key, 2*time.Minute, func() ([]*model.Match, error) {
+		return s.matchRepo.GetAllFiltered(limit, offset, playerID)
+	})
 }
 
 // GetRecentMatches returns recent matches
@@ -309,6 +335,7 @@ func (s *MatchService) DeleteMatch(id uuid.UUID) error {
 		participantIDs[i] = p.UserID
 	}
 	_ = s.tierService.RecalculateForUsers(participantIDs)
+	s.invalidateMatchCaches()
 	return nil
 }
 

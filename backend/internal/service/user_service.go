@@ -9,20 +9,25 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
 type UserService struct {
 	repo      *repository.UserRepository
 	configSvc *ConfigService
+	cache     cache.CacheStore
+	group     singleflight.Group
 }
 
-func NewUserService(repo *repository.UserRepository, configSvc *ConfigService) *UserService {
-	return &UserService{repo: repo, configSvc: configSvc}
+func NewUserService(repo *repository.UserRepository, configSvc *ConfigService, c cache.CacheStore) *UserService {
+	return &UserService{repo: repo, configSvc: configSvc, cache: c}
 }
 
 func (s *UserService) minMatchesForTier() int {
@@ -49,21 +54,23 @@ func (s *UserService) winRateThresholds() (pro float64, normal float64) {
 
 // GetAll returns all active users with tier and win rate computed against the live config threshold.
 func (s *UserService) GetAll() ([]*model.UserWithStats, error) {
-	users, err := s.repo.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	minMatches := s.minMatchesForTier()
-	proThres, normalThres := s.winRateThresholds()
-	for _, u := range users {
-		if u.TotalMatches < minMatches {
-			u.WinRate = 0
-			u.Tier = TierNormal
-		} else {
-			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+	return cache.GetOrFetch(s.cache, &s.group, "esport:users:all", 10*time.Minute, func() ([]*model.UserWithStats, error) {
+		users, err := s.repo.GetAll()
+		if err != nil {
+			return nil, err
 		}
-	}
-	return users, nil
+		minMatches := s.minMatchesForTier()
+		proThres, normalThres := s.winRateThresholds()
+		for _, u := range users {
+			if u.TotalMatches < minMatches {
+				u.WinRate = 0
+				u.Tier = TierNormal
+			} else {
+				u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+			}
+		}
+		return users, nil
+	})
 }
 
 // GetByID returns a user with computed win rate stats.
@@ -76,6 +83,12 @@ func (s *UserService) GetByID(id uuid.UUID) (*model.UserWithStats, error) {
 		return nil, err
 	}
 	return user, nil
+}
+
+func (s *UserService) invalidateUserCaches() {
+	_ = s.cache.Delete("esport:users:all")
+	_ = s.cache.DeleteByPattern("esport:users:leaderboard:*")
+	_ = s.cache.Delete("esport:users:payment-ranking")
 }
 
 // CreateUser creates a new user with validation
@@ -124,7 +137,7 @@ func (s *UserService) CreateUser(name string, tier string, handicapRate float64)
 	if err := s.repo.Create(user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
-
+	s.invalidateUserCaches()
 	return user, nil
 }
 
@@ -171,7 +184,7 @@ func (s *UserService) UpdateUser(id uuid.UUID, name string, tier string, handica
 	if err := s.repo.Update(&user.User); err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
-
+	s.invalidateUserCaches()
 	return user, nil
 }
 
@@ -253,6 +266,7 @@ func (s *UserService) UploadAvatar(userID uuid.UUID, file multipart.File, header
 		os.Remove(dst)
 		return "", fmt.Errorf("failed to persist avatar URL")
 	}
+	_ = s.cache.Delete("esport:users:all")
 	return avatarURL, nil
 }
 
@@ -261,7 +275,11 @@ func (s *UserService) SetAvatarURL(userID uuid.UUID, avatarURL string) error {
 	if _, err := s.repo.GetByID(userID); err != nil {
 		return fmt.Errorf("user not found")
 	}
-	return s.repo.UpdateAvatarURL(userID, avatarURL)
+	if err := s.repo.UpdateAvatarURL(userID, avatarURL); err != nil {
+		return err
+	}
+	_ = s.cache.Delete("esport:users:all")
+	return nil
 }
 
 // DeleteAvatar removes the avatar file and clears the URL.
@@ -274,7 +292,11 @@ func (s *UserService) DeleteAvatar(userID uuid.UUID) error {
 		oldPath := strings.TrimPrefix(*existing.AvatarURL, "/")
 		os.Remove(oldPath)
 	}
-	return s.repo.ClearAvatarURL(userID)
+	if err := s.repo.ClearAvatarURL(userID); err != nil {
+		return err
+	}
+	_ = s.cache.Delete("esport:users:all")
+	return nil
 }
 
 // UpdateClub sets the favorite club for a user. Empty string clears it.
@@ -286,7 +308,11 @@ func (s *UserService) UpdateClub(userID uuid.UUID, club string) error {
 	if err != nil {
 		return fmt.Errorf("user not found")
 	}
-	return s.repo.UpdateFavoriteClub(userID, club)
+	if err := s.repo.UpdateFavoriteClub(userID, club); err != nil {
+		return err
+	}
+	_ = s.cache.Delete("esport:users:all")
+	return nil
 }
 
 // DeleteUser soft deletes a user
@@ -301,45 +327,50 @@ func (s *UserService) DeleteUser(id uuid.UUID) error {
 	if err := s.repo.SoftDelete(id); err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
-
+	s.invalidateUserCaches()
 	return nil
 }
 
 // GetLeaderboard returns the leaderboard with tier and win rate computed against the live config threshold.
 func (s *UserService) GetLeaderboard(limit int) ([]*model.UserWithStats, error) {
-	users, err := s.repo.GetLeaderboard(limit)
-	if err != nil {
-		return nil, err
-	}
-	minMatches := s.minMatchesForTier()
-	proThres, normalThres := s.winRateThresholds()
-	for _, u := range users {
-		if u.TotalMatches < minMatches {
-			u.WinRate = 0
-			u.Tier = TierNormal
-		} else {
-			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+	key := fmt.Sprintf("esport:users:leaderboard:%d", limit)
+	return cache.GetOrFetch(s.cache, &s.group, key, 5*time.Minute, func() ([]*model.UserWithStats, error) {
+		users, err := s.repo.GetLeaderboard(limit)
+		if err != nil {
+			return nil, err
 		}
-	}
-	return users, nil
+		minMatches := s.minMatchesForTier()
+		proThres, normalThres := s.winRateThresholds()
+		for _, u := range users {
+			if u.TotalMatches < minMatches {
+				u.WinRate = 0
+				u.Tier = TierNormal
+			} else {
+				u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+			}
+		}
+		return users, nil
+	})
 }
 
 // GetPaymentRanking returns active users sorted by total historical settlement money paid DESC,
 // with tier and win rate computed against the live config threshold.
 func (s *UserService) GetPaymentRanking() ([]*model.UserWithPaymentTotal, error) {
-	users, err := s.repo.GetPaymentRanking()
-	if err != nil {
-		return nil, err
-	}
-	minMatches := s.minMatchesForTier()
-	proThres, normalThres := s.winRateThresholds()
-	for _, u := range users {
-		if u.TotalMatches < minMatches {
-			u.WinRate = 0
-			u.Tier = TierNormal
-		} else {
-			u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+	return cache.GetOrFetch(s.cache, &s.group, "esport:users:payment-ranking", 10*time.Minute, func() ([]*model.UserWithPaymentTotal, error) {
+		users, err := s.repo.GetPaymentRanking()
+		if err != nil {
+			return nil, err
 		}
-	}
-	return users, nil
+		minMatches := s.minMatchesForTier()
+		proThres, normalThres := s.winRateThresholds()
+		for _, u := range users {
+			if u.TotalMatches < minMatches {
+				u.WinRate = 0
+				u.Tier = TierNormal
+			} else {
+				u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+			}
+		}
+		return users, nil
+	})
 }

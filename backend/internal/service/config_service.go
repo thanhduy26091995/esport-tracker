@@ -3,22 +3,29 @@ package service
 import (
 	"errors"
 	"strconv"
+	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
+	"golang.org/x/sync/singleflight"
 )
 
 type ConfigService struct {
 	configRepo *repository.ConfigRepository
+	cache      cache.CacheStore
+	group      singleflight.Group
 }
 
-func NewConfigService(configRepo *repository.ConfigRepository) *ConfigService {
-	return &ConfigService{configRepo: configRepo}
+func NewConfigService(configRepo *repository.ConfigRepository, c cache.CacheStore) *ConfigService {
+	return &ConfigService{configRepo: configRepo, cache: c}
 }
 
-// GetAllConfig returns all configuration entries
+// GetAllConfig returns all configuration entries, served from cache when possible.
 func (s *ConfigService) GetAllConfig() ([]*model.Config, error) {
-	return s.configRepo.GetAll()
+	return cache.GetOrFetch(s.cache, &s.group, "esport:config", 30*time.Minute, func() ([]*model.Config, error) {
+		return s.configRepo.GetAll()
+	})
 }
 
 // GetConfigByKey returns a specific config value
@@ -97,16 +104,21 @@ func (s *ConfigService) UpdateConfig(key, value string) error {
 		return errors.New("invalid config key")
 	}
 
-	return s.configRepo.UpdateByKey(key, value)
+	if err := s.configRepo.UpdateByKey(key, value); err != nil {
+		return err
+	}
+	_ = s.cache.Delete("esport:config")
+	return nil
 }
 
 // UpdateAllConfig validates and updates all provided key-value config pairs atomically
 func (s *ConfigService) UpdateAllConfig(updates map[string]string) ([]*model.Config, error) {
 	for key, value := range updates {
-		if err := s.UpdateConfig(key, value); err != nil {
+		if err := s.configRepo.UpdateByKey(key, value); err != nil {
 			return nil, err
 		}
 	}
+	_ = s.cache.Delete("esport:config")
 	return s.configRepo.GetAll()
 }
 
