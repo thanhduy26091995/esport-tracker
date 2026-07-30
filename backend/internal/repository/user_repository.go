@@ -50,6 +50,30 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*model.UserWithStats, error) {
 	return &user, nil
 }
 
+// GetByIDIncludingInactive returns a user by ID regardless of active state.
+// Used by head-to-head so matchups involving soft-deleted players remain viewable.
+func (r *UserRepository) GetByIDIncludingInactive(id uuid.UUID) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("id = ?", id).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetAllIncludingInactive returns all users (active + soft-deleted) with computed win rate,
+// active players first, then by score/name. Used for the head-to-head player picker.
+func (r *UserRepository) GetAllIncludingInactive() ([]*model.UserWithStats, error) {
+	var users []*model.UserWithStats
+	err := r.db.Table("users u").
+		Select(winRateSelect).
+		Joins("LEFT JOIN match_participants mp ON mp.user_id = u.id").
+		Group("u.id").
+		Order("u.is_active DESC, u.current_score DESC, u.name ASC").
+		Find(&users).Error
+	return users, err
+}
+
 // GetByName returns a user by name (for duplicate checking)
 func (r *UserRepository) GetByName(name string) (*model.User, error) {
 	var user model.User

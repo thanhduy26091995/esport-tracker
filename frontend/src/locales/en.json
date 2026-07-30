@@ -371,7 +371,24 @@
     "colRank": "#",
     "colName": "Player",
     "colPointsContributed": "Points",
-    "colMoneyContributed": "Amount"
+    "colMoneyContributed": "Amount",
+    "headToHead": {
+      "button": "Head-to-head",
+      "title": "Head-to-head record",
+      "selectPlayer1": "Select player 1",
+      "selectPlayer2": "Select player 2",
+      "vs": "vs",
+      "inactive": "inactive",
+      "pickPrompt": "Pick 2 players to see their head-to-head record",
+      "empty": "These two players have never faced each other",
+      "winRate": "Win rate",
+      "totalMatches": "Total matches",
+      "form": "Form",
+      "win": "W",
+      "loss": "L",
+      "recentMatches": "Recent matches",
+      "streak": "{name} is on a {count}-match winning streak"
+    }
   },
   "leaderboard": {
     "noPlayers": "No players yet",

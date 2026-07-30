@@ -1,9 +1,20 @@
 import { api } from './api'
 import type { UserWithStats, UserWithPaymentTotal, CreateUserRequest, UpdateUserRequest } from '@/types/user'
+import type { HeadToHeadResponse } from '@/types/headToHead'
 
 export const userService = {
-  async getAll(): Promise<UserWithStats[]> {
-    const response = await api.get<UserWithStats[]>('/users')
+  async getAll(includeInactive = false): Promise<UserWithStats[]> {
+    const response = await api.get<UserWithStats[]>('/users', {
+      params: includeInactive ? { include_inactive: true } : {},
+    })
+    return response.data
+  },
+
+  // Opponents-only head-to-head record between two players (all match types aggregated).
+  async getHeadToHead(player1: string, player2: string): Promise<HeadToHeadResponse> {
+    const response = await api.get<HeadToHeadResponse>('/users/head-to-head', {
+      params: { player1, player2 },
+    })
     return response.data
   },
 

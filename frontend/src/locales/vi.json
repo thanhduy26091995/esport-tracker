@@ -371,7 +371,24 @@
     "colRank": "#",
     "colName": "Người chơi",
     "colPointsContributed": "Điểm",
-    "colMoneyContributed": "Số tiền"
+    "colMoneyContributed": "Số tiền",
+    "headToHead": {
+      "button": "So tài",
+      "title": "Thành tích đối đầu",
+      "selectPlayer1": "Chọn người chơi 1",
+      "selectPlayer2": "Chọn người chơi 2",
+      "vs": "vs",
+      "inactive": "đã nghỉ",
+      "pickPrompt": "Chọn 2 người chơi để xem thành tích đối đầu",
+      "empty": "Chưa có trận đối đầu nào giữa 2 người chơi",
+      "winRate": "Tỉ lệ thắng",
+      "totalMatches": "Tổng trận",
+      "form": "Phong độ",
+      "win": "T",
+      "loss": "B",
+      "recentMatches": "Trận gần đây",
+      "streak": "{name} đang thắng {count} trận liên tiếp"
+    }
   },
   "leaderboard": {
     "noPlayers": "Chưa có người chơi",

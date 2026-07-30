@@ -19,15 +19,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// Sentinel errors for head-to-head so the handler can map correct HTTP codes.
+var (
+	ErrSamePlayer     = errors.New("cannot compare a player with themselves")
+	ErrPlayerNotFound = errors.New("player not found")
+)
+
 type UserService struct {
 	repo      *repository.UserRepository
+	matchRepo *repository.MatchRepository
 	configSvc *ConfigService
 	cache     cache.CacheStore
 	group     singleflight.Group
 }
 
-func NewUserService(repo *repository.UserRepository, configSvc *ConfigService, c cache.CacheStore) *UserService {
-	return &UserService{repo: repo, configSvc: configSvc, cache: c}
+func NewUserService(repo *repository.UserRepository, matchRepo *repository.MatchRepository, configSvc *ConfigService, c cache.CacheStore) *UserService {
+	return &UserService{repo: repo, matchRepo: matchRepo, configSvc: configSvc, cache: c}
 }
 
 func (s *UserService) minMatchesForTier() int {
@@ -87,8 +94,190 @@ func (s *UserService) GetByID(id uuid.UUID) (*model.UserWithStats, error) {
 
 func (s *UserService) invalidateUserCaches() {
 	_ = s.cache.Delete("esport:users:all")
+	_ = s.cache.Delete("esport:users:all:with-inactive")
 	_ = s.cache.DeleteByPattern("esport:users:leaderboard:*")
 	_ = s.cache.Delete("esport:users:payment-ranking")
+}
+
+// GetAllIncludingInactive returns all users (active + soft-deleted) with tier/win rate,
+// active first. Used by the head-to-head player picker so historical matchups are selectable.
+func (s *UserService) GetAllIncludingInactive() ([]*model.UserWithStats, error) {
+	return cache.GetOrFetch(s.cache, &s.group, "esport:users:all:with-inactive", 10*time.Minute, func() ([]*model.UserWithStats, error) {
+		users, err := s.repo.GetAllIncludingInactive()
+		if err != nil {
+			return nil, err
+		}
+		minMatches := s.minMatchesForTier()
+		proThres, normalThres := s.winRateThresholds()
+		for _, u := range users {
+			if u.TotalMatches < minMatches {
+				u.WinRate = 0
+				u.Tier = TierNormal
+			} else {
+				u.Tier = EvaluateTier(u.WinRate, u.TotalMatches, minMatches, proThres, normalThres)
+			}
+		}
+		return users, nil
+	})
+}
+
+// GetHeadToHead returns the opponents-only head-to-head record between two players,
+// oriented to player1. Aggregates over all match types (1v1/2v2/1v2); teammate
+// encounters are excluded by the repository join. Soft-deleted players are accepted.
+func (s *UserService) GetHeadToHead(p1, p2 uuid.UUID) (*model.HeadToHeadResponse, error) {
+	if p1 == p2 {
+		return nil, ErrSamePlayer
+	}
+
+	version, _ := s.cache.GetInt("esport:matches:version")
+	key := fmt.Sprintf("esport:h2h:v%d:%s:%s", version, p1, p2)
+	return cache.GetOrFetch(s.cache, &s.group, key, 5*time.Minute, func() (*model.HeadToHeadResponse, error) {
+		user1, err := s.repo.GetByIDIncludingInactive(p1)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrPlayerNotFound
+			}
+			return nil, err
+		}
+		user2, err := s.repo.GetByIDIncludingInactive(p2)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrPlayerNotFound
+			}
+			return nil, err
+		}
+
+		rows, err := s.matchRepo.GetHeadToHeadMatches(p1, p2)
+		if err != nil {
+			return nil, err
+		}
+
+		// Lineups: only the top-N most-recent matches need full participant detail.
+		recentRows := rows
+		if len(recentRows) > h2hListLimit {
+			recentRows = recentRows[:h2hListLimit]
+		}
+		lineups, err := s.h2hLineups(recentRows)
+		if err != nil {
+			return nil, err
+		}
+
+		return aggregateHeadToHead(user1, user2, rows, lineups), nil
+	})
+}
+
+const h2hListLimit = 10
+
+// aggregateHeadToHead builds the P1-oriented response from the (most-recent-first) rows.
+// Pure: totals/form/streak are computed over the full history; recent matches (with
+// lineups) are capped to h2hListLimit. Player2Wins is the complement (no draws exist).
+func aggregateHeadToHead(user1, user2 *model.User, rows []model.H2HRow, lineups map[uuid.UUID][]model.H2HParticipant) *model.HeadToHeadResponse {
+	resp := &model.HeadToHeadResponse{
+		Player1:       toH2HPlayer(user1),
+		Player2:       toH2HPlayer(user2),
+		TotalMatches:  len(rows),
+		Form:          make([]string, 0, h2hListLimit),
+		RecentMatches: make([]model.H2HMatch, 0, h2hListLimit),
+	}
+
+	for _, r := range rows {
+		p1Won := r.P1Team == r.WinnerTeam
+		if p1Won {
+			resp.Player1Wins++
+		}
+		if len(resp.Form) < h2hListLimit {
+			resp.Form = append(resp.Form, winLossLabel(p1Won))
+		}
+	}
+	resp.Player2Wins = resp.TotalMatches - resp.Player1Wins
+	if resp.TotalMatches > 0 {
+		resp.Player1WinRate = float64(resp.Player1Wins) / float64(resp.TotalMatches)
+		resp.Player2WinRate = float64(resp.Player2Wins) / float64(resp.TotalMatches)
+		resp.CurrentStreak = computeH2HStreak(rows, user1.ID, user2.ID)
+	}
+
+	limit := len(rows)
+	if limit > h2hListLimit {
+		limit = h2hListLimit
+	}
+	for _, r := range rows[:limit] {
+		resp.RecentMatches = append(resp.RecentMatches, model.H2HMatch{
+			MatchID:      r.MatchID,
+			MatchType:    r.MatchType,
+			MatchDate:    r.MatchDate,
+			WinnerTeam:   r.WinnerTeam,
+			Player1Team:  r.P1Team,
+			Player1Won:   r.P1Team == r.WinnerTeam,
+			Participants: lineups[r.MatchID],
+		})
+	}
+	return resp
+}
+
+func winLossLabel(won bool) string {
+	if won {
+		return "W"
+	}
+	return "L"
+}
+
+func toH2HPlayer(u *model.User) model.H2HPlayer {
+	return model.H2HPlayer{
+		ID:           u.ID,
+		Name:         u.Name,
+		AvatarURL:    u.AvatarURL,
+		FavoriteClub: u.FavoriteClub,
+		Tier:         u.Tier,
+		IsActive:     u.IsActive,
+	}
+}
+
+// computeH2HStreak returns the current run of consecutive wins for whichever player
+// won the most-recent encounter. Assumes rows are most-recent first and non-empty.
+func computeH2HStreak(rows []model.H2HRow, p1, p2 uuid.UUID) model.H2HStreak {
+	firstP1Won := rows[0].P1Team == rows[0].WinnerTeam
+	count := 0
+	for _, r := range rows {
+		if (r.P1Team == r.WinnerTeam) == firstP1Won {
+			count++
+		} else {
+			break
+		}
+	}
+	winner := p2
+	if firstP1Won {
+		winner = p1
+	}
+	return model.H2HStreak{PlayerID: &winner, Count: count}
+}
+
+// h2hLineups fetches full participant lineups for the given rows, keyed by match ID.
+func (s *UserService) h2hLineups(rows []model.H2HRow) (map[uuid.UUID][]model.H2HParticipant, error) {
+	lineups := make(map[uuid.UUID][]model.H2HParticipant, len(rows))
+	if len(rows) == 0 {
+		return lineups, nil
+	}
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.MatchID)
+	}
+	matches, err := s.matchRepo.GetMatchesWithParticipants(ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range matches {
+		parts := make([]model.H2HParticipant, 0, len(m.Participants))
+		for _, p := range m.Participants {
+			parts = append(parts, model.H2HParticipant{
+				UserID:    p.UserID,
+				Name:      p.User.Name,
+				AvatarURL: p.User.AvatarURL,
+				Team:      p.TeamNumber,
+			})
+		}
+		lineups[m.ID] = parts
+	}
+	return lineups, nil
 }
 
 // CreateUser creates a new user with validation

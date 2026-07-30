@@ -73,7 +73,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	// Initialize services
 	configService := service.NewConfigService(configRepo, cacheStore)
-	userService := service.NewUserService(userRepo, configService, cacheStore)
+	userService := service.NewUserService(userRepo, matchRepo, configService, cacheStore)
 	fundService := service.NewFundService(fundRepo, cacheStore)
 	settlementService := service.NewSettlementService(settlementRepo, userRepo, matchRepo, fundService, configService, db, cacheStore)
 	tierService := service.NewTierService(userRepo, configService)
@@ -163,6 +163,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			users.POST("", userHandler.Create)                           // POST /api/v1/users
 			users.GET("/leaderboard", userHandler.GetLeaderboard)        // GET /api/v1/users/leaderboard
 			users.GET("/payment-ranking", userHandler.GetPaymentRanking) // GET /api/v1/users/payment-ranking
+			users.GET("/head-to-head", userHandler.GetHeadToHead)        // GET /api/v1/users/head-to-head?player1=&player2=
 			users.GET("/:id", userHandler.GetByID)                       // GET /api/v1/users/:id
 			users.GET("/:id/matches", matchHandler.GetByUserID) // GET /api/v1/users/:id/matches
 			users.PUT("/:id", userHandler.Update)                    // PUT /api/v1/users/:id

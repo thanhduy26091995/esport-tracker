@@ -1,10 +1,12 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -32,9 +34,18 @@ type UpdateUserRequest struct {
 	HandicapRate float64 `json:"handicap_rate"`
 }
 
-// GetAll handles GET /users
+// GetAll handles GET /users. With ?include_inactive=true it also returns soft-deleted
+// players (for the head-to-head picker); by default only active players are returned.
 func (h *UserHandler) GetAll(c *gin.Context) {
-	users, err := h.userService.GetAll()
+	includeInactive := c.Query("include_inactive") == "true"
+
+	var users []*model.UserWithStats
+	var err error
+	if includeInactive {
+		users, err = h.userService.GetAllIncludingInactive()
+	} else {
+		users, err = h.userService.GetAll()
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
@@ -46,6 +57,46 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, users)
+}
+
+// GetHeadToHead handles GET /users/head-to-head?player1=&player2=
+// Returns the opponents-only head-to-head record between two players (all match types).
+func (h *UserHandler) GetHeadToHead(c *gin.Context) {
+	p1, err := uuid.Parse(c.Query("player1"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid or missing player1 ID"},
+		})
+		return
+	}
+	p2, err := uuid.Parse(c.Query("player2"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid or missing player2 ID"},
+		})
+		return
+	}
+
+	result, err := h.userService.GetHeadToHead(p1, p2)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrSamePlayer):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()},
+			})
+		case errors.Is(err, service.ErrPlayerNotFound):
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": gin.H{"code": "NOT_FOUND", "message": err.Error()},
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "Failed to compute head-to-head"},
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // GetByID handles GET /users/:id
@@ -104,11 +155,11 @@ func (h *UserHandler) Create(c *gin.Context) {
 		}
 
 		// Check if it's a validation error
-		if err.Error() == "name cannot be empty" || 
-		   err.Error() == "name must be at least 2 characters" ||
-		   err.Error() == "name cannot exceed 100 characters" ||
-		   err.Error() == "tier must be one of: pro, normal, noop" ||
-		   err.Error() == "handicap_rate must be between 0 and 5" {
+		if err.Error() == "name cannot be empty" ||
+			err.Error() == "name must be at least 2 characters" ||
+			err.Error() == "name cannot exceed 100 characters" ||
+			err.Error() == "tier must be one of: pro, normal, noop" ||
+			err.Error() == "handicap_rate must be between 0 and 5" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": gin.H{
 					"code":    "VALIDATION_ERROR",
@@ -181,9 +232,9 @@ func (h *UserHandler) Update(c *gin.Context) {
 		}
 
 		// Check if it's a validation error
-		if err.Error() == "name cannot be empty" || 
-		   err.Error() == "name must be at least 2 characters" ||
-		   err.Error() == "name cannot exceed 100 characters" {
+		if err.Error() == "name cannot be empty" ||
+			err.Error() == "name must be at least 2 characters" ||
+			err.Error() == "name cannot exceed 100 characters" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": gin.H{
 					"code":    "VALIDATION_ERROR",

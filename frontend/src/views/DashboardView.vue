@@ -10,6 +10,14 @@
         </div>
         <div class="page-header-actions">
           <el-button
+            plain
+            :icon="Switch"
+            @click="handleOpenHeadToHead"
+            :disabled="userStore.users.length < 2"
+          >
+            {{ t('dashboard.headToHead.button') }}
+          </el-button>
+          <el-button
             type="warning"
             plain
             :icon="Star"
@@ -205,6 +213,8 @@
     />
     <ScoreBonusForm v-model="showBonusForm" :users="activeUsers" :loading="matchStore.loading"
       @submit="handleSubmitBonus" />
+
+    <HeadToHeadModal v-model:visible="showHeadToHead" :players="h2hPlayers" />
   </div>
 </template>
 
@@ -212,7 +222,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
-import { Trophy, User, Plus, Minus, Warning, Wallet, TrendCharts, Document, Loading, Star } from '@element-plus/icons-vue'
+import { Trophy, User, Plus, Minus, Warning, Wallet, TrendCharts, Document, Loading, Star, Switch } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/userStore'
 import { useMatchStore } from '@/stores/matchStore'
 import { useSettlementStore } from '@/stores/settlementStore'
@@ -223,6 +233,9 @@ import UserTable from '@/components/user/UserTable.vue'
 import RecentMatches from '@/components/match/RecentMatches.vue'
 import MatchForm from '@/components/match/MatchForm.vue'
 import ScoreBonusForm from '@/components/match/ScoreBonusForm.vue'
+import HeadToHeadModal from '@/components/user/HeadToHeadModal.vue'
+import { userService } from '@/services/userService'
+import type { UserWithStats } from '@/types/user'
 import FundContributors from '@/components/settlement/FundContributors.vue'
 import WinnerContributors from '@/components/settlement/WinnerContributors.vue'
 import { formatVND, formatNumber } from '@/utils/formatters'
@@ -243,6 +256,8 @@ const fundStore = useFundStore()
 const configStore = useConfigStore()
 const showMatchForm = ref(false)
 const showBonusForm = ref(false)
+const showHeadToHead = ref(false)
+const h2hPlayers = ref<UserWithStats[]>([])
 const activeUsers = computed(() => userStore.users.filter(u => u.is_active))
 
 const leaderboardUsers = computed(() => sortByStrategy(userStore.users, 'default'))
@@ -315,6 +330,15 @@ const getUserName = (id: string) => userStore.users.find(u => u.id === id)?.name
 
 const handleRecordMatch = () => { showMatchForm.value = true }
 const handleAddBonus = () => { showBonusForm.value = true }
+const handleOpenHeadToHead = async () => {
+  // Load all players (incl. soft-deleted) for the picker so historical matchups are viewable.
+  try {
+    h2hPlayers.value = await userService.getAll(true)
+  } catch {
+    h2hPlayers.value = userStore.users
+  }
+  showHeadToHead.value = true
+}
 const handleSubmitBonus = async (req: CreateScoreBonusRequest) => {
   try { await matchStore.createBonus(req); showBonusForm.value = false; await userStore.fetchUsers() } catch {}
 }
