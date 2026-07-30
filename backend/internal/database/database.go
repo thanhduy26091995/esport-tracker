@@ -35,8 +35,14 @@ func Connect() (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to run schema migrations: %w", err)
 	}
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
+	// Models to auto-migrate. Tournament and TournamentTeam form a circular FK
+	// (tournaments.champion_team_id → tournament_teams, tournament_teams.tournament_id → tournaments),
+	// which GORM cannot resolve on a fresh, empty database because no table-creation order
+	// satisfies both inline constraints. We migrate in two passes: pass 1 creates every table
+	// with FK creation disabled, pass 2 re-runs with FKs enabled so all constraints (including
+	// the circular pair) apply once every table exists. Existing databases already have the
+	// tables/constraints, so both passes are effectively no-ops there.
+	models := []interface{}{
 		&model.User{},
 		&model.Match{},
 		&model.MatchParticipant{},
@@ -73,8 +79,19 @@ func Connect() (*gorm.DB, error) {
 		// Live chat
 		&model.WcChatMessage{},
 		&model.WcChatMention{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
+	}
+
+	// Pass 1: create all tables without foreign key constraints (breaks the circular dependency).
+	db.Config.DisableForeignKeyConstraintWhenMigrating = true
+	if err := db.AutoMigrate(models...); err != nil {
+		db.Config.DisableForeignKeyConstraintWhenMigrating = false
+		return nil, fmt.Errorf("failed to migrate database (tables): %w", err)
+	}
+
+	// Pass 2: re-run with FK constraints enabled now that every table exists.
+	db.Config.DisableForeignKeyConstraintWhenMigrating = false
+	if err := db.AutoMigrate(models...); err != nil {
+		return nil, fmt.Errorf("failed to migrate database (constraints): %w", err)
 	}
 
 	// Seed initial config values if not exists
