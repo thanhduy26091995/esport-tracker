@@ -283,7 +283,7 @@ async function fetchUpcomingWcMatches() {
     const all = await listMatchesPublic({
       date_from: lookBackFrom.toISOString(),
       date_to: in3Days.toISOString(),
-    })
+    }, 'ac')
     const filtered = all.filter(m => m.status === 'scheduled' || m.status === 'live')
     hasMoreUpcoming.value = filtered.length > 10
     upcomingMatches.value = filtered.slice(0, 10)

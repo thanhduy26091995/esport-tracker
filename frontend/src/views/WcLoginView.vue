@@ -6,7 +6,7 @@
           <div class="wc-trophy-badge">
             <el-icon :size="28" color="#ffffff"><Trophy /></el-icon>
           </div>
-          <h1 class="wc-auth-title">{{ t('wc.loginTitle') }}</h1>
+          <h1 class="wc-auth-title">{{ tournamentName }}</h1>
           <p class="wc-auth-subtitle">{{ t('wc.loginSubtitle') }}</p>
         </div>
 
@@ -78,7 +78,7 @@ import { useTournamentRoutes } from '@/composables/useTournamentRoutes'
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useWcAuthStore()
-const { scheduleRoute, predictPath } = useTournamentRoutes()
+const { scheduleRoute, predictPath, tournamentName } = useTournamentRoutes()
 
 const form = ref({ name: '', password: '' })
 

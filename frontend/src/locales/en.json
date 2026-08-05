@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "FC25 Tracker",
-    "appNameSoc": "WC Prediction",
+    "appNameSoc": "ASEAN Cup Prediction",
     "language": "Language",
     "back": "Back",
     "save": "Save",
@@ -35,7 +35,7 @@
   },
   "layout": {
     "sidebarSubtitle": "Esport Score System",
-    "sidebarSubtitleSoc": "World Cup 2026",
+    "sidebarSubtitleSoc": "ASEAN Cup 2026",
     "version": "Version"
   },
   "nav": {
@@ -342,6 +342,7 @@
     }
   },
   "dashboard": {
+    "aseanUpcomingTitle": "⚽ ASEAN Cup 2026 — Upcoming",
     "title": "Overview",
     "subtitle": "Quickly monitor system status",
     "pageTitle": "Dashboard",
