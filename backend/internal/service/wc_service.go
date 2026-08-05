@@ -227,9 +227,9 @@ func (s *WcService) AddScoreMultiplier(matchID uuid.UUID, homeScore, awayScore i
 		return nil, fmt.Errorf("match is already completed or cancelled — cannot add score odds")
 	}
 	so := &model.WcScoreMultiplier{
-		MatchID:   matchID,
-		HomeScore: homeScore,
-		AwayScore: awayScore,
+		MatchID:    matchID,
+		HomeScore:  homeScore,
+		AwayScore:  awayScore,
 		Multiplier: odds,
 	}
 	return so, s.repo.CreateScoreMultiplier(so)
@@ -432,12 +432,13 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) (penaltyApplied 
 				return err
 			}
 			return s.repo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      wcUserID,
-				AdminID:       uuid.Nil,
-				Delta:         -penalty,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - penalty,
-				Note:          fmt.Sprintf("prediction cancel penalty — %d%%", cfg.CancelPenaltyPercent),
+				WcUserID:       wcUserID,
+				AdminID:        uuid.Nil,
+				Delta:          -penalty,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore - penalty,
+				TournamentType: m.TournamentType,
+				Note:           fmt.Sprintf("prediction cancel penalty — %d%%", cfg.CancelPenaltyPercent),
 			})
 		}
 		return nil
@@ -454,6 +455,7 @@ func (s *WcService) DeletePrediction(wcUserID, betID uuid.UUID) (penaltyApplied 
 		}
 		s.hub.Broadcast(buildCancelActivityEvent(wcUserID.String(), userName, bet.PredictionType, m.HomeTeam, m.AwayTeam, bet.MatchID.String()))
 	}
+	_ = s.cache.Delete(wcLeaderboardKey(m.TournamentType))
 	return penalty, nil
 }
 
@@ -508,12 +510,13 @@ func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int
 				return err
 			}
 			if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      wcUserID,
-				AdminID:       uuid.Nil,
-				Delta:         -penalty,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - penalty,
-				Note:          fmt.Sprintf("prediction reduce penalty — points %d→%d", bet.Points, points),
+				WcUserID:       wcUserID,
+				AdminID:        uuid.Nil,
+				Delta:          -penalty,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore - penalty,
+				TournamentType: m.TournamentType,
+				Note:           fmt.Sprintf("prediction reduce penalty — points %d→%d", bet.Points, points),
 			}); err != nil {
 				return err
 			}
@@ -536,6 +539,7 @@ func (s *WcService) UpdatePredictionPoints(wcUserID, betID uuid.UUID, points int
 		}); err != nil {
 			return 0, err
 		}
+		_ = s.cache.Delete(wcLeaderboardKey(m.TournamentType))
 		return penalty, nil
 	}
 	return 0, s.repo.UpdatePredictionPoints(betID, points)
@@ -677,12 +681,13 @@ func (s *WcService) FinalizeMatch(matchID uuid.UUID) (*FinalizeMatchResult, erro
 
 			netChange := pointsEarned - float64(bet.Points)
 			if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      bet.WcUserID,
-				AdminID:       uuid.Nil,
-				Delta:         netChange,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore + netChange,
-				Note:          "prediction settle — " + result,
+				WcUserID:       bet.WcUserID,
+				AdminID:        uuid.Nil,
+				Delta:          netChange,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore + netChange,
+				TournamentType: m.TournamentType,
+				Note:           "prediction settle — " + result,
 			}); err != nil {
 				return err
 			}
@@ -825,12 +830,13 @@ func (s *WcService) RefinalizeAllMatches(tournamentType string) (*FinalizeAllRes
 					noteStr = "prediction refinalize — " + res
 				}
 				if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
-					WcUserID:      bet.WcUserID,
-					AdminID:       uuid.Nil,
-					Delta:         effectiveDelta,
-					BalanceBefore: balanceBefore,
-					BalanceAfter:  balanceBefore + effectiveDelta,
-					Note:          noteStr,
+					TournamentType: tournamentType,
+					WcUserID:       bet.WcUserID,
+					AdminID:        uuid.Nil,
+					Delta:          effectiveDelta,
+					BalanceBefore:  balanceBefore,
+					BalanceAfter:   balanceBefore + effectiveDelta,
+					Note:           noteStr,
 				}); err != nil {
 					return err
 				}
@@ -875,7 +881,7 @@ func buildPreviewRow(bet *model.WcPrediction, homeScore, awayScore int) model.Fi
 	}
 	return model.FinalizePreviewRow{
 		WcUserID:        bet.WcUserID,
-		UserName:        "",      // populated by caller
+		UserName:        "", // populated by caller
 		PredictionType:  bet.PredictionType,
 		Points:          bet.Points,
 		Multiplier:      bet.MultiplierSnapshot,
@@ -1064,13 +1070,15 @@ func (s *WcService) MarkSettlementDone(settlementID, wcUserID uuid.UUID, status,
 
 // --- Wallet admin ops ---
 
-func (s *WcService) AdminTopUp(adminID, wcUserID uuid.UUID, delta int, note string) error {
+// AdminTopUp credits or debits a user's wallet. tournamentType attributes the adjustment to
+// one tournament so the per-tournament leaderboard counts it — the wallet itself is shared.
+func (s *WcService) AdminTopUp(adminID, wcUserID uuid.UUID, delta int, note, tournamentType string) error {
 	if delta == 0 {
 		return fmt.Errorf("delta cannot be 0")
 	}
 	deltaF := float64(delta)
 	db := s.repo.DB()
-	return db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		wallet, err := s.repo.GetWalletTx(tx, wcUserID)
 		if err != nil {
 			return fmt.Errorf("wallet not found for user")
@@ -1080,14 +1088,19 @@ func (s *WcService) AdminTopUp(adminID, wcUserID uuid.UUID, delta int, note stri
 			return err
 		}
 		return s.repo.LogWalletChange(tx, &model.WcWalletLog{
-			WcUserID:      wcUserID,
-			AdminID:       adminID,
-			Delta:         deltaF,
-			BalanceBefore: balanceBefore,
-			BalanceAfter:  balanceBefore + deltaF,
-			Note:          note,
+			TournamentType: tournamentType,
+			WcUserID:       wcUserID,
+			AdminID:        adminID,
+			Delta:          deltaF,
+			BalanceBefore:  balanceBefore,
+			BalanceAfter:   balanceBefore + deltaF,
+			Note:           note,
 		})
-	})
+	}); err != nil {
+		return err
+	}
+	_ = s.cache.Delete(wcLeaderboardKey(tournamentType))
+	return nil
 }
 
 func (s *WcService) GetWalletLogs(wcUserID uuid.UUID) ([]*model.WcWalletLog, error) {
@@ -1301,7 +1314,7 @@ func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
 
 	if penalty > 0 {
 		db := s.repo.DB()
-		return db.Transaction(func(tx *gorm.DB) error {
+		if err := db.Transaction(func(tx *gorm.DB) error {
 			if err := s.repo.UpdateBetStake(tx, betID, stake); err != nil {
 				return err
 			}
@@ -1314,14 +1327,19 @@ func (s *WcService) UpdateBetStake(wcUserID, betID uuid.UUID, stake int) error {
 				return err
 			}
 			return s.repo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      wcUserID,
-				AdminID:       uuid.Nil,
-				Delta:         -penalty,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - penalty,
-				Note:          fmt.Sprintf("bet reduce penalty — stake %d→%d", bet.Stake, stake),
+				WcUserID:       wcUserID,
+				AdminID:        uuid.Nil,
+				Delta:          -penalty,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore - penalty,
+				TournamentType: m.TournamentType,
+				Note:           fmt.Sprintf("bet reduce penalty — stake %d→%d", bet.Stake, stake),
 			})
-		})
+		}); err != nil {
+			return err
+		}
+		_ = s.cache.Delete(wcLeaderboardKey(m.TournamentType))
+		return nil
 	}
 	return s.repo.UpdateBetStake(nil, betID, stake)
 }
@@ -1407,12 +1425,13 @@ func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
 				return err
 			}
 			return s.repo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      wcUserID,
-				AdminID:       uuid.Nil,
-				Delta:         -penalty,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - penalty,
-				Note:          fmt.Sprintf("bet cancel penalty — %d%%", cfg.CancelPenaltyPercent),
+				WcUserID:       wcUserID,
+				AdminID:        uuid.Nil,
+				Delta:          -penalty,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore - penalty,
+				TournamentType: m.TournamentType,
+				Note:           fmt.Sprintf("bet cancel penalty — %d%%", cfg.CancelPenaltyPercent),
 			})
 		}
 		return nil
@@ -1429,6 +1448,7 @@ func (s *WcService) DeleteBet(wcUserID, betID uuid.UUID) error {
 		}
 		s.hub.Broadcast(buildCancelActivityEvent(wcUserID.String(), userName, bet.BetType, m.HomeTeam, m.AwayTeam, bet.MatchID.String()))
 	}
+	_ = s.cache.Delete(wcLeaderboardKey(m.TournamentType))
 	return nil
 }
 
@@ -1621,12 +1641,13 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, float64, error) {
 				noteStr = "bet re-settle — " + result
 			}
 			if err := s.repo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      bet.WcUserID,
-				AdminID:       uuid.Nil,
-				Delta:         effectiveDelta,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore + effectiveDelta,
-				Note:          noteStr,
+				TournamentType: m.TournamentType,
+				WcUserID:       bet.WcUserID,
+				AdminID:        uuid.Nil,
+				Delta:          effectiveDelta,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore + effectiveDelta,
+				Note:           noteStr,
 			}); err != nil {
 				return err
 			}
@@ -1636,6 +1657,9 @@ func (s *WcService) SettleMatch(matchID uuid.UUID) (int, float64, error) {
 		}
 		return nil
 	})
+	if err == nil {
+		_ = s.cache.Delete(wcLeaderboardKey(m.TournamentType))
+	}
 
 	return processed, totalPayout, err
 }

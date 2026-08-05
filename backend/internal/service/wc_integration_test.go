@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
@@ -59,7 +60,7 @@ func openWcTestDB(t *testing.T) *gorm.DB {
 func newWcServices(db *gorm.DB) (*WcService, *WcAuthService) {
 	wcRepo := repository.NewWcRepository(db)
 	wcUserRepo := repository.NewWcUserRepository(db)
-	return NewWcService(wcRepo, wcUserRepo, nil, nil), NewWcAuthService(wcUserRepo, wcRepo)
+	return NewWcService(wcRepo, wcUserRepo, nil, nil, cache.NewGoCacheStore(time.Minute, time.Minute)), NewWcAuthService(wcUserRepo, wcRepo)
 }
 
 // seedWcMatch inserts a match and registers cleanup.
@@ -67,12 +68,12 @@ func seedWcMatch(t *testing.T, db *gorm.DB, opts ...func(*model.WcMatch)) *model
 	t.Helper()
 	future := time.Now().Add(2 * time.Hour)
 	m := &model.WcMatch{
-		ExternalID: uuid.NewString(),
-		HomeTeam:   "France",
-		AwayTeam:   "Brazil",
-		MatchDate:  future,
-		Stage:      model.WcStageGroup,
-		Status:     model.WcStatusScheduled,
+		ExternalID:   uuid.NewString(),
+		HomeTeam:     "France",
+		AwayTeam:     "Brazil",
+		MatchDate:    future,
+		Stage:        model.WcStageGroup,
+		Status:       model.WcStatusScheduled,
 		BetsLockedAt: &future,
 	}
 	for _, o := range opts {
@@ -449,8 +450,8 @@ func TestWcSettle_Idempotent(t *testing.T) {
 	oa := 1.95
 	future := time.Now().Add(2 * time.Hour)
 	m := &model.WcMatch{
-		ExternalID:       uuid.NewString(),
-		HomeTeam:         "A", AwayTeam: "B",
+		ExternalID: uuid.NewString(),
+		HomeTeam:   "A", AwayTeam: "B",
 		MatchDate:        future,
 		Stage:            model.WcStageGroup,
 		Status:           model.WcStatusScheduled,
@@ -532,8 +533,8 @@ func TestWcSettle_VoidedBetsSkipped(t *testing.T) {
 	oa := 1.95
 	past := time.Now().Add(-1 * time.Hour)
 	m := &model.WcMatch{
-		ExternalID:       uuid.NewString(),
-		HomeTeam:         "A", AwayTeam: "B",
+		ExternalID: uuid.NewString(),
+		HomeTeam:   "A", AwayTeam: "B",
 		MatchDate:        past,
 		Stage:            model.WcStageGroup,
 		Status:           model.WcStatusCompleted,
@@ -591,8 +592,8 @@ func TestWcBet_BlockUserThenSettle_WalletCorrect(t *testing.T) {
 	oa := 1.95
 	future := time.Now().Add(2 * time.Hour)
 	m := &model.WcMatch{
-		ExternalID:       uuid.NewString(),
-		HomeTeam:         "A", AwayTeam: "B",
+		ExternalID: uuid.NewString(),
+		HomeTeam:   "A", AwayTeam: "B",
 		MatchDate:        future,
 		Stage:            model.WcStageGroup,
 		Status:           model.WcStatusScheduled,
@@ -646,8 +647,8 @@ func TestWcTournamentSettlement_SnapshotAndReset(t *testing.T) {
 	userB := seedWcUser(t, authSvc, "SettleB_"+uuid.NewString()[:6], "pass")
 
 	// Manually set balances via admin top-up
-	require.NoError(t, svc.AdminTopUp(userA.ID, userA.ID, 500, "test"))
-	require.NoError(t, svc.AdminTopUp(userB.ID, userB.ID, -200, "test"))
+	require.NoError(t, svc.AdminTopUp(userA.ID, userA.ID, 500, "test", model.WcTournamentWorldCup))
+	require.NoError(t, svc.AdminTopUp(userB.ID, userB.ID, -200, "test", model.WcTournamentWorldCup))
 
 	settlement, err := svc.CreateSettlement(model.WcTournamentWorldCup, userA.ID, "Test Settlement", 1000, "unit test")
 	require.NoError(t, err)
@@ -676,7 +677,7 @@ func TestWcTournamentSettlement_HistoryPreserved(t *testing.T) {
 	svc, authSvc := newWcServices(db)
 
 	user := seedWcUser(t, authSvc, "Hist_"+uuid.NewString()[:6], "pass")
-	require.NoError(t, svc.AdminTopUp(user.ID, user.ID, 300, ""))
+	require.NoError(t, svc.AdminTopUp(user.ID, user.ID, 300, "", model.WcTournamentWorldCup))
 
 	s1, err := svc.CreateSettlement(model.WcTournamentWorldCup, user.ID, "Settlement 1", 1000, "")
 	require.NoError(t, err)
@@ -687,7 +688,7 @@ func TestWcTournamentSettlement_HistoryPreserved(t *testing.T) {
 	})
 
 	// Topup again and create second settlement
-	require.NoError(t, svc.AdminTopUp(user.ID, user.ID, 150, ""))
+	require.NoError(t, svc.AdminTopUp(user.ID, user.ID, 150, "", model.WcTournamentWorldCup))
 	s2, err := svc.CreateSettlement(model.WcTournamentWorldCup, user.ID, "Settlement 2", 1000, "")
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -91,8 +91,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	wcChatService := service.NewWcChatService(wcChatRepo, chatHub)
 
 	wcService := service.NewWcService(wcRepo, wcUserRepo, wcCustomBetRepo, wsHub, cacheStore)
-	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo, wcUserRepo, wsHub)
-	wcCustomBetService := service.NewWcCustomBetService(wcCustomBetRepo, wcRepo, wcUserRepo, wsHub)
+	wcChampionService := service.NewWcChampionService(wcChampionRepo, wcRepo, wcUserRepo, wsHub, cacheStore)
+	wcCustomBetService := service.NewWcCustomBetService(wcCustomBetRepo, wcRepo, wcUserRepo, wsHub, cacheStore)
 	statsApiKey := os.Getenv("ODDSAPI_KEY")
 	statsApiSyncService := service.NewStatsApiSyncService(wcRepo, statsApiKey, "")
 	poissonService := service.NewPoissonService()
@@ -165,13 +165,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			users.GET("/payment-ranking", userHandler.GetPaymentRanking) // GET /api/v1/users/payment-ranking
 			users.GET("/head-to-head", userHandler.GetHeadToHead)        // GET /api/v1/users/head-to-head?player1=&player2=
 			users.GET("/:id", userHandler.GetByID)                       // GET /api/v1/users/:id
-			users.GET("/:id/matches", matchHandler.GetByUserID) // GET /api/v1/users/:id/matches
-			users.PUT("/:id", userHandler.Update)                    // PUT /api/v1/users/:id
-			users.DELETE("/:id", userHandler.Delete)                 // DELETE /api/v1/users/:id
-			users.PUT("/:id/avatar", userHandler.UploadAvatar)         // PUT /api/v1/users/:id/avatar
-			users.PUT("/:id/avatar/url", userHandler.SetAvatarURL)   // PUT /api/v1/users/:id/avatar/url
-			users.DELETE("/:id/avatar", userHandler.DeleteAvatar)    // DELETE /api/v1/users/:id/avatar
-			users.PUT("/:id/club", userHandler.UpdateClub)           // PUT /api/v1/users/:id/club
+			users.GET("/:id/matches", matchHandler.GetByUserID)          // GET /api/v1/users/:id/matches
+			users.PUT("/:id", userHandler.Update)                        // PUT /api/v1/users/:id
+			users.DELETE("/:id", userHandler.Delete)                     // DELETE /api/v1/users/:id
+			users.PUT("/:id/avatar", userHandler.UploadAvatar)           // PUT /api/v1/users/:id/avatar
+			users.PUT("/:id/avatar/url", userHandler.SetAvatarURL)       // PUT /api/v1/users/:id/avatar/url
+			users.DELETE("/:id/avatar", userHandler.DeleteAvatar)        // DELETE /api/v1/users/:id/avatar
+			users.PUT("/:id/club", userHandler.UpdateClub)               // PUT /api/v1/users/:id/club
 		}
 
 		// Match routes
@@ -188,31 +188,31 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		// Config routes
 		config := v1.Group("/config")
 		{
-			config.GET("", configHandler.GetAll)           // GET /api/v1/config
-			config.PUT("", configHandler.UpdateAll)         // PUT /api/v1/config  (bulk)
-			config.GET("/:key", configHandler.GetByKey)     // GET /api/v1/config/:key
-			config.PUT("/:key", configHandler.Update)       // PUT /api/v1/config/:key
+			config.GET("", configHandler.GetAll)        // GET /api/v1/config
+			config.PUT("", configHandler.UpdateAll)     // PUT /api/v1/config  (bulk)
+			config.GET("/:key", configHandler.GetByKey) // GET /api/v1/config/:key
+			config.PUT("/:key", configHandler.Update)   // PUT /api/v1/config/:key
 		}
 
 		// Fund routes
 		fund := v1.Group("/fund")
 		{
-			fund.GET("/balance", fundHandler.GetBalance)   // GET /api/v1/fund/balance
-			fund.GET("/stats", fundHandler.GetStats)       // GET /api/v1/fund/stats
+			fund.GET("/balance", fundHandler.GetBalance)           // GET /api/v1/fund/balance
+			fund.GET("/stats", fundHandler.GetStats)               // GET /api/v1/fund/stats
 			fund.GET("/transactions", fundHandler.GetTransactions) // GET /api/v1/fund/transactions
 			fund.POST("/deposit", fundHandler.CreateDeposit)       // POST /api/v1/fund/deposit
-			fund.POST("/withdraw", fundHandler.CreateWithdrawal)  // POST /api/v1/fund/withdraw
+			fund.POST("/withdraw", fundHandler.CreateWithdrawal)   // POST /api/v1/fund/withdraw
 		}
 
 		// Settlement routes
 		settlements := v1.Group("/settlements")
 		{
-			settlements.GET("", settlementHandler.GetAll)    // GET /api/v1/settlements
-			settlements.POST("/trigger", settlementHandler.TriggerSettlement) // POST /api/v1/settlements/trigger
-			settlements.GET("/stats", settlementHandler.GetStats)                   // GET /api/v1/settlements/stats
+			settlements.GET("", settlementHandler.GetAll)                                    // GET /api/v1/settlements
+			settlements.POST("/trigger", settlementHandler.TriggerSettlement)                // POST /api/v1/settlements/trigger
+			settlements.GET("/stats", settlementHandler.GetStats)                            // GET /api/v1/settlements/stats
 			settlements.GET("/fund-contributors", settlementHandler.GetFundContributors)     // GET /api/v1/settlements/fund-contributors
 			settlements.GET("/winner-contributors", settlementHandler.GetWinnerContributors) // GET /api/v1/settlements/winner-contributors
-			settlements.GET("/:id", settlementHandler.GetByID)                              // GET /api/v1/settlements/:id
+			settlements.GET("/:id", settlementHandler.GetByID)                               // GET /api/v1/settlements/:id
 		}
 
 		// User settlement history
@@ -221,7 +221,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		// Score bonus routes (POST/DELETE only; GET is merged into /matches)
 		bonuses := v1.Group("/score-bonuses")
 		{
-			bonuses.POST("", bonusHandler.Create)      // POST /api/v1/score-bonuses
+			bonuses.POST("", bonusHandler.Create)       // POST /api/v1/score-bonuses
 			bonuses.DELETE("/:id", bonusHandler.Delete) // DELETE /api/v1/score-bonuses/:id
 		}
 

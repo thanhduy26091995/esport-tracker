@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -75,17 +76,17 @@ func (r *WcRepository) UpsertMatches(matches []model.WcMatch) error {
 	return r.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "external_id"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"home_team":            clause.Column{Table: "excluded", Name: "home_team"},
-			"away_team":            clause.Column{Table: "excluded", Name: "away_team"},
-			"home_team_code":       clause.Column{Table: "excluded", Name: "home_team_code"},
-			"away_team_code":       clause.Column{Table: "excluded", Name: "away_team_code"},
-			"match_date":           clause.Column{Table: "excluded", Name: "match_date"},
-			"group_name":           clause.Column{Table: "excluded", Name: "group_name"},
-			"stage":                clause.Column{Table: "excluded", Name: "stage"},
-			"venue":                clause.Column{Table: "excluded", Name: "venue"},
-			"status":               clause.Column{Table: "excluded", Name: "status"},
+			"home_team":             clause.Column{Table: "excluded", Name: "home_team"},
+			"away_team":             clause.Column{Table: "excluded", Name: "away_team"},
+			"home_team_code":        clause.Column{Table: "excluded", Name: "home_team_code"},
+			"away_team_code":        clause.Column{Table: "excluded", Name: "away_team_code"},
+			"match_date":            clause.Column{Table: "excluded", Name: "match_date"},
+			"group_name":            clause.Column{Table: "excluded", Name: "group_name"},
+			"stage":                 clause.Column{Table: "excluded", Name: "stage"},
+			"venue":                 clause.Column{Table: "excluded", Name: "venue"},
+			"status":                clause.Column{Table: "excluded", Name: "status"},
 			"predictions_locked_at": clause.Column{Table: "excluded", Name: "predictions_locked_at"},
-			"updated_at":           clause.Column{Table: "excluded", Name: "updated_at"},
+			"updated_at":            clause.Column{Table: "excluded", Name: "updated_at"},
 			// Only update scores for unsettled matches, and only when the incoming
 			// value is non-null. This prevents: (1) API data errors overwriting
 			// manually-corrected scores on settled matches; (2) a nil score from
@@ -275,6 +276,12 @@ func (r *WcRepository) UpdateWalletBalance(tx *gorm.DB, wcUserID uuid.UUID, delt
 }
 
 func (r *WcRepository) LogWalletChange(tx *gorm.DB, log *model.WcWalletLog) error {
+	// GetLeaderboard sums this ledger per tournament, so an unattributed row would silently
+	// land on the world_cup board (the column default) and skew both leaderboards. Fail loudly
+	// instead — every caller knows its tournament.
+	if log.TournamentType == "" {
+		return fmt.Errorf("wallet log requires a tournament_type")
+	}
 	db := r.db
 	if tx != nil {
 		db = tx
@@ -409,13 +416,22 @@ func (r *WcRepository) UpdatePredictionResult(tx *gorm.DB, betID uuid.UUID, resu
 
 func (r *WcRepository) GetLeaderboard(tournamentType string) ([]*model.WcLeaderboardEntry, error) {
 	rows := make([]*model.WcLeaderboardEntry, 0)
+	// net_points is summed from wc_wallet_logs, the complete wallet ledger: every path that
+	// moves a balance (prediction/kèo phụ/champion settlement, cancel and reduce penalties,
+	// admin top-ups) writes a log row in the same transaction. Summing the ledger — rather
+	// than re-deriving from each source table — keeps admin adjustments counted and makes
+	// double counting impossible.
+	//
+	// It cannot read wc_wallets.balance directly: one wallet is shared across tournaments, so
+	// the balance cannot be split per board. Only rows newer than the tournament's most recent
+	// settlement count, which reproduces the reset that CreateSettlement applies to balances.
 	err := r.db.Raw(`
 		SELECT
 			u.id                                AS wc_user_id,
 			u.name,
 			u.avatar_url,
 			u.is_bot,
-			COALESCE(pred_net.net_points, 0)    AS net_points,
+			COALESCE(ledger.net_points, 0)      AS net_points,
 			COALESCE(pred_net.total_predictions, 0) AS total_predictions,
 			COALESCE(pred_net.correct, 0)       AS correct,
 			COALESCE(pred_net.win_half, 0)      AS win_half,
@@ -438,12 +454,24 @@ func (r *WcRepository) GetLeaderboard(tournamentType string) ([]*model.WcLeaderb
 			  AND p.tournament_type = @tt
 			GROUP BY p.wc_user_id
 		) pred_net ON pred_net.wc_user_id = u.id
+		LEFT JOIN (
+			SELECT
+				wl.wc_user_id,
+				SUM(wl.delta) AS net_points
+			FROM wc_wallet_logs wl
+			WHERE wl.tournament_type = @tt
+			  AND wl.created_at > COALESCE(
+					(SELECT MAX(s.created_at) FROM wc_settlements s WHERE s.tournament_type = @tt),
+					TIMESTAMPTZ '-infinity')
+			GROUP BY wl.wc_user_id
+		) ledger ON ledger.wc_user_id = u.id
 		WHERE (
 		      EXISTS (SELECT 1 FROM wc_predictions       p  WHERE p.wc_user_id  = u.id AND p.tournament_type = @tt)
 		   OR EXISTS (SELECT 1 FROM wc_custom_bet_entries ce JOIN wc_custom_bets cb ON cb.id = ce.custom_bet_id WHERE ce.wc_user_id = u.id AND cb.tournament_type = @tt)
 		   OR EXISTS (SELECT 1 FROM wc_champion_predictions cp WHERE cp.wc_user_id = u.id AND cp.tournament_type = @tt)
+		   OR EXISTS (SELECT 1 FROM wc_wallet_logs        wl WHERE wl.wc_user_id = u.id AND wl.tournament_type = @tt)
 		  )
-		ORDER BY COALESCE(pred_net.net_points, 0) DESC, COALESCE(pred_net.correct, 0) DESC, u.name ASC
+		ORDER BY net_points DESC, correct DESC, u.name ASC
 	`, map[string]interface{}{"tt": tournamentType}).Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -809,15 +837,15 @@ func (r *WcRepository) GetHousePnL(tournamentType string) (*model.HousePnLRespon
 	breakdown := make([]model.HousePnLMatch, 0, len(rows))
 	for _, row := range rows {
 		breakdown = append(breakdown, model.HousePnLMatch{
-			MatchID:  row.MatchID,
-			HomeTeam: row.HomeTeam,
-			AwayTeam: row.AwayTeam,
+			MatchID:   row.MatchID,
+			HomeTeam:  row.HomeTeam,
+			AwayTeam:  row.AwayTeam,
 			MatchDate: row.MatchDate,
-			Stage:    row.Stage,
-			Stake:    row.Stake,
-			Payout:   row.Payout,
-			Profit:   row.Stake - row.Payout,
-			BetCount: row.BetCount,
+			Stage:     row.Stage,
+			Stake:     row.Stake,
+			Payout:    row.Payout,
+			Profit:    row.Stake - row.Payout,
+			BetCount:  row.BetCount,
 		})
 	}
 

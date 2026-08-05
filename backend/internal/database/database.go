@@ -103,6 +103,49 @@ func Connect() (*gorm.DB, error) {
 	return db, nil
 }
 
+// BackfillAseanWalletLogsSQL is a one-time historical correction. wc_wallet_logs gained
+// tournament_type with a 'world_cup' default, but on production the ASEAN Cup era had already
+// written 102 rows. Left as world_cup they would empty the ASEAN board and inflate the World
+// Cup one.
+//
+// The handover is unambiguous in the data: the only settlement (2026-07-24) zeroed every
+// wallet as the World Cup wrapped up, and every log after it belongs to ASEAN Cup — their sum
+// reproduces each wallet's current balance exactly. So "newer than the latest settlement"
+// is the correct split.
+//
+// Runs exactly once: the guard holds only while no asean_cup row exists, and this statement
+// creates them. On a fresh database MAX(created_at) is NULL, so nothing matches.
+const BackfillAseanWalletLogsSQL = `UPDATE wc_wallet_logs SET tournament_type = 'asean_cup'
+ WHERE created_at > (SELECT MAX(s.created_at) FROM wc_settlements s)
+   AND NOT EXISTS (SELECT 1 FROM wc_wallet_logs x WHERE x.tournament_type = 'asean_cup')`
+
+// ReconcileWalletLedgerSQL preserves every member's current standing when the leaderboard
+// switches to summing the wc_wallet_logs ledger. For any user whose post-settlement ledger
+// sum does not already equal their wallet balance, it inserts one balancing row so the
+// ledger reproduces the balance exactly.
+//
+// Idempotent: the NOT EXISTS guard finds no reconciliation row only on the first deploy.
+// Exported so a test can exercise the exact string that ships.
+const ReconcileWalletLedgerSQL = `INSERT INTO wc_wallet_logs
+	(id, tournament_type, wc_user_id, admin_id, delta, balance_before, balance_after, note, created_at)
+ SELECT gen_random_uuid(), 'world_cup', w.wc_user_id,
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        w.balance - COALESCE(led.total, 0), COALESCE(led.total, 0), w.balance,
+        'leaderboard ledger reconciliation', NOW()
+ FROM wc_wallets w
+ LEFT JOIN (
+	SELECT wl.wc_user_id, SUM(wl.delta) AS total
+	FROM wc_wallet_logs wl
+	WHERE wl.tournament_type = 'world_cup'
+	  AND wl.created_at > COALESCE(
+			(SELECT MAX(s.created_at) FROM wc_settlements s WHERE s.tournament_type = 'world_cup'),
+			TIMESTAMPTZ '-infinity')
+	GROUP BY wl.wc_user_id
+ ) led ON led.wc_user_id = w.wc_user_id
+ WHERE w.balance <> COALESCE(led.total, 0)
+   AND NOT EXISTS (
+		SELECT 1 FROM wc_wallet_logs x WHERE x.note = 'leaderboard ledger reconciliation')`
+
 func runSchemaMigrations(db *gorm.DB) error {
 	sqls := []string{
 		// tournament_round_robin_top4: add format + champion to tournaments
@@ -193,6 +236,12 @@ func runSchemaMigrations(db *gorm.DB) error {
 		`DROP INDEX IF EXISTS idx_wc_champion_pred_user_team`,
 		`ALTER TABLE wc_champion_predictions ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_wc_champion_pred_user_team ON wc_champion_predictions(wc_user_id, team_id, tournament_type)`,
+		// Leaderboard net_points is summed from the wc_wallet_logs ledger per tournament, so
+		// admin top-ups/deductions count. Existing rows predate ASEAN Cup → world_cup default.
+		`ALTER TABLE wc_wallet_logs ADD COLUMN IF NOT EXISTS tournament_type VARCHAR(20) NOT NULL DEFAULT 'world_cup'`,
+		`CREATE INDEX IF NOT EXISTS idx_wc_wallet_logs_tournament_type ON wc_wallet_logs(tournament_type)`,
+		BackfillAseanWalletLogsSQL,
+		ReconcileWalletLedgerSQL,
 	}
 	for _, sql := range sqls {
 		if err := db.Exec(sql).Error; err != nil {
@@ -256,72 +305,72 @@ func seedWcChampion(db *gorm.DB) {
 	var count int64
 	db.Model(&model.WcChampionTeam{}).Where("tournament_type = ?", model.WcTournamentWorldCup).Count(&count)
 	if count == 0 {
-	// WC 2026 — 48 teams, odds tiered by strength.
-	// sum(1/odds) ≈ 1.05 (slight house edge). Admin can update any odds via API.
-	teams := []model.WcChampionTeam{
-		// Tier 1 — Favourites (3–6x)
-		{Name: "Argentina", Code: "ARG", FlagEmoji: "🇦🇷", Odds: 3.50},
-		{Name: "France", Code: "FRA", FlagEmoji: "🇫🇷", Odds: 4.00},
-		{Name: "Brazil", Code: "BRA", FlagEmoji: "🇧🇷", Odds: 4.50},
-		{Name: "England", Code: "ENG", FlagEmoji: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", Odds: 5.00},
-		{Name: "Spain", Code: "ESP", FlagEmoji: "🇪🇸", Odds: 5.00},
-		// Tier 2 — Strong (6–12x)
-		{Name: "Germany", Code: "GER", FlagEmoji: "🇩🇪", Odds: 7.00},
-		{Name: "Portugal", Code: "POR", FlagEmoji: "🇵🇹", Odds: 8.00},
-		{Name: "Netherlands", Code: "NED", FlagEmoji: "🇳🇱", Odds: 9.00},
-		{Name: "Colombia", Code: "COL", FlagEmoji: "🇨🇴", Odds: 10.00},
-		{Name: "Uruguay", Code: "URU", FlagEmoji: "🇺🇾", Odds: 12.00},
-		// Tier 3 — Dark horses (12–25x)
-		{Name: "Belgium", Code: "BEL", FlagEmoji: "🇧🇪", Odds: 15.00},
-		{Name: "Morocco", Code: "MAR", FlagEmoji: "🇲🇦", Odds: 15.00},
-		{Name: "USA", Code: "USA", FlagEmoji: "🇺🇸", Odds: 18.00},
-		{Name: "Japan", Code: "JPN", FlagEmoji: "🇯🇵", Odds: 20.00},
-		{Name: "Croatia", Code: "CRO", FlagEmoji: "🇭🇷", Odds: 20.00},
-		{Name: "Italy", Code: "ITA", FlagEmoji: "🇮🇹", Odds: 20.00},
-		{Name: "Denmark", Code: "DEN", FlagEmoji: "🇩🇰", Odds: 22.00},
-		{Name: "Switzerland", Code: "SUI", FlagEmoji: "🇨🇭", Odds: 22.00},
-		{Name: "Senegal", Code: "SEN", FlagEmoji: "🇸🇳", Odds: 25.00},
-		// Tier 4 — Mid (25–55x)
-		{Name: "Mexico", Code: "MEX", FlagEmoji: "🇲🇽", Odds: 25.00},
-		{Name: "Canada", Code: "CAN", FlagEmoji: "🇨🇦", Odds: 30.00},
-		{Name: "South Korea", Code: "KOR", FlagEmoji: "🇰🇷", Odds: 30.00},
-		{Name: "Australia", Code: "AUS", FlagEmoji: "🇦🇺", Odds: 30.00},
-		{Name: "Turkey", Code: "TUR", FlagEmoji: "🇹🇷", Odds: 30.00},
-		{Name: "Austria", Code: "AUT", FlagEmoji: "🇦🇹", Odds: 35.00},
-		{Name: "Serbia", Code: "SRB", FlagEmoji: "🇷🇸", Odds: 35.00},
-		{Name: "Ecuador", Code: "ECU", FlagEmoji: "🇪🇨", Odds: 40.00},
-		{Name: "Ivory Coast", Code: "CIV", FlagEmoji: "🇨🇮", Odds: 40.00},
-		{Name: "Iran", Code: "IRN", FlagEmoji: "🇮🇷", Odds: 45.00},
-		{Name: "Egypt", Code: "EGY", FlagEmoji: "🇪🇬", Odds: 45.00},
-		{Name: "Nigeria", Code: "NGA", FlagEmoji: "🇳🇬", Odds: 50.00},
-		// Tier 5 — Underdogs (55–120x)
-		{Name: "Scotland", Code: "SCO", FlagEmoji: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", Odds: 55.00},
-		{Name: "Hungary", Code: "HUN", FlagEmoji: "🇭🇺", Odds: 55.00},
-		{Name: "Paraguay", Code: "PAR", FlagEmoji: "🇵🇾", Odds: 60.00},
-		{Name: "South Africa", Code: "RSA", FlagEmoji: "🇿🇦", Odds: 60.00},
-		{Name: "Ghana", Code: "GHA", FlagEmoji: "🇬🇭", Odds: 65.00},
-		{Name: "Cameroon", Code: "CMR", FlagEmoji: "🇨🇲", Odds: 65.00},
-		{Name: "Saudi Arabia", Code: "KSA", FlagEmoji: "🇸🇦", Odds: 70.00},
-		{Name: "DR Congo", Code: "COD", FlagEmoji: "🇨🇩", Odds: 75.00},
-		{Name: "Mali", Code: "MLI", FlagEmoji: "🇲🇱", Odds: 75.00},
-		{Name: "Algeria", Code: "ALG", FlagEmoji: "🇩🇿", Odds: 75.00},
-		{Name: "Panama", Code: "PAN", FlagEmoji: "🇵🇦", Odds: 80.00},
-		{Name: "Honduras", Code: "HON", FlagEmoji: "🇭🇳", Odds: 90.00},
-		{Name: "Iraq", Code: "IRQ", FlagEmoji: "🇮🇶", Odds: 90.00},
-		{Name: "Uzbekistan", Code: "UZB", FlagEmoji: "🇺🇿", Odds: 100.00},
-		{Name: "New Zealand", Code: "NZL", FlagEmoji: "🇳🇿", Odds: 100.00},
-		{Name: "Jamaica", Code: "JAM", FlagEmoji: "🇯🇲", Odds: 110.00},
-		{Name: "Venezuela", Code: "VEN", FlagEmoji: "🇻🇪", Odds: 110.00},
-		{Name: "Tunisia", Code: "TUN", FlagEmoji: "🇹🇳", Odds: 120.00},
-	}
-	for i := range teams {
-		teams[i].TournamentType = model.WcTournamentWorldCup
-	}
-	if err := db.Create(&teams).Error; err != nil {
-		log.Printf("⚠️  Failed to seed champion teams: %v", err)
-	} else {
-		log.Printf("Seeded %d WC champion teams", len(teams))
-	}
+		// WC 2026 — 48 teams, odds tiered by strength.
+		// sum(1/odds) ≈ 1.05 (slight house edge). Admin can update any odds via API.
+		teams := []model.WcChampionTeam{
+			// Tier 1 — Favourites (3–6x)
+			{Name: "Argentina", Code: "ARG", FlagEmoji: "🇦🇷", Odds: 3.50},
+			{Name: "France", Code: "FRA", FlagEmoji: "🇫🇷", Odds: 4.00},
+			{Name: "Brazil", Code: "BRA", FlagEmoji: "🇧🇷", Odds: 4.50},
+			{Name: "England", Code: "ENG", FlagEmoji: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", Odds: 5.00},
+			{Name: "Spain", Code: "ESP", FlagEmoji: "🇪🇸", Odds: 5.00},
+			// Tier 2 — Strong (6–12x)
+			{Name: "Germany", Code: "GER", FlagEmoji: "🇩🇪", Odds: 7.00},
+			{Name: "Portugal", Code: "POR", FlagEmoji: "🇵🇹", Odds: 8.00},
+			{Name: "Netherlands", Code: "NED", FlagEmoji: "🇳🇱", Odds: 9.00},
+			{Name: "Colombia", Code: "COL", FlagEmoji: "🇨🇴", Odds: 10.00},
+			{Name: "Uruguay", Code: "URU", FlagEmoji: "🇺🇾", Odds: 12.00},
+			// Tier 3 — Dark horses (12–25x)
+			{Name: "Belgium", Code: "BEL", FlagEmoji: "🇧🇪", Odds: 15.00},
+			{Name: "Morocco", Code: "MAR", FlagEmoji: "🇲🇦", Odds: 15.00},
+			{Name: "USA", Code: "USA", FlagEmoji: "🇺🇸", Odds: 18.00},
+			{Name: "Japan", Code: "JPN", FlagEmoji: "🇯🇵", Odds: 20.00},
+			{Name: "Croatia", Code: "CRO", FlagEmoji: "🇭🇷", Odds: 20.00},
+			{Name: "Italy", Code: "ITA", FlagEmoji: "🇮🇹", Odds: 20.00},
+			{Name: "Denmark", Code: "DEN", FlagEmoji: "🇩🇰", Odds: 22.00},
+			{Name: "Switzerland", Code: "SUI", FlagEmoji: "🇨🇭", Odds: 22.00},
+			{Name: "Senegal", Code: "SEN", FlagEmoji: "🇸🇳", Odds: 25.00},
+			// Tier 4 — Mid (25–55x)
+			{Name: "Mexico", Code: "MEX", FlagEmoji: "🇲🇽", Odds: 25.00},
+			{Name: "Canada", Code: "CAN", FlagEmoji: "🇨🇦", Odds: 30.00},
+			{Name: "South Korea", Code: "KOR", FlagEmoji: "🇰🇷", Odds: 30.00},
+			{Name: "Australia", Code: "AUS", FlagEmoji: "🇦🇺", Odds: 30.00},
+			{Name: "Turkey", Code: "TUR", FlagEmoji: "🇹🇷", Odds: 30.00},
+			{Name: "Austria", Code: "AUT", FlagEmoji: "🇦🇹", Odds: 35.00},
+			{Name: "Serbia", Code: "SRB", FlagEmoji: "🇷🇸", Odds: 35.00},
+			{Name: "Ecuador", Code: "ECU", FlagEmoji: "🇪🇨", Odds: 40.00},
+			{Name: "Ivory Coast", Code: "CIV", FlagEmoji: "🇨🇮", Odds: 40.00},
+			{Name: "Iran", Code: "IRN", FlagEmoji: "🇮🇷", Odds: 45.00},
+			{Name: "Egypt", Code: "EGY", FlagEmoji: "🇪🇬", Odds: 45.00},
+			{Name: "Nigeria", Code: "NGA", FlagEmoji: "🇳🇬", Odds: 50.00},
+			// Tier 5 — Underdogs (55–120x)
+			{Name: "Scotland", Code: "SCO", FlagEmoji: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", Odds: 55.00},
+			{Name: "Hungary", Code: "HUN", FlagEmoji: "🇭🇺", Odds: 55.00},
+			{Name: "Paraguay", Code: "PAR", FlagEmoji: "🇵🇾", Odds: 60.00},
+			{Name: "South Africa", Code: "RSA", FlagEmoji: "🇿🇦", Odds: 60.00},
+			{Name: "Ghana", Code: "GHA", FlagEmoji: "🇬🇭", Odds: 65.00},
+			{Name: "Cameroon", Code: "CMR", FlagEmoji: "🇨🇲", Odds: 65.00},
+			{Name: "Saudi Arabia", Code: "KSA", FlagEmoji: "🇸🇦", Odds: 70.00},
+			{Name: "DR Congo", Code: "COD", FlagEmoji: "🇨🇩", Odds: 75.00},
+			{Name: "Mali", Code: "MLI", FlagEmoji: "🇲🇱", Odds: 75.00},
+			{Name: "Algeria", Code: "ALG", FlagEmoji: "🇩🇿", Odds: 75.00},
+			{Name: "Panama", Code: "PAN", FlagEmoji: "🇵🇦", Odds: 80.00},
+			{Name: "Honduras", Code: "HON", FlagEmoji: "🇭🇳", Odds: 90.00},
+			{Name: "Iraq", Code: "IRQ", FlagEmoji: "🇮🇶", Odds: 90.00},
+			{Name: "Uzbekistan", Code: "UZB", FlagEmoji: "🇺🇿", Odds: 100.00},
+			{Name: "New Zealand", Code: "NZL", FlagEmoji: "🇳🇿", Odds: 100.00},
+			{Name: "Jamaica", Code: "JAM", FlagEmoji: "🇯🇲", Odds: 110.00},
+			{Name: "Venezuela", Code: "VEN", FlagEmoji: "🇻🇪", Odds: 110.00},
+			{Name: "Tunisia", Code: "TUN", FlagEmoji: "🇹🇳", Odds: 120.00},
+		}
+		for i := range teams {
+			teams[i].TournamentType = model.WcTournamentWorldCup
+		}
+		if err := db.Create(&teams).Error; err != nil {
+			log.Printf("⚠️  Failed to seed champion teams: %v", err)
+		} else {
+			log.Printf("Seeded %d WC champion teams", len(teams))
+		}
 	} // end if count == 0
 
 	// Seed ASEAN Cup teams only if none exist for asean_cup

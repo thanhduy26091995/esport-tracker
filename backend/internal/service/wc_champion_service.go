@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/duyb/esport-score-tracker/internal/ws"
@@ -16,10 +17,11 @@ type WcChampionService struct {
 	wcRepo   *repository.WcRepository
 	userRepo *repository.WcUserRepository
 	hub      ws.HubBroadcaster
+	cache    cache.CacheStore
 }
 
-func NewWcChampionService(repo *repository.WcChampionRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository, hub ws.HubBroadcaster) *WcChampionService {
-	return &WcChampionService{repo: repo, wcRepo: wcRepo, userRepo: userRepo, hub: hub}
+func NewWcChampionService(repo *repository.WcChampionRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository, hub ws.HubBroadcaster, c cache.CacheStore) *WcChampionService {
+	return &WcChampionService{repo: repo, wcRepo: wcRepo, userRepo: userRepo, hub: hub, cache: c}
 }
 
 // --- Config ---
@@ -224,12 +226,13 @@ func (s *WcChampionService) SettleChampion(tournamentType string, adminID, winne
 				note = "champion settle — correct"
 			}
 			if err := s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      p.WcUserID,
-				AdminID:       adminID,
-				Delta:         delta,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore + delta,
-				Note:          note,
+				TournamentType: tournamentType,
+				WcUserID:       p.WcUserID,
+				AdminID:        adminID,
+				Delta:          delta,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore + delta,
+				Note:           note,
 			}); err != nil {
 				return err
 			}
@@ -241,6 +244,7 @@ func (s *WcChampionService) SettleChampion(tournamentType string, adminID, winne
 	if txErr != nil {
 		return nil, txErr
 	}
+	_ = s.cache.Delete(wcLeaderboardKey(tournamentType))
 	result.SettledUserCount = len(settledUsers)
 	return result, nil
 }
