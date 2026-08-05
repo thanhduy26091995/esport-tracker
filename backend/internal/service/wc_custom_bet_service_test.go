@@ -2,7 +2,9 @@ package service
 
 import (
 	"testing"
+	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
@@ -29,7 +31,7 @@ func newCustomBetService(db *gorm.DB) (*WcCustomBetService, *WcAuthService) {
 	wcUserRepo := repository.NewWcUserRepository(db)
 	customBetRepo := repository.NewWcCustomBetRepository(db)
 	authSvc := NewWcAuthService(wcUserRepo, wcRepo)
-	return NewWcCustomBetService(customBetRepo, wcRepo, wcUserRepo, nil), authSvc
+	return NewWcCustomBetService(customBetRepo, wcRepo, wcUserRepo, nil, cache.NewGoCacheStore(time.Minute, time.Minute)), authSvc
 }
 
 // seedCustomBetUser creates a user + wallet with a given starting balance.

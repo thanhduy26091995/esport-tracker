@@ -14,6 +14,8 @@ export function useTournamentRoutes() {
   const loginPath = computed(() => isAc.value ? '/asean-cup/login' : '/world-cup/login')
   const predictPath = computed(() => isAc.value ? '/asean-cup/predict' : '/world-cup/predict')
   const tournamentTitle = computed(() => isAc.value ? '🏆 ASEAN Cup 2026' : '🏆 World Cup 2026')
+  // Bare name for places that already show a trophy icon of their own (e.g. login card).
+  const tournamentName = computed(() => isAc.value ? 'ASEAN Cup 2026' : 'World Cup 2026')
 
   return {
     isAc,
@@ -26,5 +28,6 @@ export function useTournamentRoutes() {
     loginPath,
     predictPath,
     tournamentTitle,
+    tournamentName,
   }
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useWcAuthStore } from '@/stores/wcAuthStore'
 import type { WcMatch, WcStage } from '@/types/wc'
 
@@ -8,6 +9,7 @@ defineProps<{
   hasMore: boolean
 }>()
 
+const { t } = useI18n()
 const router = useRouter()
 const wcAuthStore = useWcAuthStore()
 
@@ -37,23 +39,23 @@ function formatMatchTime(iso: string): string {
 }
 
 function goToSchedule() {
-  router.push('/world-cup')
+  router.push('/asean-cup')
 }
 </script>
 
 <template>
   <div class="wc-upcoming-widget">
     <div class="wc-upcoming-header">
-      <span class="wc-upcoming-title">⚽ WC2026 — Sắp diễn ra</span>
+      <span class="wc-upcoming-title">{{ t('dashboard.aseanUpcomingTitle') }}</span>
       <div class="wc-upcoming-header-actions">
         <router-link
           v-if="!wcAuthStore.isAdmin"
-          :to="wcAuthStore.isLoggedIn ? '/world-cup/predict' : '/world-cup/login'"
+          :to="wcAuthStore.isLoggedIn ? '/asean-cup/predict' : '/asean-cup/login'"
           class="predict-shortcut-link"
         >
           🎯 Dự đoán
         </router-link>
-        <router-link to="/world-cup" class="view-all-link">Xem lịch đầy đủ →</router-link>
+        <router-link to="/asean-cup" class="view-all-link">Xem lịch đầy đủ →</router-link>
       </div>
     </div>
     <div class="wc-upcoming-list">

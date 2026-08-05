@@ -42,7 +42,7 @@ func seedMatchAt(t *testing.T, db *gorm.DB, matchDate time.Time, status string) 
 func TestListMatches_DateRange_InWindowReturned(t *testing.T) {
 	repo, db := openWcRepoTestDB(t)
 	now := time.Now().UTC().Truncate(time.Second)
-	from := now.Add(-4 * time.Hour)  // mirrors the dashboard's lookback window
+	from := now.Add(-4 * time.Hour) // mirrors the dashboard's lookback window
 	to := now.Add(72 * time.Hour)
 
 	before := seedMatchAt(t, db, from.Add(-1*time.Second), model.WcStatusScheduled)
@@ -483,6 +483,14 @@ func openLeaderboardTestDB(t *testing.T) (*WcRepository, *gorm.DB) {
 		&model.WcUser{},
 		&model.WcWallet{},
 		&model.WcPrediction{},
+		// GetLeaderboard's eligibility WHERE clause also probes these tables,
+		// so they must exist even when a test seeds no rows in them.
+		&model.WcCustomBet{},
+		&model.WcCustomBetOption{},
+		&model.WcCustomBetEntry{},
+		&model.WcChampionPrediction{},
+		&model.WcWalletLog{},
+		&model.WcSettlement{},
 	))
 	return NewWcRepository(db), db
 }
@@ -521,21 +529,126 @@ func seedLbMatch(t *testing.T, db *gorm.DB) *model.WcMatch {
 
 func seedLbPrediction(t *testing.T, db *gorm.DB, userID, matchID uuid.UUID, result string) *model.WcPrediction {
 	t.Helper()
+	return seedLbPredictionPts(t, db, userID, matchID, result, 10, 0)
+}
+
+// seedLbPredictionPts seeds a settled prediction with an explicit stake and payout so tests
+// can assert exact net_points (payout - stake).
+func seedLbPredictionPts(t *testing.T, db *gorm.DB, userID, matchID uuid.UUID, result string, points int, earned float64) *model.WcPrediction {
+	t.Helper()
 	r := result
-	earned := 0.0
+	e := earned
 	p := &model.WcPrediction{
 		ID:                 uuid.New(),
 		WcUserID:           userID,
 		MatchID:            matchID,
 		PredictionType:     "handicap",
-		Points:             10,
+		Points:             points,
 		MultiplierSnapshot: 1.0,
 		Result:             &r,
-		PointsEarned:       &earned,
+		PointsEarned:       &e,
 	}
 	require.NoError(t, db.Create(p).Error)
 	t.Cleanup(func() { db.Unscoped().Delete(p) })
 	return p
+}
+
+// seedLbWalletLog records an admin top-up/deduction for a tournament.
+func seedLbWalletLog(t *testing.T, db *gorm.DB, userID uuid.UUID, delta float64, tournamentType string) *model.WcWalletLog {
+	t.Helper()
+	l := &model.WcWalletLog{
+		ID:             uuid.New(),
+		TournamentType: tournamentType,
+		WcUserID:       userID,
+		AdminID:        uuid.New(),
+		Delta:          delta,
+		BalanceBefore:  0,
+		BalanceAfter:   delta,
+		Note:           "test",
+	}
+	require.NoError(t, db.Create(l).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(l) })
+	return l
+}
+
+// seedLbSettlement records a settlement for a tournament at a specific time. CreateSettlement
+// zeroes wallet balances, so the leaderboard only counts ledger rows newer than this.
+func seedLbSettlement(t *testing.T, db *gorm.DB, tournamentType string, at time.Time) *model.WcSettlement {
+	t.Helper()
+	s := &model.WcSettlement{
+		ID:             uuid.New(),
+		TournamentType: tournamentType,
+		Name:           "test settlement",
+		PointRate:      1000,
+		SettledBy:      uuid.New(),
+	}
+	require.NoError(t, db.Create(s).Error)
+	require.NoError(t, db.Model(&model.WcSettlement{}).Where("id = ?", s.ID).
+		UpdateColumn("created_at", at).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(s) })
+	return s
+}
+
+// seedLbCustomBetEntry seeds a settled custom-bet entry ('won' or 'lost') for a tournament.
+func seedLbCustomBetEntry(t *testing.T, db *gorm.DB, userID uuid.UUID, tournamentType, status string, stake int, odds float64) *model.WcCustomBetEntry {
+	t.Helper()
+	m := seedLbMatch(t, db)
+	cb := &model.WcCustomBet{
+		ID:             uuid.New(),
+		TournamentType: tournamentType,
+		MatchID:        m.ID,
+		Title:          "test bet",
+		Status:         model.WcCustomBetStatusSettled,
+	}
+	require.NoError(t, db.Create(cb).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(cb) })
+
+	opt := &model.WcCustomBetOption{
+		ID:          uuid.New(),
+		CustomBetID: cb.ID,
+		Label:       "yes",
+		Odds:        odds,
+		IsWinner:    status == model.WcCustomBetEntryStatusWon,
+	}
+	require.NoError(t, db.Create(opt).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(opt) })
+
+	e := &model.WcCustomBetEntry{
+		ID:           uuid.New(),
+		CustomBetID:  cb.ID,
+		OptionID:     opt.ID,
+		WcUserID:     userID,
+		Stake:        stake,
+		OddsSnapshot: odds,
+		Status:       status,
+	}
+	if status == model.WcCustomBetEntryStatusWon {
+		payout := float64(stake) * odds
+		e.Payout = &payout
+	}
+	require.NoError(t, db.Create(e).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(e) })
+	return e
+}
+
+// seedLbChampionPrediction seeds a settled champion prediction for a tournament.
+func seedLbChampionPrediction(t *testing.T, db *gorm.DB, userID uuid.UUID, tournamentType string, points int, earned int) *model.WcChampionPrediction {
+	t.Helper()
+	res := "correct"
+	e := earned
+	cp := &model.WcChampionPrediction{
+		ID:             uuid.New(),
+		TournamentType: tournamentType,
+		WcUserID:       userID,
+		TeamID:         uuid.New(),
+		Points:         points,
+		OddsSnapshot:   2.0,
+		Result:         &res,
+		PointsEarned:   &e,
+	}
+	require.NoError(t, db.Create(cp).Error)
+	t.Cleanup(func() { db.Unscoped().Delete(cp) })
+	return cp
 }
 
 func findLbEntry(entries []*model.WcLeaderboardEntry, id uuid.UUID) *model.WcLeaderboardEntry {
@@ -547,43 +660,203 @@ func findLbEntry(entries []*model.WcLeaderboardEntry, id uuid.UUID) *model.WcLea
 	return nil
 }
 
-// TestGetLeaderboard_NetPointsFromWallet verifies that net_points equals the wallet balance
-// and is not computed from prediction sums (so admin top-ups and other wallet changes count).
-func TestGetLeaderboard_NetPointsFromWallet(t *testing.T) {
+// TestGetLeaderboard_AdminAdjustmentCounted verifies that an admin top-up recorded in
+// wc_wallet_logs counts toward net_points, and that the top-up alone makes the user eligible.
+// The wallet itself is shared across tournaments, so net_points is summed from
+// per-tournament sources instead of read from wc_wallets.balance.
+func TestGetLeaderboard_AdminAdjustmentCounted(t *testing.T) {
 	repo, db := openLeaderboardTestDB(t)
 	pfx := uuid.NewString()[:8]
 
 	u := seedLbUser(t, db, pfx+"-Alice")
 	seedLbWallet(t, db, u.ID, 42.5)
+	seedLbWalletLog(t, db, u.ID, 42.5, model.WcTournamentWorldCup)
 
 	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	entry := findLbEntry(entries, u.ID)
-	require.NotNil(t, entry, "user with wallet must appear in leaderboard")
+	require.NotNil(t, entry, "user with an admin adjustment must appear in leaderboard")
 	assert.Equal(t, 42.5, entry.NetPoints)
 	assert.Equal(t, 0, entry.TotalPredictions)
 }
 
-// TestGetLeaderboard_AdminTopupReflectedInNetPoints verifies that updating the wallet balance
-// (simulating an admin top-up) is immediately visible in the leaderboard net_points.
-func TestGetLeaderboard_AdminTopupReflectedInNetPoints(t *testing.T) {
+// TestGetLeaderboard_AdminTopupAddsToBetResults verifies a top-up stacks on top of settled bet
+// results rather than replacing them — the bug report was that top-ups never moved the board.
+func TestGetLeaderboard_AdminTopupAddsToBetResults(t *testing.T) {
 	repo, db := openLeaderboardTestDB(t)
 	pfx := uuid.NewString()[:8]
 
 	u := seedLbUser(t, db, pfx+"-Bob")
-	w := seedLbWallet(t, db, u.ID, -29.0)
+	seedLbWallet(t, db, u.ID, -29.0)
 
-	require.NoError(t, db.Model(&model.WcWallet{}).
-		Where("id = ?", w.ID).
-		UpdateColumn("balance", gorm.Expr("balance + ?", 1.0)).Error)
+	m := seedLbMatch(t, db)
+	seedLbPredictionPts(t, db, u.ID, m.ID, "incorrect", 30, 0)
+	seedLbWalletLog(t, db, u.ID, -30.0, model.WcTournamentWorldCup) // prediction settlement
+	seedLbWalletLog(t, db, u.ID, 2.0, model.WcTournamentWorldCup)   // admin top-up
+	seedLbWalletLog(t, db, u.ID, -1.0, model.WcTournamentWorldCup)  // admin deduction
 
 	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
 
 	entry := findLbEntry(entries, u.ID)
 	require.NotNil(t, entry)
-	assert.Equal(t, -28.0, entry.NetPoints, "leaderboard must reflect admin top-up via wallet balance")
+	assert.Equal(t, -29.0, entry.NetPoints, "net_points must be bet results plus admin adjustments")
+	assert.Equal(t, -29.0, entry.NetPoints, "and must equal the wallet balance")
+}
+
+// TestGetLeaderboard_ResetsAfterSettlement verifies that only ledger rows newer than the
+// tournament's latest settlement count, mirroring the wallet reset CreateSettlement performs.
+func TestGetLeaderboard_ResetsAfterSettlement(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Settled")
+	seedLbWallet(t, db, u.ID, 7.0)
+	m := seedLbMatch(t, db)
+	seedLbPrediction(t, db, u.ID, m.ID, "correct")
+
+	before := seedLbWalletLog(t, db, u.ID, 100.0, model.WcTournamentWorldCup)
+	require.NoError(t, db.Model(&model.WcWalletLog{}).Where("id = ?", before.ID).
+		UpdateColumn("created_at", time.Now().UTC().Add(-2*time.Hour)).Error)
+
+	seedLbSettlement(t, db, model.WcTournamentWorldCup, time.Now().UTC().Add(-1*time.Hour))
+
+	after := seedLbWalletLog(t, db, u.ID, 7.0, model.WcTournamentWorldCup)
+	require.NoError(t, db.Model(&model.WcWalletLog{}).Where("id = ?", after.ID).
+		UpdateColumn("created_at", time.Now().UTC()).Error)
+
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry)
+	assert.Equal(t, 7.0, entry.NetPoints, "pre-settlement ledger rows must not count")
+}
+
+// TestGetLeaderboard_SettlementScopedToTournament verifies a World Cup settlement does not
+// reset the ASEAN Cup board.
+func TestGetLeaderboard_SettlementScopedToTournament(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-CrossTt")
+	seedLbWallet(t, db, u.ID, 50)
+
+	acLog := seedLbWalletLog(t, db, u.ID, 50.0, model.WcTournamentAseanCup)
+	require.NoError(t, db.Model(&model.WcWalletLog{}).Where("id = ?", acLog.ID).
+		UpdateColumn("created_at", time.Now().UTC().Add(-2*time.Hour)).Error)
+
+	// World Cup settles afterwards — must not wipe the ASEAN board.
+	seedLbSettlement(t, db, model.WcTournamentWorldCup, time.Now().UTC().Add(-1*time.Hour))
+
+	entries, err := repo.GetLeaderboard(model.WcTournamentAseanCup)
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry)
+	assert.Equal(t, 50.0, entry.NetPoints)
+}
+
+// TestGetLeaderboard_AdminAdjustmentScopedToTournament verifies a top-up booked against one
+// tournament does not leak into the other tournament's leaderboard.
+func TestGetLeaderboard_AdminAdjustmentScopedToTournament(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Zoe")
+	seedLbWallet(t, db, u.ID, 100)
+	seedLbWalletLog(t, db, u.ID, 100, model.WcTournamentAseanCup)
+
+	wcEntries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
+	require.NoError(t, err)
+	assert.Nil(t, findLbEntry(wcEntries, u.ID), "asean_cup top-up must not appear on world_cup board")
+
+	acEntries, err := repo.GetLeaderboard(model.WcTournamentAseanCup)
+	require.NoError(t, err)
+	acEntry := findLbEntry(acEntries, u.ID)
+	require.NotNil(t, acEntry)
+	assert.Equal(t, 100.0, acEntry.NetPoints)
+}
+
+// TestGetLeaderboard_CustomBetNetCounted verifies custom-bet (kèo phụ) winnings and losses
+// count toward net_points — they only ever hit the wallet, so a prediction-only sum drops them.
+func TestGetLeaderboard_CustomBetNetCounted(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	won := seedLbUser(t, db, pfx+"-Winner")
+	seedLbWallet(t, db, won.ID, 15)
+	seedLbCustomBetEntry(t, db, won.ID, model.WcTournamentWorldCup, model.WcCustomBetEntryStatusWon, 10, 2.5)
+	seedLbWalletLog(t, db, won.ID, 15.0, model.WcTournamentWorldCup) // payout 25 - stake 10
+
+	lost := seedLbUser(t, db, pfx+"-Loser")
+	seedLbWallet(t, db, lost.ID, -10)
+	seedLbCustomBetEntry(t, db, lost.ID, model.WcTournamentWorldCup, model.WcCustomBetEntryStatusLost, 10, 2.5)
+	seedLbWalletLog(t, db, lost.ID, -10.0, model.WcTournamentWorldCup) // -stake
+
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
+	require.NoError(t, err)
+
+	wonEntry := findLbEntry(entries, won.ID)
+	require.NotNil(t, wonEntry, "custom-bet-only user must appear in leaderboard")
+	assert.Equal(t, 15.0, wonEntry.NetPoints, "won: payout 25 - stake 10")
+
+	lostEntry := findLbEntry(entries, lost.ID)
+	require.NotNil(t, lostEntry)
+	assert.Equal(t, -10.0, lostEntry.NetPoints, "lost: -stake")
+}
+
+// TestGetLeaderboard_ChampionNetCounted verifies champion-prediction results count toward net_points.
+func TestGetLeaderboard_ChampionNetCounted(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Champ")
+	seedLbWallet(t, db, u.ID, 30)
+	seedLbChampionPrediction(t, db, u.ID, model.WcTournamentWorldCup, 20, 50)
+	seedLbWalletLog(t, db, u.ID, 30.0, model.WcTournamentWorldCup) // earned 50 - staked 20
+
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry, "champion-pick-only user must appear in leaderboard")
+	assert.Equal(t, 30.0, entry.NetPoints, "earned 50 - staked 20")
+}
+
+// TestGetLeaderboard_PenaltiesDeducted verifies cancel/reduce penalties — which are charged to
+// the wallet — are subtracted from net_points, including for cancelled predictions.
+func TestGetLeaderboard_PenaltiesDeducted(t *testing.T) {
+	repo, db := openLeaderboardTestDB(t)
+	pfx := uuid.NewString()[:8]
+
+	u := seedLbUser(t, db, pfx+"-Penalised")
+	seedLbWallet(t, db, u.ID, -5)
+
+	// A settled prediction that broke even, but carried a reduce penalty.
+	m1 := seedLbMatch(t, db)
+	p1 := seedLbPredictionPts(t, db, u.ID, m1.ID, "correct", 10, 10)
+	require.NoError(t, db.Model(&model.WcPrediction{}).Where("id = ?", p1.ID).
+		UpdateColumn("reduce_penalty", 2.0).Error)
+	seedLbWalletLog(t, db, u.ID, -2.0, model.WcTournamentWorldCup)
+
+	// A cancelled prediction: excluded from the played-prediction counts, but its penalty
+	// was still charged to the wallet, so it must still move net_points.
+	m2 := seedLbMatch(t, db)
+	p2 := seedLbPredictionPts(t, db, u.ID, m2.ID, "correct", 10, 10)
+	now := time.Now().UTC()
+	require.NoError(t, db.Model(&model.WcPrediction{}).Where("id = ?", p2.ID).
+		UpdateColumns(map[string]interface{}{"cancelled_at": now, "cancel_penalty": 3.0}).Error)
+	seedLbWalletLog(t, db, u.ID, -3.0, model.WcTournamentWorldCup)
+
+	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
+	require.NoError(t, err)
+
+	entry := findLbEntry(entries, u.ID)
+	require.NotNil(t, entry)
+	assert.Equal(t, -5.0, entry.NetPoints, "reduce penalty 2 + cancel penalty 3 must be deducted")
+	assert.Equal(t, 1, entry.TotalPredictions, "cancelled prediction must not count as a played prediction")
 }
 
 // TestGetLeaderboard_PredictionStatsAggregatedCorrectly verifies that correct/win_half/lose_half/incorrect
@@ -617,33 +890,37 @@ func TestGetLeaderboard_Ordering(t *testing.T) {
 	repo, db := openLeaderboardTestDB(t)
 	pfx := uuid.NewString()[:8]
 
-	// Dave: 10 pts, 0 correct → highest net_points
+	// Dave: +10 via admin top-up, 0 correct → highest net_points
 	dave := seedLbUser(t, db, pfx+"-Dave")
 	seedLbWallet(t, db, dave.ID, 10)
+	seedLbWalletLog(t, db, dave.ID, 10, model.WcTournamentWorldCup)
 
-	// Eve: 5 pts, 3 correct → second (lower pts, but most correct among the 5-pt group)
+	// Eve: +5 net, 3 correct → second (same pts as Frank/Grace, but most correct)
 	eve := seedLbUser(t, db, pfx+"-Eve")
 	seedLbWallet(t, db, eve.ID, 5)
-	for range 3 {
+	for _, earned := range []float64{15, 10, 10} {
 		m := seedLbMatch(t, db)
-		seedLbPrediction(t, db, eve.ID, m.ID, "correct")
+		seedLbPredictionPts(t, db, eve.ID, m.ID, "correct", 10, earned)
 	}
+	seedLbWalletLog(t, db, eve.ID, 5, model.WcTournamentWorldCup)
 
-	// Frank: 5 pts, 1 correct → before Grace (F < G alphabetically, tiebreak on name)
+	// Frank: +5 net, 1 correct → before Grace (F < G alphabetically, tiebreak on name)
 	frank := seedLbUser(t, db, pfx+"-Frank")
 	seedLbWallet(t, db, frank.ID, 5)
 	{
 		m := seedLbMatch(t, db)
-		seedLbPrediction(t, db, frank.ID, m.ID, "correct")
+		seedLbPredictionPts(t, db, frank.ID, m.ID, "correct", 10, 15)
 	}
+	seedLbWalletLog(t, db, frank.ID, 5, model.WcTournamentWorldCup)
 
-	// Grace: 5 pts, 1 correct → after Frank (G > F alphabetically)
+	// Grace: +5 net, 1 correct → after Frank (G > F alphabetically)
 	grace := seedLbUser(t, db, pfx+"-Grace")
 	seedLbWallet(t, db, grace.ID, 5)
 	{
 		m := seedLbMatch(t, db)
-		seedLbPrediction(t, db, grace.ID, m.ID, "correct")
+		seedLbPredictionPts(t, db, grace.ID, m.ID, "correct", 10, 15)
 	}
+	seedLbWalletLog(t, db, grace.ID, 5, model.WcTournamentWorldCup)
 
 	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
 	require.NoError(t, err)
@@ -708,34 +985,6 @@ func TestGetLeaderboard_UserWithNoBetsExcluded(t *testing.T) {
 		assert.NotEqual(t, noBets.ID, e.WcUserID, "user with wallet but no bets must be excluded")
 	}
 	require.NotNil(t, findLbEntry(entries, hasBets.ID), "user with bets must appear in leaderboard")
-}
-
-// TestGetLeaderboard_WalletBalanceShownForBettorWithNoPredictions verifies that a user who
-// has only placed custom bets (no match predictions) still appears with the correct wallet balance.
-func TestGetLeaderboard_WalletBalanceShownForBettorWithNoPredictions(t *testing.T) {
-	repo, db := openLeaderboardTestDB(t)
-	pfx := uuid.NewString()[:8]
-
-	u := seedLbUser(t, db, pfx+"-Ivan")
-	w := seedLbWallet(t, db, u.ID, -5.0)
-
-	// Simulate having a custom bet entry so the user passes the activity filter.
-	// We update the wallet directly (as a custom bet settlement would) and insert
-	// a minimal wc_predictions row with prediction_type matching custom.
-	// Use a real match to satisfy the FK-less but realistic setup.
-	m := seedLbMatch(t, db)
-	seedLbPrediction(t, db, u.ID, m.ID, "incorrect")
-	// Adjust wallet to reflect only the custom-bet-like scenario
-	require.NoError(t, db.Model(&model.WcWallet{}).
-		Where("id = ?", w.ID).
-		UpdateColumn("balance", -5.0).Error)
-
-	entries, err := repo.GetLeaderboard(model.WcTournamentWorldCup)
-	require.NoError(t, err)
-
-	entry := findLbEntry(entries, u.ID)
-	require.NotNil(t, entry, "user with bets and wallet must appear in leaderboard")
-	assert.Equal(t, -5.0, entry.NetPoints)
 }
 
 // ─── Tournament isolation: ListMatches ───────────────────────────────────────

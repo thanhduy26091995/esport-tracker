@@ -6,16 +6,18 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	mime "mime/multipart"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	mime "mime/multipart"
 )
 
 // mockFile wraps bytes.Reader to satisfy multipart.File without touching disk.
@@ -196,9 +198,18 @@ func seedAvatarTestUser(t *testing.T, db *gorm.DB) *model.User {
 	return u
 }
 
+// newUserServiceForTest builds a UserService backed by db. A cache store is mandatory:
+// mutating methods invalidate the user cache, and a nil store panics.
+func newUserServiceForTest(db *gorm.DB) *UserService {
+	return &UserService{
+		repo:  repository.NewUserRepository(db),
+		cache: cache.NewGoCacheStore(time.Minute, time.Minute),
+	}
+}
+
 func TestUpdateClub_ValidSlug_Persisted(t *testing.T) {
 	db := openAvatarTestDB(t)
-	svc := &UserService{repo: repository.NewUserRepository(db)}
+	svc := newUserServiceForTest(db)
 	user := seedAvatarTestUser(t, db)
 
 	require.NoError(t, svc.UpdateClub(user.ID, "liverpool"))
@@ -211,7 +222,7 @@ func TestUpdateClub_ValidSlug_Persisted(t *testing.T) {
 
 func TestUpdateClub_EmptyString_ClearsClub(t *testing.T) {
 	db := openAvatarTestDB(t)
-	svc := &UserService{repo: repository.NewUserRepository(db)}
+	svc := newUserServiceForTest(db)
 	user := seedAvatarTestUser(t, db)
 
 	require.NoError(t, svc.UpdateClub(user.ID, "barcelona"))
@@ -226,7 +237,7 @@ func TestUpdateClub_EmptyString_ClearsClub(t *testing.T) {
 
 func TestUpdateClub_NewLeagueSlugs_AllAccepted(t *testing.T) {
 	db := openAvatarTestDB(t)
-	svc := &UserService{repo: repository.NewUserRepository(db)}
+	svc := newUserServiceForTest(db)
 	user := seedAvatarTestUser(t, db)
 
 	// These are the slugs that were recently added — regression check.
@@ -245,7 +256,7 @@ func TestUpdateClub_NewLeagueSlugs_AllAccepted(t *testing.T) {
 
 func TestUpdateClub_UnknownUser_ReturnsNotFound(t *testing.T) {
 	db := openAvatarTestDB(t)
-	svc := &UserService{repo: repository.NewUserRepository(db)}
+	svc := newUserServiceForTest(db)
 
 	err := svc.UpdateClub(uuid.New(), "real-madrid")
 	require.Error(t, err)
@@ -254,7 +265,7 @@ func TestUpdateClub_UnknownUser_ReturnsNotFound(t *testing.T) {
 
 func TestUploadAvatar_ValidJPEG_WritesFileAndPersistsURL(t *testing.T) {
 	db := openAvatarTestDB(t)
-	svc := &UserService{repo: repository.NewUserRepository(db)}
+	svc := newUserServiceForTest(db)
 	user := seedAvatarTestUser(t, db)
 
 	// Minimal JPEG (SOI marker + APP0 + EOI)
@@ -280,7 +291,7 @@ func TestUploadAvatar_ValidJPEG_WritesFileAndPersistsURL(t *testing.T) {
 
 func TestUploadAvatar_SecondUpload_DeletesPreviousFile(t *testing.T) {
 	db := openAvatarTestDB(t)
-	svc := &UserService{repo: repository.NewUserRepository(db)}
+	svc := newUserServiceForTest(db)
 	user := seedAvatarTestUser(t, db)
 
 	jpegData := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00, 0xFF, 0xD9}
@@ -304,7 +315,7 @@ func TestUploadAvatar_SecondUpload_DeletesPreviousFile(t *testing.T) {
 
 func TestDeleteAvatar_RemovesFileAndClearsURL(t *testing.T) {
 	db := openAvatarTestDB(t)
-	svc := &UserService{repo: repository.NewUserRepository(db)}
+	svc := newUserServiceForTest(db)
 	user := seedAvatarTestUser(t, db)
 
 	jpegData := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00, 0xFF, 0xD9}

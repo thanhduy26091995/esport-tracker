@@ -39,13 +39,13 @@ func (h *WcHandler) GetPublicConfig(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"is_enabled":                  cfg.IsEnabled,
-		"min_points":                  cfg.MinPoints,
-		"max_points":                  cfg.MaxPoints,
-		"cancel_penalty_enabled":      cfg.CancelPenaltyEnabled,
-		"cancel_penalty_percent":      cfg.CancelPenaltyPercent,
-		"bet_reduce_max_percent":      cfg.BetReduceMaxPercent,
-		"bet_reduce_penalty_percent":  cfg.BetReducePenaltyPercent,
+		"is_enabled":                 cfg.IsEnabled,
+		"min_points":                 cfg.MinPoints,
+		"max_points":                 cfg.MaxPoints,
+		"cancel_penalty_enabled":     cfg.CancelPenaltyEnabled,
+		"cancel_penalty_percent":     cfg.CancelPenaltyPercent,
+		"bet_reduce_max_percent":     cfg.BetReduceMaxPercent,
+		"bet_reduce_penalty_percent": cfg.BetReducePenaltyPercent,
 	})
 }
 
@@ -62,13 +62,13 @@ func (h *WcHandler) GetConfig(c *gin.Context) {
 // UpdateConfig handles PUT /api/v1/wc/admin/config
 func (h *WcHandler) UpdateConfig(c *gin.Context) {
 	var req struct {
-		IsEnabled             *bool `json:"is_enabled"`
-		MinPoints             *int  `json:"min_points"`
-		MaxPoints             *int  `json:"max_points"`
-		CancelPenaltyEnabled  *bool `json:"cancel_penalty_enabled"`
-		CancelPenaltyPercent  *int  `json:"cancel_penalty_percent"`
-		BetReduceMaxPercent   *int  `json:"bet_reduce_max_percent"`
-		BetReducePenaltyPercent *int `json:"bet_reduce_penalty_percent"`
+		IsEnabled               *bool `json:"is_enabled"`
+		MinPoints               *int  `json:"min_points"`
+		MaxPoints               *int  `json:"max_points"`
+		CancelPenaltyEnabled    *bool `json:"cancel_penalty_enabled"`
+		CancelPenaltyPercent    *int  `json:"cancel_penalty_percent"`
+		BetReduceMaxPercent     *int  `json:"bet_reduce_max_percent"`
+		BetReducePenaltyPercent *int  `json:"bet_reduce_penalty_percent"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -701,7 +701,7 @@ func (h *WcHandler) AdminTopUp(c *gin.Context) {
 		return
 	}
 	adminID := c.MustGet(middleware.WcUserIDKey).(uuid.UUID)
-	if err := h.svc.AdminTopUp(adminID, targetID, req.Delta, req.Note); err != nil {
+	if err := h.svc.AdminTopUp(adminID, targetID, req.Delta, req.Note, tournamentType(c)); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}

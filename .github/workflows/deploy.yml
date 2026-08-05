@@ -25,6 +25,14 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
+      # Runs against the code currently on the VPS, before git reset pulls the new commit.
+      # A non-zero exit fails the job here, so a deploy never proceeds without a backup —
+      # schema migrations in deploy-update.sh can write data, not just alter columns.
+      - name: Backup database
+        run: |
+          ssh deploy@${{ secrets.VPS_HOST }} \
+            "cd esport-tracker && bash scripts/backup-db.sh"
+
       - name: Deploy
         run: |
           ssh deploy@${{ secrets.VPS_HOST }} \

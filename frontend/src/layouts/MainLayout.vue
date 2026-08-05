@@ -159,8 +159,7 @@ const reigningPlayerName = computed(() => userStore.users[0]?.name ?? '')
 
 const navigation = isSocSite
   ? [
-      { navKey: 'nav.aseanCup', href: '/asean-cup/predict', activePrefix: '/asean-cup', icon: Promotion, highlight: 'ac' },
-      { navKey: 'nav.worldCup', href: '/world-cup/predict', activePrefix: '/world-cup', icon: Promotion, highlight: 'wc' }
+      { navKey: 'nav.aseanCup', href: '/asean-cup/predict', activePrefix: '/asean-cup', icon: Promotion, highlight: 'ac' }
     ]
   : [
       { navKey: 'nav.dashboard', href: '/', icon: HomeFilled },
@@ -170,7 +169,6 @@ const navigation = isSocSite
       { navKey: 'nav.settlements', href: '/settlements', icon: DocumentCopy },
       { navKey: 'nav.fund', href: '/fund', icon: Wallet },
       { navKey: 'nav.aseanCup', href: '/asean-cup/predict', activePrefix: '/asean-cup', icon: Promotion, highlight: 'ac' },
-      { navKey: 'nav.worldCup', href: '/world-cup/predict', activePrefix: '/world-cup', icon: Promotion, highlight: 'wc' },
       { navKey: 'nav.settings', href: '/settings', icon: Setting },
     ]
 

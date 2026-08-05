@@ -2,16 +2,9 @@ import axios from 'axios'
 import type { WcMatch, WcMatchFilter, WcStandingsResponse } from '@/types/wc'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
-const WC_BASE = `${API_BASE}/wc`
 
-// Bare instance with no error interceptors — used by Dashboard for silent background fetches.
-// wcApi (with full error handling + toasts) remains unchanged for WC-specific pages.
-export const wcPublicApi = axios.create({
-  baseURL: WC_BASE,
-  timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
-})
-
+// Bare instances with no error interceptors — used by Dashboard for silent background fetches.
+// wcApi/acApi (with full error handling + toasts) remain unchanged for tournament pages.
 function publicApiFor(prefix: string) {
   return axios.create({
     baseURL: `${API_BASE}/${prefix}`,
@@ -20,8 +13,8 @@ function publicApiFor(prefix: string) {
   })
 }
 
-export async function listMatchesPublic(filter: WcMatchFilter = {}): Promise<WcMatch[]> {
-  const r = await wcPublicApi.get<WcMatch[]>('/matches', { params: filter })
+export async function listMatchesPublic(filter: WcMatchFilter, prefix: string): Promise<WcMatch[]> {
+  const r = await publicApiFor(prefix).get<WcMatch[]>('/matches', { params: filter })
   return r.data
 }
 

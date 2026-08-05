@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "FC25 Tracker",
-    "appNameSoc": "Dự Đoán WC",
+    "appNameSoc": "Dự Đoán ASEAN Cup",
     "language": "Ngôn ngữ",
     "back": "Quay lại",
     "save": "Lưu",
@@ -35,7 +35,7 @@
   },
   "layout": {
     "sidebarSubtitle": "Hệ thống điểm Esport",
-    "sidebarSubtitleSoc": "World Cup 2026",
+    "sidebarSubtitleSoc": "ASEAN Cup 2026",
     "version": "Phiên bản"
   },
   "nav": {
@@ -342,6 +342,7 @@
     }
   },
   "dashboard": {
+    "aseanUpcomingTitle": "⚽ ASEAN Cup 2026 — Sắp diễn ra",
     "title": "Tổng quan",
     "subtitle": "Theo dõi nhanh trạng thái hệ thống",
     "pageTitle": "Dashboard",

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/google/uuid"
@@ -52,7 +53,7 @@ func openPredictionTestDB(t *testing.T) *gorm.DB {
 func newPredictionService(db *gorm.DB) *WcService {
 	wcRepo := repository.NewWcRepository(db)
 	wcUserRepo := repository.NewWcUserRepository(db)
-	return NewWcService(wcRepo, wcUserRepo, nil, nil)
+	return NewWcService(wcRepo, wcUserRepo, nil, nil, cache.NewGoCacheStore(time.Minute, time.Minute))
 }
 
 // seedPredUser creates a WC user with a seeded wallet balance.
@@ -85,13 +86,13 @@ func seedHandicapMatch(t *testing.T, db *gorm.DB) *model.WcMatch {
 	hv := 0.5
 	oh, oa := 1.9, 1.95
 	m := &model.WcMatch{
-		ExternalID:   uuid.NewString(),
-		HomeTeam:     "France",
-		AwayTeam:     "Brazil",
-		MatchDate:    future,
-		Stage:        model.WcStageGroup,
-		Status:       model.WcStatusScheduled,
-		BetsLockedAt: &future,
+		ExternalID:       uuid.NewString(),
+		HomeTeam:         "France",
+		AwayTeam:         "Brazil",
+		MatchDate:        future,
+		Stage:            model.WcStageGroup,
+		Status:           model.WcStatusScheduled,
+		BetsLockedAt:     &future,
 		HandicapTeam:     model.WcTeamHome,
 		HandicapValue:    &hv,
 		OddsHandicapHome: &oh,
@@ -109,16 +110,16 @@ func seedHandicapMatch(t *testing.T, db *gorm.DB) *model.WcMatch {
 func setCancelPenaltyConfig(t *testing.T, db *gorm.DB, enabled bool, cancelPct, reduceMax, reducePenPct int) {
 	t.Helper()
 	require.NoError(t, db.Model(&model.WcConfig{}).Where("id = 1").Updates(map[string]interface{}{
-		"cancel_penalty_enabled":    enabled,
-		"cancel_penalty_percent":    cancelPct,
-		"bet_reduce_max_percent":    reduceMax,
+		"cancel_penalty_enabled":     enabled,
+		"cancel_penalty_percent":     cancelPct,
+		"bet_reduce_max_percent":     reduceMax,
 		"bet_reduce_penalty_percent": reducePenPct,
 	}).Error)
 	t.Cleanup(func() {
 		db.Model(&model.WcConfig{}).Where("id = 1").Updates(map[string]interface{}{
-			"cancel_penalty_enabled":    false,
-			"cancel_penalty_percent":    20,
-			"bet_reduce_max_percent":    50,
+			"cancel_penalty_enabled":     false,
+			"cancel_penalty_percent":     20,
+			"bet_reduce_max_percent":     50,
 			"bet_reduce_penalty_percent": 20,
 		})
 	})

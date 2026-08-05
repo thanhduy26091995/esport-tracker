@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/duyb/esport-score-tracker/internal/cache"
 	"github.com/duyb/esport-score-tracker/internal/model"
 	"github.com/duyb/esport-score-tracker/internal/repository"
 	"github.com/duyb/esport-score-tracker/internal/ws"
@@ -18,10 +19,11 @@ type WcCustomBetService struct {
 	wcRepo   *repository.WcRepository
 	userRepo *repository.WcUserRepository
 	hub      ws.HubBroadcaster
+	cache    cache.CacheStore
 }
 
-func NewWcCustomBetService(repo *repository.WcCustomBetRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository, hub ws.HubBroadcaster) *WcCustomBetService {
-	return &WcCustomBetService{repo: repo, wcRepo: wcRepo, userRepo: userRepo, hub: hub}
+func NewWcCustomBetService(repo *repository.WcCustomBetRepository, wcRepo *repository.WcRepository, userRepo *repository.WcUserRepository, hub ws.HubBroadcaster, c cache.CacheStore) *WcCustomBetService {
+	return &WcCustomBetService{repo: repo, wcRepo: wcRepo, userRepo: userRepo, hub: hub, cache: c}
 }
 
 type CreateCustomBetOption struct {
@@ -232,12 +234,13 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 				return err
 			}
 			return s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
-				WcUserID:      userID,
-				AdminID:       uuid.Nil,
-				Delta:         -penalty,
-				BalanceBefore: balanceBefore,
-				BalanceAfter:  balanceBefore - penalty,
-				Note:          fmt.Sprintf("custom bet cancel penalty — %d%%", cfg.CancelPenaltyPercent),
+				WcUserID:       userID,
+				AdminID:        uuid.Nil,
+				Delta:          -penalty,
+				BalanceBefore:  balanceBefore,
+				BalanceAfter:   balanceBefore - penalty,
+				TournamentType: bet.TournamentType,
+				Note:           fmt.Sprintf("custom bet cancel penalty — %d%%", cfg.CancelPenaltyPercent),
 			})
 		}
 		return nil
@@ -268,6 +271,7 @@ func (s *WcCustomBetService) CancelEntry(entryID, userID uuid.UUID) error {
 			TeamAway:  match.AwayTeam,
 		})
 	}
+	_ = s.cache.Delete(wcLeaderboardKey(bet.TournamentType))
 	return nil
 }
 
@@ -285,7 +289,7 @@ func (s *WcCustomBetService) Settle(betID, winningOptionID, adminID uuid.UUID) e
 	}
 
 	db := s.wcRepo.DB()
-	return db.Transaction(func(tx *gorm.DB) error {
+	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.MarkOptionWinner(tx, winningOptionID); err != nil {
 			return err
 		}
@@ -310,12 +314,13 @@ func (s *WcCustomBetService) Settle(betID, winningOptionID, adminID uuid.UUID) e
 					return err
 				}
 				if err := s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
-					WcUserID:      entry.WcUserID,
-					AdminID:       adminID,
-					Delta:         netChange,
-					BalanceBefore: balanceBefore,
-					BalanceAfter:  balanceBefore + netChange,
-					Note:          "custom bet settle — won",
+					WcUserID:       entry.WcUserID,
+					AdminID:        adminID,
+					Delta:          netChange,
+					BalanceBefore:  balanceBefore,
+					BalanceAfter:   balanceBefore + netChange,
+					TournamentType: bet.TournamentType,
+					Note:           "custom bet settle — won",
 				}); err != nil {
 					return err
 				}
@@ -328,12 +333,13 @@ func (s *WcCustomBetService) Settle(betID, winningOptionID, adminID uuid.UUID) e
 					return err
 				}
 				if err := s.wcRepo.LogWalletChange(tx, &model.WcWalletLog{
-					WcUserID:      entry.WcUserID,
-					AdminID:       adminID,
-					Delta:         delta,
-					BalanceBefore: balanceBefore,
-					BalanceAfter:  balanceBefore + delta,
-					Note:          "custom bet settle — lost",
+					WcUserID:       entry.WcUserID,
+					AdminID:        adminID,
+					Delta:          delta,
+					BalanceBefore:  balanceBefore,
+					BalanceAfter:   balanceBefore + delta,
+					TournamentType: bet.TournamentType,
+					Note:           "custom bet settle — lost",
 				}); err != nil {
 					return err
 				}
@@ -345,7 +351,11 @@ func (s *WcCustomBetService) Settle(betID, winningOptionID, adminID uuid.UUID) e
 			"settled_at": &now,
 			"settled_by": &adminID,
 		})
-	})
+	}); err != nil {
+		return err
+	}
+	_ = s.cache.Delete(wcLeaderboardKey(bet.TournamentType))
+	return nil
 }
 
 func (s *WcCustomBetService) VoidBet(betID uuid.UUID) error {
