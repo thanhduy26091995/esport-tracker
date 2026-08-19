@@ -560,12 +560,14 @@
           <el-input v-model="createMatchForm.away_team_code" placeholder="THA" />
         </el-form-item>
         <el-form-item label="Ngày giờ thi đấu">
+          <!-- No value-format: bind a Date and convert with toISOString() on save.
+               A format ending in [Z] stamps a literal "Z" onto local wall-time,
+               which stores giờ VN as UTC — 7h late. -->
           <el-date-picker
             v-model="createMatchForm.match_date"
             type="datetime"
             placeholder="Chọn ngày giờ"
             format="DD/MM/YYYY HH:mm"
-            value-format="YYYY-MM-DDTHH:mm:ss[Z]"
             style="width: 100%"
           />
         </el-form-item>
@@ -599,12 +601,12 @@
           </el-form-item>
         </div>
         <el-form-item label="Ngày giờ thi đấu">
+          <!-- Date-object binding, same reason as the create dialog above. -->
           <el-date-picker
             v-model="editMatchForm.match_date"
             type="datetime"
             placeholder="Chọn ngày giờ"
             format="DD/MM/YYYY HH:mm"
-            value-format="YYYY-MM-DDTHH:mm:ss[Z]"
             style="width:100%"
           />
         </el-form-item>
@@ -773,7 +775,7 @@ const createMatchForm = ref({
   away_team: '',
   home_team_code: '',
   away_team_code: '',
-  match_date: '',
+  match_date: null as Date | null,
   group_name: '',
 });
 async function handleCreateMatch() {
@@ -788,12 +790,12 @@ async function handleCreateMatch() {
       away_team: createMatchForm.value.away_team,
       home_team_code: createMatchForm.value.home_team_code || undefined,
       away_team_code: createMatchForm.value.away_team_code || undefined,
-      match_date: createMatchForm.value.match_date,
+      match_date: createMatchForm.value.match_date.toISOString(),
       group_name: createMatchForm.value.group_name || undefined,
     });
     ElMessage.success('Đã thêm trận đấu');
     createMatchDialogVisible.value = false;
-    createMatchForm.value = { home_team: '', away_team: '', home_team_code: '', away_team_code: '', match_date: '', group_name: '' };
+    createMatchForm.value = { home_team: '', away_team: '', home_team_code: '', away_team_code: '', match_date: null, group_name: '' };
     await store.fetchMatches();
   } finally {
     creatingMatch.value = false;
@@ -808,7 +810,7 @@ const editMatchForm = ref({
   away_team: '',
   home_team_code: '',
   away_team_code: '',
-  match_date: '',
+  match_date: null as Date | null,
   home_score: null as number | null,
   away_score: null as number | null,
   status: 'scheduled' as string,
@@ -821,7 +823,7 @@ function openEditMatchDialog(match: WcMatch) {
     away_team: match.away_team,
     home_team_code: match.home_team_code ?? '',
     away_team_code: match.away_team_code ?? '',
-    match_date: match.match_date,
+    match_date: new Date(match.match_date),
     home_score: match.home_score ?? null,
     away_score: match.away_score ?? null,
     status: match.status,
@@ -831,6 +833,10 @@ function openEditMatchDialog(match: WcMatch) {
 
 async function handleSaveEditMatch() {
   if (!editMatchTarget.value) return;
+  if (!editMatchForm.value.match_date) {
+    ElMessage.warning('Vui lòng chọn ngày giờ thi đấu');
+    return;
+  }
   if (editMatchForm.value.status === 'completed' &&
       (editMatchForm.value.home_score === null || editMatchForm.value.away_score === null)) {
     ElMessage.warning('Vui lòng nhập tỉ số trước khi đặt trạng thái Đã kết thúc');
@@ -841,7 +847,7 @@ async function handleSaveEditMatch() {
     const fields: Record<string, unknown> = {
       home_team: editMatchForm.value.home_team,
       away_team: editMatchForm.value.away_team,
-      match_date: editMatchForm.value.match_date,
+      match_date: editMatchForm.value.match_date.toISOString(),
       status: editMatchForm.value.status,
     };
     if (editMatchForm.value.home_team_code) fields.home_team_code = editMatchForm.value.home_team_code;
